@@ -31,7 +31,18 @@ class EmailQueueJob extends TimedJob
 
 	protected function run($argument): void
 	{
-		foreach ($this->outbox->pendingBatch() as $mail) {
+		$lease = new \DateTimeImmutable('+15 minutes');
+		foreach ($this->outbox->dueBatch() as $mail) {
+			$id = (int)$mail->getId();
+			$epoch = (int)$mail->getAttempts() + 1; // post-claim attempt count
+			if (!$this->outbox->claim($id, $lease)) {
+				continue; // another worker took it
+			}
+			if ($epoch > 4) {
+				// 'sending' recovery past the attempt cap — dead-letter it
+				$this->outbox->markFailed($id, $epoch, true);
+				continue;
+			}
 			try {
 				$payload = json_decode((string)$mail->getPayloadJson(), true) ?? [];
 				[$subject, $body] = $this->renderer->render(
@@ -41,11 +52,11 @@ class EmailQueueJob extends TimedJob
 				$message->setSubject($subject);
 				$message->setBody($body, 'text/plain');
 				$this->mailer->send($message);
-				$this->outbox->markSent((int)$mail->getId());
+				$this->outbox->markSent($id, $epoch);
 			} catch (\Throwable $e) {
 				$this->logger->warning('email send failed: ' . $e->getMessage(),
 					['kind' => $mail->getKind()]);
-				$this->outbox->markAttempt((int)$mail->getId(), (int)$mail->getAttempts() + 1 >= 4);
+				$this->outbox->markFailed($id, $epoch, $epoch >= 4);
 			}
 		}
 	}

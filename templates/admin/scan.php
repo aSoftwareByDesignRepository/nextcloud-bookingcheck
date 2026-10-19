@@ -15,8 +15,8 @@ include __DIR__ . '/../common/page-start.php';
 					<label for="bck-scan-code" class="bck-label"><?php p($l->t('Ticket code')); ?></label>
 					<input id="bck-scan-code" name="code" type="text" autocomplete="off"
 						autocapitalize="characters" spellcheck="false" required
-						placeholder="BCK-XXXX-XXXX" inputmode="text">
-					<p class="bck-field__hint"><?php p($l->t('The code under the QR on the ticket.')); ?></p>
+						placeholder="BCK-2026-XXXXXXXX" inputmode="text">
+					<p class="bck-field__hint"><?php p($l->t('Scan the QR payload (BCK1:…) or type the order reference printed on the ticket (BCK-YYYY-XXXXXXXX).')); ?></p>
 					<p class="bck-field-error" id="bck-scan-error" role="alert" hidden></p>
 				</div>
 				<div class="bck-form-actions">

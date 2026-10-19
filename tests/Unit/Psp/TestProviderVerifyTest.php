@@ -46,6 +46,19 @@ final class TestProviderVerifyTest extends TestCase
 		$this->provider('')->verifyRaw('{}', 'x');
 	}
 
+	/**
+	 * An empty secret must refuse verification BEFORE HMAC — otherwise an
+	 * attacker computes hash_hmac(body, '') and forges a passing signature.
+	 */
+	public function testEmptySecretRejectsForgedEmptyKeySignature(): void
+	{
+		$body = json_encode(['id' => 'e9', 'psp_ref' => 'p9', 'status' => 'paid',
+			'amount_cents' => 100, 'currency' => 'EUR']);
+		$forged = hash_hmac('sha256', $body, '');
+		$this->expectException(PspException::class);
+		$this->provider('')->verifyRaw($body, $forged);
+	}
+
 	public function testMalformedBodyRejected(): void
 	{
 		$body = '{"foo":1}';

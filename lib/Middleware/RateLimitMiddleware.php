@@ -30,6 +30,14 @@ class RateLimitMiddleware extends Middleware
 		'/pub/api/reviews'         => ['action' => 'bck_review',     'sleep' => 250],
 		'/pub/api/promo/validate'  => ['action' => 'bck_promo',      'sleep' => 200],
 		'/pub/m/recover'           => ['action' => 'bck_recover',    'sleep' => 400],
+		// PSP session minting is a real-money call — a leaked manage token
+		// or impatient buyer must not spawn unbounded checkout sessions
+		'/pay'                     => ['action' => 'bck_pay_now',    'sleep' => 400],
+		'/cancel'                  => ['action' => 'bck_pub_cancel', 'sleep' => 400],
+		'/answers'                 => ['action' => 'bck_intake',     'sleep' => 250],
+		// upload churn: deleted rows free the quota, so without a cap a
+		// paid-order holder could write unbounded blobs + DB rows
+		'/uploads'                 => ['action' => 'bck_upload',     'sleep' => 400],
 	];
 
 	public function __construct(

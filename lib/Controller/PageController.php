@@ -38,4 +38,21 @@ class PageController extends Controller
 	{
 		return new TemplateResponse($this->appName, 'admin/needs-role', []);
 	}
+
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function supportUs(): TemplateResponse
+	{
+		return new TemplateResponse($this->appName, 'support-us', []);
+	}
+
+	/** Upsell landing for Pro-gated page navigations (LicenseGate). */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function pro(): TemplateResponse
+	{
+		return new TemplateResponse($this->appName, 'admin/pro', [
+			'navId' => 'pro',
+		]);
+	}
 }

@@ -1,6 +1,6 @@
 <?php
 /** PSP return — we NEVER trust the redirect; show pending + poll webhook state. */
-\OCP\Util::addScript('bookingcheck', 'pages/public-return');
+\OCA\BookingCheck\Support\AssetRegistrar::registerPublic('public-return');
 $order = $_['order'] ?? [];
 ?>
 <div class="bck-pub bck-pub--narrow">

@@ -66,6 +66,9 @@ class OrderService
 		private readonly WaitlistService $waitlist,
 		private readonly IDBConnection $db,
 		private readonly IURLGenerator $url,
+		private readonly ?CrmSyncService $crmSync = null,
+		private readonly ?SellerNotifyService $sellerNotify = null,
+		private readonly ?OutboundWebhookService $webhooks = null,
 	) {
 	}
 
@@ -90,6 +93,7 @@ class OrderService
 		?array $billing,
 		bool $isTest,
 		string $actor,
+		bool $consented = false,
 	): array {
 		// ---- idempotency first: same token ⇒ same order, no second hold ----
 		$existing = $this->orders->findByIdemToken($idemToken);
@@ -109,13 +113,29 @@ class OrderService
 			}
 			$this->assertSalesWindowOpen($offering);
 
+			// US-301 AC-3: a configured terms text makes consent mandatory and
+			// snapshots the exact wording onto the order — later edits must not
+			// retro-rewrite what was agreed.
+			$tosText = trim((string)($offering->getTosText() ?? ''));
+			if ($tosText !== '' && !$consented) {
+				throw new ValidationException(['consent' => 'Please accept the terms to continue.']);
+			}
+
+			// targets must belong to THIS offering — otherwise a foreign
+			// target_id would book seats cross-tenant at this price.
+			$this->inventory->assertTargetsOwnedBy($offeringId, $seatLines);
+			// deterministic pre-lock of every inventory row (incl. series
+			// member events) — see ReservationService::prelock.
+			$this->inventory->prelock($seatLines);
+
 			$offeringRow = [
 				'id' => $offeringId,
 				'price_cents' => $offering->getPriceCents(),
 				'currency' => $offering->getCurrency(),
 				'vat_bp' => $offering->getVatBp(),
 			];
-			$priced = $this->pricing->price($offeringRow, $seatLines, $addonLines, $promoCode, $voucherCode);
+			$priced = $this->pricing->price($offeringRow, $seatLines, $addonLines,
+				$promoCode, $voucherCode, !empty($billing['reverse_charge']));
 
 			// approval path: cap total approval-held seats when configured
 			$needsApproval = (int)$offering->getApprovalRequired() === 1 && !$isTest;
@@ -127,7 +147,20 @@ class OrderService
 			$now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
 
 			$order = new Order();
-			$order->setRef($this->tokens->publicRef('BCK', (int)$now->format('Y')));
+			// ref collision precheck — unique index is the backstop; a
+			// collision here would otherwise surface as a bare 500.
+			$ref = null;
+			for ($try = 0; $try < 5; $try++) {
+				$cand = $this->tokens->publicRef('BCK', (int)$now->format('Y'));
+				if ($this->orders->findByRef($cand) === null) {
+					$ref = $cand;
+					break;
+				}
+			}
+			if ($ref === null) {
+				throw new StateConflictException('Could not mint a unique order reference', 'RETRY');
+			}
+			$order->setRef($ref);
 			$order->setOfferingId($offeringId);
 			$order->setBuyerName($buyerName);
 			$order->setBuyerEmail(strtolower(trim($buyerEmail)));
@@ -150,6 +183,10 @@ class OrderService
 				$order->setVatId($billing['vat_id'] ?? null);
 				$order->setReverseCharge(!empty($billing['reverse_charge']) ? 1 : 0);
 				$order->setViesStatus($billing['vies_status'] ?? 'none');
+			}
+			if ($tosText !== '') {
+				$order->setConsentAt($now);
+				$order->setConsentText($tosText);
 			}
 			$this->orders->insert($order);
 
@@ -192,6 +229,10 @@ class OrderService
 					$now->modify('+' . $this->settings->getInt('approval_hold_min', 4320) . ' minutes'));
 				$this->email->queue('approval_request', $this->settings->get('seller_email'), 'en',
 					['order_ref' => $order->getRef(), 'offering' => $offering->getTitle()]);
+				if ($this->sellerNotify !== null) {
+					$this->sellerNotify->approvalNeeded($order, (string)$offering->getCreatedBy(),
+						(string)$offering->getTitle());
+				}
 				$this->email->queue('approval_pending', $order->getBuyerEmail(), $order->getBuyerLocale(),
 					['order_ref' => $order->getRef()]);
 				$action = 'approve';
@@ -206,6 +247,7 @@ class OrderService
 
 			$this->audit->log((int)$order->getId(), $offeringId, $actor, 'order.created', null, $order->getStatus(),
 				['amount' => $priced['total'], 'test' => $isTest ? 1 : 0]);
+			$this->emitOrderEvent('order.created', $order);
 
 			$this->db->commit();
 			return ['order' => $order, 'manageToken' => $manageToken, 'action' => $action];
@@ -256,6 +298,7 @@ class OrderService
 			$this->setStatusLocked($order, [self::ST_PENDING_PAYMENT], self::ST_FAILED);
 			$this->audit->log((int)$order->getId(), (int)$order->getOfferingId(), $actor, 'order.failed',
 				self::ST_PENDING_PAYMENT, self::ST_FAILED);
+			$this->emitOrderEvent('order.failed', $order, self::ST_PENDING_PAYMENT);
 			$this->email->queue('payment_failed', $order->getBuyerEmail(), $order->getBuyerLocale(),
 				['order_ref' => $order->getRef()]);
 			return $order;
@@ -275,13 +318,20 @@ class OrderService
 				$this->restoreMoneyLocksLocked($o);
 				$this->setStatusLocked($o, [$from], self::ST_EXPIRED);
 				$this->audit->log((int)$o->getId(), (int)$o->getOfferingId(), $actor, 'order.expired', $from, self::ST_EXPIRED);
+				$this->emitOrderEvent('order.expired', $o, $from);
 				$this->email->queue('order_expired', $o->getBuyerEmail(), $o->getBuyerLocale(),
 					['order_ref' => $o->getRef()]);
 				return $o;
 			});
 			return true;
-		} catch (StateConflictException) {
-			return false; // stolen transition — fine
+		} catch (StateConflictException $e) {
+			// only a genuinely stolen transition is benign — an inventory
+			// underflow or other conflict must surface loudly, not loop
+			// silently every cron tick.
+			if ($e->getCodeName() === 'ILLEGAL_TRANSITION') {
+				return false;
+			}
+			throw $e;
 		}
 	}
 
@@ -303,6 +353,7 @@ class OrderService
 			$this->orders->update($o);
 			$this->audit->log((int)$o->getId(), (int)$o->getOfferingId(), $sellerUid, 'order.approved',
 				self::ST_PENDING_APPROVAL, self::ST_APPROVED);
+			$this->emitOrderEvent('order.approved', $o, self::ST_PENDING_APPROVAL);
 			// pay link goes out — fresh bearer; the earlier approval token
 			// (delivered in the checkout response) is retired.
 			[$tok, $hash] = $this->tokens->mint();
@@ -329,6 +380,7 @@ class OrderService
 			$this->setStatusLocked($o, [self::ST_PENDING_APPROVAL], self::ST_DECLINED);
 			$this->audit->log((int)$o->getId(), (int)$o->getOfferingId(), $sellerUid, 'order.declined',
 				self::ST_PENDING_APPROVAL, self::ST_DECLINED);
+			$this->emitOrderEvent('order.declined', $o, self::ST_PENDING_APPROVAL);
 			$this->email->queue('order_declined', $o->getBuyerEmail(), $o->getBuyerLocale(),
 				['order_ref' => $o->getRef()]);
 			return $o;
@@ -353,6 +405,7 @@ class OrderService
 			$this->restoreMoneyLocksLocked($o);
 			$this->setStatusLocked($o, [$from], self::ST_CANCELLED);
 			$this->audit->log((int)$o->getId(), (int)$o->getOfferingId(), $actor, 'order.cancelled', $from, self::ST_CANCELLED);
+			$this->emitOrderEvent('order.cancelled', $o, $from);
 			return $o;
 		});
 	}
@@ -363,6 +416,19 @@ class OrderService
 	 */
 	public function releaseSoldSeatsLocked(Order $order): void
 	{
+		$seatLines = [];
+		foreach ($this->lines->findByOrder((int)$order->getId()) as $line) {
+			if ($line->getLineKind() === 'seat') {
+				$seatLines[] = [
+					'target_type' => $line->getTargetType(),
+					'target_id' => (int)$line->getTargetId(),
+					'resource_id' => $line->getResourceId() !== null ? (int)$line->getResourceId() : null,
+				];
+			}
+		}
+		// locks before mutation, global order — the release path would
+		// otherwise take inventory locks in insertion order (deadlock edge).
+		$this->inventory->prelock($seatLines);
 		foreach ($this->lines->findByOrder((int)$order->getId()) as $line) {
 			if ($line->getLineKind() !== 'seat') {
 				continue;
@@ -385,15 +451,23 @@ class OrderService
 				throw new StateConflictException('Only paid orders can be cancelled', 'ILLEGAL_TRANSITION');
 			}
 			$this->releaseSoldSeatsLocked($o);
+			$this->tickets->revokeForOrder((int)$o->getId());
 			$this->setStatusLocked($o, [self::ST_PAID], self::ST_CANCELLED);
 			$this->audit->log((int)$o->getId(), (int)$o->getOfferingId(), $actor, 'order.cancelled', self::ST_PAID, self::ST_CANCELLED);
+			$this->emitOrderEvent('order.cancelled', $o, self::ST_PAID);
 			return $o;
 		});
 	}
 
-	public function transitionToRefunded(int $orderId, string $actor, array $meta = []): Order
+	/**
+	 * @param int|null $creditAmountCents mint a GoBD credit note for this
+	 *   amount inside the same transaction — allocate()'s FOR UPDATE only
+	 *   serializes while a transaction is open, so the credit must live
+	 *   here, never in an autocommit controller call.
+	 */
+	public function transitionToRefunded(int $orderId, string $actor, array $meta = [], ?int $creditAmountCents = null): Order
 	{
-		return $this->withLock($orderId, function (Order $o) use ($actor, $meta) {
+		return $this->withLock($orderId, function (Order $o) use ($actor, $meta, $creditAmountCents) {
 			if ($o->getStatus() === self::ST_REFUNDED) {
 				return $o;
 			}
@@ -403,9 +477,19 @@ class OrderService
 			$from = $o->getStatus();
 			if ($from === self::ST_PAID) {
 				$this->releaseSoldSeatsLocked($o);
+				$this->tickets->revokeForOrder((int)$o->getId());
 			}
 			$this->setStatusLocked($o, [$from], self::ST_REFUNDED);
+			// stored value comes back: a voucher is money the buyer already
+			// paid; refunding must return its credit (the use stays counted).
+			if ($o->getVoucherId() !== null && (int)$o->getDiscountCents() > 0) {
+				$this->vouchers->restoreCredit((int)$o->getVoucherId(), (int)$o->getDiscountCents());
+			}
+			if ($creditAmountCents !== null && $creditAmountCents > 0) {
+				$this->invoices->issueCredit($o, $creditAmountCents);
+			}
 			$this->audit->log((int)$o->getId(), (int)$o->getOfferingId(), $actor, 'order.refunded', $from, self::ST_REFUNDED, $meta);
+			$this->emitOrderEvent('order.refunded', $o, $from);
 			return $o;
 		});
 	}
@@ -419,6 +503,23 @@ class OrderService
 	// ---------------------------------------------------------------
 	// Internals
 	// ---------------------------------------------------------------
+
+	/**
+	 * Fire a lifecycle event to subscribed outbound webhooks. Runs inside
+	 * the order transaction — a rolled-back transition emits nothing.
+	 * Payload carries no buyer PII: the ref is the correlation handle.
+	 */
+	private function emitOrderEvent(string $event, Order $o, ?string $from = null): void
+	{
+		$this->webhooks?->emit($event, [
+			'order_ref' => $o->getRef(),
+			'offering_id' => (int)$o->getOfferingId(),
+			'from' => $from,
+			'to' => $o->getStatus(),
+			'amount_cents' => (int)$o->getAmountCents(),
+			'currency' => $o->getCurrency(),
+		]);
+	}
 
 	/** Run $fn with the order row locked in a fresh transaction. */
 	private function withLock(int $orderId, callable $fn): Order
@@ -460,12 +561,21 @@ class OrderService
 	private function completePaidLocked(Order $order, string $actor): string
 	{
 		$seatLines = [];
+		$targets = [];
 		foreach ($this->lines->findByOrder((int)$order->getId()) as $line) {
 			if ($line->getLineKind() === 'seat') {
-				$this->inventory->confirm($line->getTargetType(), (int)$line->getTargetId(),
-					(int)$line->getSeats(), $line->getResourceId() !== null ? (int)$line->getResourceId() : null);
 				$seatLines[] = $line;
+				$targets[] = [
+					'target_type' => $line->getTargetType(),
+					'target_id' => (int)$line->getTargetId(),
+					'resource_id' => $line->getResourceId() !== null ? (int)$line->getResourceId() : null,
+				];
 			}
+		}
+		$this->inventory->prelock($targets);
+		foreach ($seatLines as $line) {
+			$this->inventory->confirm($line->getTargetType(), (int)$line->getTargetId(),
+				(int)$line->getSeats(), $line->getResourceId() !== null ? (int)$line->getResourceId() : null);
 		}
 		$wasApproved = $order->getStatus() === self::ST_APPROVED;
 		$this->setStatusLocked($order,
@@ -478,6 +588,18 @@ class OrderService
 			$this->invoices->issueForOrder($order);
 		}
 		$this->tickets->issueForOrder($order);
+		$off = ($this->crmSync !== null || $this->sellerNotify !== null)
+			? $this->offerings->find((int)$order->getOfferingId()) : null;
+		if ($this->crmSync !== null && $off !== null) {
+			$seatCount = 0;
+			foreach ($seatLines as $sl) {
+				$seatCount += (int)$sl->getSeats();
+			}
+			$this->crmSync->enqueueBuyerSync($order, $seatCount, (string)$off->getTitle());
+		}
+		if ($this->sellerNotify !== null && $off !== null) {
+			$this->sellerNotify->orderPaid($order, (string)$off->getCreatedBy(), (string)$off->getTitle());
+		}
 
 		// Fresh bearer for the buyer: the createOrder token for pay-orders was
 		// never exposed, so rotating here is safe and keeps one live link.
@@ -487,15 +609,28 @@ class OrderService
 		$manageUrl = $this->url->linkToRouteAbsolute('bookingcheck.manage.show',
 			['token' => $manageToken]);
 
+		$this->audit->log((int)$order->getId(), (int)$order->getOfferingId(), $actor, 'order.paid',
+			$wasApproved ? self::ST_APPROVED : self::ST_PENDING_PAYMENT, self::ST_PAID);
+		$this->emitOrderEvent('order.paid', $order,
+			$wasApproved ? self::ST_APPROVED : self::ST_PENDING_PAYMENT);
 		$this->email->queue('order_confirmed', $order->getBuyerEmail(), $order->getBuyerLocale(),
 			['order_ref' => $order->getRef(), 'manage_url' => $manageUrl]);
 		return $manageToken;
-		$this->audit->log((int)$order->getId(), (int)$order->getOfferingId(), $actor, 'order.paid',
-			$wasApproved ? self::ST_APPROVED : self::ST_PENDING_PAYMENT, self::ST_PAID);
 	}
 
 	private function releaseHoldsLocked(Order $order): void
 	{
+		$seatLines = [];
+		foreach ($this->lines->findByOrder((int)$order->getId()) as $line) {
+			if ($line->getLineKind() === 'seat') {
+				$seatLines[] = [
+					'target_type' => $line->getTargetType(),
+					'target_id' => (int)$line->getTargetId(),
+					'resource_id' => $line->getResourceId() !== null ? (int)$line->getResourceId() : null,
+				];
+			}
+		}
+		$this->inventory->prelock($seatLines);
 		foreach ($this->lines->findByOrder((int)$order->getId()) as $line) {
 			if ($line->getLineKind() !== 'seat') {
 				continue;

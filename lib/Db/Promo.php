@@ -18,6 +18,7 @@ class Promo extends Entity
 	protected $percentBps;
 	protected $amountCents;
 	protected $scope;
+	protected $currency;
 	protected $validFrom;
 	protected $validUntil;
 	protected $maxUses;
@@ -45,6 +46,7 @@ class Promo extends Entity
 			'percentBps' => $this->percentBps === null ? null : (int)$this->percentBps,
 			'amountCents' => $this->amountCents === null ? null : (int)$this->amountCents,
 			'scope' => $this->scope,
+			'currency' => $this->currency,
 			'validFrom' => $this->validFrom === null ? null : $this->validFrom->format(\DateTimeInterface::ATOM),
 			'validUntil' => $this->validUntil === null ? null : $this->validUntil->format(\DateTimeInterface::ATOM),
 			'maxUses' => $this->maxUses === null ? null : (int)$this->maxUses,

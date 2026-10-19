@@ -53,6 +53,11 @@ class PromoController extends Controller
 		if (!in_array($kind, ['percent', 'fixed'], true)) {
 			throw new ValidationException(['kind' => 'Pick a discount type.']);
 		}
+		// the unique index still guards the race — this turns it into a
+		// field error instead of a bare 500
+		if ($this->items->findByCode($code) !== null) {
+			throw new ValidationException(['code' => 'That code is already taken.']);
+		}
 		$p = new Promo();
 		$p->setCode($code);
 		$p->setKind($kind);
@@ -67,6 +72,13 @@ class PromoController extends Controller
 			if ($cents === null || $cents <= 0) {
 				throw new ValidationException(['amount_cents' => 'Enter an amount.']);
 			}
+			// fixed discounts are denominated — a €10 code must not
+			// silently subtract 10 units of a foreign currency
+			$currency = strtoupper(trim((string)$this->request->getParam('currency', 'EUR')));
+			if (!preg_match('/^[A-Z]{3}$/', $currency)) {
+				throw new ValidationException(['currency' => 'Invalid currency.']);
+			}
+			$p->setCurrency($currency);
 			$p->setAmountCents($cents);
 		}
 		$p->setScope('all');

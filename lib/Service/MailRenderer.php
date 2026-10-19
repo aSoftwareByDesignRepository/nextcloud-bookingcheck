@@ -60,12 +60,25 @@ class MailRenderer
 			'waitlist_offer' => [
 				'A seat opened up',
 				"A seat is held for you — claim it here: " .
-					self::head($p['claim_url'] ?? $p['claim_token'] ?? '') . "\n",
+					self::head($p['claim_url'] ?? '') . "\n",
 			],
 			'manage_link' => [
 				'Your booking link — ' . $ref,
 				"Here is your manage link for order {$ref}:\n" .
-					self::head($p['manage_url'] ?? $p['token'] ?? '') . "\n",
+					self::head($p['manage_url'] ?? '') . "\n",
+			],
+			'broadcast' => [
+				self::head($p['subject'] ?? 'Update'),
+				// seller-authored plaintext — no HTML interpretation, ever
+				(string)($p['body'] ?? '') . "\n",
+			],
+			'seller_order_paid' => [
+				'New paid booking — ' . $ref,
+				"Order {$ref} was paid.\n" .
+					(!empty($p['offering']) ? 'Offering: ' . self::head((string)$p['offering']) . "\n" : '') .
+					(isset($p['amount']) ? 'Amount: ' . number_format((float)$p['amount'], 2) . ' ' .
+						self::head((string)($p['currency'] ?? '')) . "\n" : '') .
+					"Open BookingCheck → Orders.\n",
 			],
 			default => [
 				'BookingCheck',

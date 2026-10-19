@@ -19,6 +19,7 @@ class EmailOutbox extends Entity
 	protected $payloadJson;
 	protected $status;
 	protected $attempts;
+	protected $nextAt;
 	protected $createdAt;
 	protected $sentAt;
 
@@ -26,6 +27,7 @@ class EmailOutbox extends Entity
 	{
 		$this->addType('id', 'integer');
 		$this->addType('attempts', 'integer');
+		$this->addType('nextAt', 'datetime_immutable');
 		$this->addType('createdAt', 'datetime_immutable');
 		$this->addType('sentAt', 'datetime_immutable');
 	}
@@ -40,6 +42,7 @@ class EmailOutbox extends Entity
 			'payloadJson' => $this->payloadJson,
 			'status' => $this->status,
 			'attempts' => (int)$this->attempts,
+			'nextAt' => $this->nextAt === null ? null : $this->nextAt->format(\DateTimeInterface::ATOM),
 			'createdAt' => $this->createdAt === null ? null : $this->createdAt->format(\DateTimeInterface::ATOM),
 			'sentAt' => $this->sentAt === null ? null : $this->sentAt->format(\DateTimeInterface::ATOM),
 		];

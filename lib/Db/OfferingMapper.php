@@ -77,4 +77,65 @@ class OfferingMapper extends QBMapper
 		return $this->findEntities($qb);
 	}
 
+	/** True when any order ever referenced this offering — legal records. */
+	public function hasOrders(int $offeringId): bool
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('id'))
+			->from('bc_order')
+			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)));
+		return (int)$qb->executeQuery()->fetchOne() > 0;
+	}
+
+	/**
+	 * Remove every offering-owned config row before the offering itself.
+	 * Call only when hasOrders() is false — sold offerings must be archived,
+	 * never deleted (orders would dangle). Runs in the caller's transaction.
+	 *
+	 * Left alone on purpose: bc_audit (append-only history) and
+	 * bc_promo / bc_voucher / bc_material_lib (global, not offering-owned).
+	 */
+	public function deleteChildren(int $offeringId): void
+	{
+		// waitlist rows key on target ids — collect them first
+		$targetIds = [];
+		foreach (['bc_event', 'bc_series', 'bc_slot'] as $t) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('id')->from($t)
+				->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)));
+			$targetIds[$t] = array_map('intval',
+				$qb->executeQuery()->fetchAll(\PDO::FETCH_COLUMN));
+		}
+		if ($targetIds['bc_slot'] !== []) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_slot_res')
+				->where($qb->expr()->in('slot_id', $qb->createNamedParameter(
+					$targetIds['bc_slot'], \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))
+				->executeStatement();
+		}
+		$wl = [];
+		foreach (['event' => 'bc_event', 'series' => 'bc_series', 'slot' => 'bc_slot'] as $type => $t) {
+			if ($targetIds[$t] !== []) {
+				$wl[] = [$type, $targetIds[$t]];
+			}
+		}
+		foreach ($wl as [$type, $ids]) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_waitlist')
+				->where($qb->expr()->eq('target_type', $qb->createNamedParameter($type)))
+				->andWhere($qb->expr()->in('target_id', $qb->createNamedParameter(
+					$ids, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))
+				->executeStatement();
+		}
+		// offering-scoped tables — plain offering_id deletes
+		foreach (['bc_event', 'bc_series', 'bc_slot', 'bc_slot_tpl', 'bc_price_cat',
+			'bc_addon', 'bc_resource', 'bc_question', 'bc_material',
+			'bc_promo_scope', 'bc_broadcast'] as $t) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete($t)
+				->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)))
+				->executeStatement();
+		}
+	}
+
 }

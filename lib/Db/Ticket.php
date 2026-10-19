@@ -22,6 +22,7 @@ class Ticket extends Entity
 	protected $qrTokenEnc;
 	protected $checkedInAt;
 	protected $checkedInBy;
+	protected $revokedAt;
 	protected $passAppleRef;
 	protected $passGoogleRef;
 
@@ -31,6 +32,7 @@ class Ticket extends Entity
 		$this->addType('lineId', 'integer');
 		$this->addType('seatNo', 'integer');
 		$this->addType('checkedInAt', 'datetime_immutable');
+		$this->addType('revokedAt', 'datetime_immutable');
 	}
 
 	public function jsonSerialize(): array
@@ -45,6 +47,7 @@ class Ticket extends Entity
 			'qrTokenHash' => $this->qrTokenHash,
 			'checkedInAt' => $this->checkedInAt === null ? null : $this->checkedInAt->format(\DateTimeInterface::ATOM),
 			'checkedInBy' => $this->checkedInBy,
+			'revokedAt' => $this->revokedAt === null ? null : $this->revokedAt->format(\DateTimeInterface::ATOM),
 			'passAppleRef' => $this->passAppleRef,
 			'passGoogleRef' => $this->passGoogleRef,
 		];

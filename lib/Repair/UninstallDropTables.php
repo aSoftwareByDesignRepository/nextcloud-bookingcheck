@@ -73,6 +73,7 @@ final class UninstallDropTables implements IRepairStep
 		'bc_slot',
 		'bc_slot_res',
 		'bc_slot_tpl',
+		'bc_sync_task',
 		'bc_ticket',
 		'bc_upload',
 		'bc_voucher',

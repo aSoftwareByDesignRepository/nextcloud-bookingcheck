@@ -54,4 +54,34 @@ class ResourceMapper extends QBMapper
 		$qb->select('*')->from($this->getTableName())->orderBy('id', 'ASC');
 		return $this->findEntities($qb);
 	}
+
+	/** @return list<Resource> active resources of one offering */
+	public function findByOffering(int $offeringId): array
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)))
+			->andWhere($qb->expr()->eq('active', $qb->createNamedParameter(1)))
+			->orderBy('sort', 'ASC')->addOrderBy('id', 'ASC');
+		return $this->findEntities($qb);
+	}
+
+	/**
+	 * Live references to this resource — slot pools or order lines.
+	 * A used resource must be deactivated, never deleted (counters and
+	 * ticket/roster joins would dangle).
+	 */
+	public function hasUsage(int $id): bool
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('id'))->from('bc_slot_res')
+			->where($qb->expr()->eq('resource_id', $qb->createNamedParameter($id)));
+		if ((int)$qb->executeQuery()->fetchOne() > 0) {
+			return true;
+		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('id'))->from('bc_order_line')
+			->where($qb->expr()->eq('resource_id', $qb->createNamedParameter($id)));
+		return (int)$qb->executeQuery()->fetchOne() > 0;
+	}
 }

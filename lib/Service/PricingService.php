@@ -11,6 +11,7 @@ namespace OCA\BookingCheck\Service;
 
 use OCA\BookingCheck\Db\AddonMapper;
 use OCA\BookingCheck\Db\PriceCatMapper;
+use OCA\BookingCheck\Db\Promo;
 use OCA\BookingCheck\Db\PromoMapper;
 use OCA\BookingCheck\Db\PromoScopeMapper;
 use OCA\BookingCheck\Db\VoucherMapper;
@@ -30,6 +31,7 @@ class PricingService
 		private readonly PromoMapper $promos,
 		private readonly PromoScopeMapper $promoScopes,
 		private readonly VoucherMapper $vouchers,
+		private readonly LicenseService $license,
 	) {
 	}
 
@@ -48,7 +50,7 @@ class PricingService
 	 *   netCents:int, vatCents:int, vatBp:int, currency:string
 	 * }
 	 */
-	public function price(array $offering, array $seatLines, array $addonLines = [], ?string $promoCode = null, ?string $voucherCode = null): array
+	public function price(array $offering, array $seatLines, array $addonLines = [], ?string $promoCode = null, ?string $voucherCode = null, bool $reverseCharge = false): array
 	{
 		$offeringId = (int)$offering['id'];
 		$fields = [];
@@ -126,12 +128,19 @@ class PricingService
 		}
 
 		// ---- promo (eligible: seat lines only, never addons/vouchers) ---
+		// Pro-gated: on the free tier a submitted code is an unknown code —
+		// silently ignored here, rejected at redeem like any other bad code.
 		$promoCents = 0;
 		$promoId = null;
 		$promoRow = null;
-		if ($promoCode !== null && $promoCode !== '') {
+		if ($promoCode !== null && $promoCode !== '' && $this->license->hasFeature('promos')) {
 			$promoRow = $this->promos->findByCode($promoCode);
-			if ($promoRow !== null && $this->promoUsable($promoRow, $offeringId)) {
+			if ($promoRow !== null && $this->promoUsable($promoRow, $offeringId)
+				// a fixed-amount code is denominated — foreign-currency
+				// offerings never see the discount (NULL = legacy row)
+				&& ($promoRow->getCurrency() === null
+					|| $promoRow->getKind() === 'percent'
+					|| $promoRow->getCurrency() === (string)$offering['currency'])) {
 				$promoId = (int)$promoRow->getId();
 				$eligible = $seatSubtotal;
 				if ($promoRow->getKind() === 'percent') {
@@ -149,25 +158,43 @@ class PricingService
 			// invalid/expired code → silently ignored at quote; rejected on redeem
 		}
 
-		// ---- voucher (pays remainder; a payment method, not a discount) -
+		// ---- the charge basis the payment method covers ---------------
+		// §13b reverse-charge buyers owe the NET of the remainder, so their
+		// voucher credit is net-denominated: burning it against the gross
+		// remainder would over-charge them by the VAT fraction.
+		$vatBp = (int)$offering['vat_bp'];
+		$grossRemainder = $seatSubtotal + $addonSubtotal - $promoCents;
+		[$chargeBasis] = $reverseCharge ? self::splitVat($grossRemainder, $vatBp)
+			: [$grossRemainder];
+
+		// ---- voucher (pays the charge; a payment method, not a discount)
 		$voucherId = null;
 		$voucherCents = 0;
-		if ($voucherCode !== null && $voucherCode !== '') {
+		if ($voucherCode !== null && $voucherCode !== '' && $this->license->hasFeature('vouchers')) {
 			$v = $this->vouchers->findByCode($voucherCode);
 			if ($v !== null && (int)$v->getActive() === 1
 				&& (int)$v->getRemainingCents() > 0
 				&& (int)$v->getUses() < (int)$v->getMaxUses()
+				// denominated credit — foreign-currency offerings can't draw
+				// on it (NULL = legacy row minted before the column existed)
+				&& ($v->getCurrency() === null
+					|| $v->getCurrency() === (string)$offering['currency'])
 				&& ($v->getValidUntil() === null || $v->getValidUntil() >= new \DateTimeImmutable())) {
 				$voucherId = (int)$v->getId();
-				$voucherCents = min((int)$v->getRemainingCents(), $seatSubtotal + $addonSubtotal - $promoCents);
+				$voucherCents = min((int)$v->getRemainingCents(), $chargeBasis);
 			}
 		}
 
-		$total = max(0, $seatSubtotal + $addonSubtotal - $promoCents - $voucherCents);
+		$total = max(0, $chargeBasis - $voucherCents);
 
 		// ---- VAT split (gross-inclusive; §19 → 0; reverse charge → 0) ---
-		$vatBp = (int)$offering['vat_bp'];
-		[$net, $vat] = self::splitVat($total, $vatBp);
+		if ($reverseCharge) {
+			// B2B cross-border: catalog prices are gross-inclusive, but a
+			// reverse-charge buyer pays the NET and self-accounts VAT.
+			[$net, $vat] = [$total, 0];
+		} else {
+			[$net, $vat] = self::splitVat($total, $vatBp);
+		}
 
 		return [
 			'lines' => $lines,
@@ -196,8 +223,28 @@ class PricingService
 		if ($grossCents <= 0 || $vatBp <= 0) {
 			return [$grossCents, 0];
 		}
-		$net = intdiv($grossCents * 10000 + (10000 + $vatBp) / 2, 10000 + $vatBp);
+		// intdiv for the half: `(x)/2` on an odd operand yields a float,
+		// which strict_types rejects as an intdiv argument (TypeError).
+		$net = intdiv($grossCents * 10000 + intdiv(10000 + $vatBp, 2), 10000 + $vatBp);
 		return [$net, $grossCents - $net];
+	}
+
+	/**
+	 * Preview helper for the public validate endpoint — must apply the SAME
+	 * usability rules as price() (active, window, max uses, offering scope),
+	 * otherwise the live estimate promises a discount the charge omits.
+	 */
+	public function usablePromo(string $code, ?int $offeringId): ?Promo
+	{
+		$code = trim($code);
+		if ($code === '') {
+			return null;
+		}
+		$promo = $this->promos->findByCode($code);
+		if ($promo === null || !$this->promoUsable($promo, $offeringId ?? 0)) {
+			return null;
+		}
+		return $promo;
 	}
 
 	private function promoUsable($promo, int $offeringId): bool

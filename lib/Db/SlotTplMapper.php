@@ -54,4 +54,14 @@ class SlotTplMapper extends QBMapper
 		$qb->select('*')->from($this->getTableName())->orderBy('id', 'ASC');
 		return $this->findEntities($qb);
 	}
+
+	/** @return list<SlotTpl> */
+	public function findByOffering(int $offeringId): array
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)))
+			->orderBy('id', 'ASC');
+		return $this->findEntities($qb);
+	}
 }

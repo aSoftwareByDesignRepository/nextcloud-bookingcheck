@@ -1,4 +1,5 @@
 <?php
+\OCA\BookingCheck\Support\AssetRegistrar::registerPublic();
 /** Portal home — your orders + your materials. Nothing else. */
 $orders = $_['orders'] ?? [];
 $materials = $_['materials'] ?? [];
@@ -21,9 +22,16 @@ $url = \OCP\Server::get(\OCP\IURLGenerator::class);
 						<?php foreach ($orders as $o): ?>
 							<li class="bck-line-list__item">
 								<span><?php p((string)$o['ref'] . ' — ' . (string)$o['title']); ?></span>
+								<span class="bck-line-list__actions">
+								<?php if (!empty($o['talk_room'])): ?>
+									<a class="bck-btn bck-btn--small bck-btn--secondary"
+										href="<?php p((string)$o['talk_room']); ?>" rel="noopener">
+										<?php p($l->t('Group chat')); ?></a>
+								<?php endif; ?>
 								<a class="bck-btn bck-btn--small bck-btn--secondary"
 									href="<?php p($url->linkToRoute('bookingcheck.portal.order', ['id' => (int)$o['id']])); ?>">
 									<?php p($l->t('Open')); ?></a>
+								</span>
 							</li>
 						<?php endforeach; ?>
 					</ul>

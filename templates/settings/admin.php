@@ -37,6 +37,26 @@
 		<label for="bck-company-vat"><?php p($l->t('VAT ID')); ?></label>
 		<input id="bck-company-vat" type="text" value="<?php p((string)$_['companyVatId']); ?>" maxlength="30">
 	</div>
+	<div class="bck-field">
+		<label for="bck-company-country"><?php p($l->t('Country')); ?></label>
+		<input id="bck-company-country" type="text" value="<?php p((string)$_['companyCountry']); ?>"
+			maxlength="2" placeholder="DE" style="text-transform: uppercase;">
+	</div>
+	<p>
+		<label class="bck-check">
+			<input type="checkbox" id="bck-kleinunternehmer" <?php if ((string)$_['kleinunternehmer'] === '1') { p('checked'); } ?>>
+			<span><?php p($l->t('Small-business exemption (§19 UStG) — invoices carry no VAT')); ?></span>
+		</label>
+	</p>
+	<p>
+		<label class="bck-check">
+			<input type="checkbox" id="bck-vies-online" <?php if ((string)$_['viesOnline'] === '1') { p('checked'); } ?>>
+			<span><?php p($l->t('Verify buyer VAT IDs live against VIES (Pro)')); ?></span>
+		</label>
+	</p>
+	<p class="settings-hint">
+		<?php p($l->t('With live verification, valid cross-border EU VAT IDs bill net (reverse charge). Without it, VAT IDs are stored on the invoice but VAT is always charged.')); ?>
+	</p>
 
 	<h3><?php p($l->t('License')); ?></h3>
 	<p class="settings-hint">
@@ -66,6 +86,32 @@
 		<input id="bck-cors" type="text" value="<?php p((string)$_['corsOrigins']); ?>"
 			placeholder="https://example.com">
 	</div>
+
+	<h3><?php p($l->t('Notifications')); ?></h3>
+	<p>
+		<label class="bck-check">
+			<input type="checkbox" id="bck-notify-paid" <?php if ((string)$_['notifyPaid'] === '1') { p('checked'); } ?>>
+			<span><?php p($l->t('Notify me when a paid order arrives')); ?></span>
+		</label>
+	</p>
+
+	<?php if (!empty($_['crmAvailable'])): ?>
+	<h3><?php p($l->t('Integrations')); ?></h3>
+	<p>
+		<label class="bck-check">
+			<input type="checkbox" id="bck-crm-sync" <?php if ((string)$_['crmSyncEnabled'] === '1') { p('checked'); } ?>>
+			<span><?php p($l->t('Send buyers to CustomerCheck (CRM)')); ?></span>
+		</label>
+	</p>
+	<div class="bck-field">
+		<label for="bck-crm-token"><?php p($l->t('CustomerCheck order-hook token')); ?></label>
+		<input id="bck-crm-token" type="password" autocomplete="off"
+			placeholder="<?php p($_['hasCrmToken'] ? '••••••••' : $l->t('Paste token from CustomerCheck settings')); ?>">
+	</div>
+	<p class="settings-hint">
+		<?php p($l->t('Buyers become CRM contacts after payment. Attendees are never synced.')); ?>
+	</p>
+	<?php endif; ?>
 
 	<p>
 		<button id="bck-settings-save" class="bck-btn bck-btn--primary"><?php p($l->t('Save settings')); ?></button>

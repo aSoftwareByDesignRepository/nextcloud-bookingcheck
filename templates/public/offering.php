@@ -1,6 +1,6 @@
 <?php
 /** Offering detail — what it is, when, price, one big Book button. */
-\OCP\Util::addScript('bookingcheck', 'pages/public');
+\OCA\BookingCheck\Support\AssetRegistrar::registerPublic('public');
 $o = $_['offering'] ?? [];
 $url = \OCP\Server::get(\OCP\IURLGenerator::class);
 $money = static fn (int $c, string $cur): string =>
@@ -34,10 +34,22 @@ $occ = $_['occurrences'] ?? [];
 					<?php foreach ($occ as $oc): ?>
 						<li class="bck-occ-list__item">
 							<span><?php p((string)$oc['label']); ?></span>
-							<?php if ((int)($oc['free'] ?? 0) <= 0): ?>
+							<?php if (!empty($oc['waitlist'])): ?>
+								<span class="bck-badge bck-badge--warning"><?php p($l->t('Waitlist')); ?></span>
+								<details class="bck-waitlist">
+									<summary class="bck-btn bck-btn--small bck-btn--secondary"><?php p($l->t('Get notified')); ?></summary>
+									<form class="bck-waitlist-join"
+										data-target-type="<?php p((string)$oc['target_type']); ?>"
+										data-target-id="<?php p((int)$oc['id']); ?>">
+										<label class="bck-label" for="bck-wl-email-<?php p($oc['target_type'] . '-' . $oc['id']); ?>"><?php p($l->t('Email')); ?></label>
+										<input class="bck-input" id="bck-wl-email-<?php p($oc['target_type'] . '-' . $oc['id']); ?>"
+											name="email" type="email" required maxlength="190" autocomplete="email">
+										<button type="submit" class="bck-btn bck-btn--primary bck-btn--small"><?php p($l->t('Notify me')); ?></button>
+										<p class="bck-waitlist-msg" role="status" hidden></p>
+									</form>
+								</details>
+							<?php elseif ((int)($oc['free'] ?? 0) <= 0): ?>
 								<span class="bck-badge bck-badge--danger"><?php p($l->t('Full')); ?></span>
-							<?php elseif (!empty($oc['waitlist'])): ?>
-								<span class="bck-badge bck-badge--warn"><?php p($l->t('Waitlist')); ?></span>
 							<?php else: ?>
 								<span class="bck-badge bck-badge--success"><?php p($l->t('Seats open')); ?></span>
 							<?php endif; ?>

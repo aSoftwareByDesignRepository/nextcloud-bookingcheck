@@ -54,18 +54,47 @@ class WebhookDeliveryMapper extends QBMapper
 	public function dueBatch(int $limit): array
 	{
 		$qb = $this->db->getQueryBuilder();
+		$now = new \DateTimeImmutable();
 		$qb->select('*')->from($this->getTableName())
 			->where($qb->expr()->orX(
 				$qb->expr()->eq('status', $qb->createNamedParameter('pending')),
 				$qb->expr()->andX(
-					$qb->expr()->eq('status', $qb->createNamedParameter('retry')),
+					$qb->expr()->in('status', $qb->createNamedParameter(
+						['retry', 'delivering'],
+						\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)),
 					$qb->expr()->lte('next_retry_at', $qb->createNamedParameter(
-						(new \DateTimeImmutable())->format('Y-m-d H:i:s')))
+						$now->format('Y-m-d H:i:s')))
 				)
 			))
 			->orderBy('id', 'ASC')
 			->setMaxResults($limit);
 		return $this->findEntities($qb);
+	}
+
+	/**
+	 * Atomic lease claim — true iff this worker won the row. Bumps attempts
+	 * so it doubles as a fencing epoch for the CAS marks; next_retry_at
+	 * holds the lease expiry until a mark call rewrites it.
+	 */
+	public function claim(int $id, \DateTimeImmutable $lease): bool
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('status', $qb->createNamedParameter('delivering'))
+			->set('next_retry_at', $qb->createNamedParameter($lease->format('Y-m-d H:i:s')))
+			->set('attempts', $qb->createFunction('attempts + 1'))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id)))
+			->andWhere($qb->expr()->orX(
+				$qb->expr()->eq('status', $qb->createNamedParameter('pending')),
+				$qb->expr()->andX(
+					$qb->expr()->in('status', $qb->createNamedParameter(
+						['retry', 'delivering'],
+						\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)),
+					$qb->expr()->lte('next_retry_at', $qb->createNamedParameter(
+						(new \DateTimeImmutable())->format('Y-m-d H:i:s')))
+				)
+			));
+		return $qb->executeStatement() === 1;
 	}
 
 	/** @return list<WebhookDelivery> */

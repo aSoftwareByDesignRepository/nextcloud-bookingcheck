@@ -82,6 +82,37 @@ class PaymentMapper extends QBMapper
 		}
 	}
 
+	/** Any other LIVE session for this order? A failed/expired event on
+	 *  session A must not kill an order whose session B is still payable. */
+	public function hasOpenSessionForOrder(int $orderId, int $exceptPaymentId): bool
+	{
+		$qb = $this->db->getQueryBuilder();
+		return (int)$qb->select($qb->func()->count('id'))->from($this->getTableName())
+			->where($qb->expr()->eq('order_id', $qb->createNamedParameter($orderId)))
+			->andWhere($qb->expr()->neq('id', $qb->createNamedParameter($exceptPaymentId)))
+			->andWhere($qb->expr()->eq('status', $qb->createNamedParameter('open')))
+			->executeQuery()->fetchOne() > 0;
+	}
+
+	/** The SETTLED session for an order — refund paths must use this, not
+	 *  findByOrder: a retried checkout leaves a newer 'open' row on top,
+	 *  and refunding a session that was never charged fails at the PSP. */
+	public function findPaidByOrder(int $orderId): ?Payment
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->eq('order_id', $qb->createNamedParameter($orderId)))
+			->andWhere($qb->expr()->in('status',
+				$qb->createNamedParameter(['paid', 'refunded'], \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)))
+			->orderBy('id', 'DESC')
+			->setMaxResults(1);
+		try {
+			return $this->findEntity($qb);
+		} catch (DoesNotExistException) {
+			return null;
+		}
+	}
+
 	public function updateStatus(int $id, string $status, string $rawStatus, ?string $eventId = null): void
 	{
 		$qb = $this->db->getQueryBuilder();

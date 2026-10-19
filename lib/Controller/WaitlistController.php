@@ -26,6 +26,7 @@ class WaitlistController extends Controller
 		string $appName,
 		IRequest $request,
 		private readonly WaitlistEntryMapper $waitlist,
+		private readonly \OCA\BookingCheck\Service\WaitlistService $service,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -45,12 +46,11 @@ class WaitlistController extends Controller
 	#[NoAdminRequired]
 	public function remove(int $id): JSONResponse
 	{
-		$row = $this->waitlist->find($id);
-		if ($row === null) {
+		// offered entries hold a reserved seat — the service releases it
+		// (and offers it onward) inside the waitlist lock hierarchy
+		if (!$this->service->decline($id)) {
 			throw new NotFoundException();
 		}
-		$row->setState('declined');
-		$this->waitlist->update($row);
 		return $this->ok();
 	}
 }

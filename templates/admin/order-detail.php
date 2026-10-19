@@ -8,13 +8,17 @@ include __DIR__ . '/../common/page-start.php';
 
 $lines = $_['lines'] ?? [];
 $payment = $_['payment'] ?? null;
+$holdersByLine = $_['holdersByLine'] ?? [];
+$invoices = $_['invoices'] ?? [];
+$fmt = fn (int $c) => number_format($c / 100, 2, ',', '.');
 $oid = (int)($o['id'] ?? 0);
 $status = (string)($o['status'] ?? '');
 $canApprove = $status === 'pending_approval';
 $canRefund = in_array($status, ['paid'], true);
 $canCancel = in_array($status, ['paid', 'pending_approval', 'created', 'approved'], true);
 ?>
-<div class="bck-page-stack" data-bck-order-id="<?php p((string)$oid); ?>">
+<div class="bck-page-stack" data-bck-order-id="<?php p((string)$oid); ?>"
+	data-bck-order-currency="<?php p((string)($o['currency'] ?? '')); ?>">
 	<div class="bck-page-grid">
 		<section class="bck-card" aria-labelledby="bck-order-main">
 			<div class="bck-card__header">
@@ -31,6 +35,20 @@ $canCancel = in_array($status, ['paid', 'pending_approval', 'created', 'approved
 					<dd><?php p((string)$o['created_at']); ?></dd>
 					<?php if (!empty($o['paid_at'])): ?>
 					<dt><?php p($l->t('Paid')); ?></dt><dd><?php p((string)$o['paid_at']); ?></dd>
+					<?php endif; ?>
+					<?php if (!empty($o['buyerCompany']) || !empty($o['billingCountry']) || !empty($o['vatId'])): ?>
+					<dt><?php p($l->t('Company')); ?></dt>
+					<dd><?php p((string)($o['buyerCompany'] ?? '—')); ?>
+						<?php if (!empty($o['billingCountry'])): ?>(<?php p((string)$o['billingCountry']); ?>)<?php endif; ?></dd>
+					<?php if (!empty($o['vatId'])): ?>
+					<dt><?php p($l->t('VAT ID')); ?></dt>
+					<dd><?php p((string)$o['vatId']); ?>
+						<span class="bck-badge bck-badge--neutral"><?php p((string)$o['viesStatus']); ?></span></dd>
+					<?php endif; ?>
+					<?php if ((int)($o['reverseCharge'] ?? 0) === 1): ?>
+					<dt><?php p($l->t('Tax')); ?></dt>
+					<dd><span class="bck-badge bck-badge--info"><?php p($l->t('Reverse charge §13b')); ?></span></dd>
+					<?php endif; ?>
 					<?php endif; ?>
 				</dl>
 				<div class="bck-btn-row">
@@ -54,22 +72,54 @@ $canCancel = in_array($status, ['paid', 'pending_approval', 'created', 'approved
 			<div class="bck-card__body bck-card__body--table">
 				<table class="bck-table">
 					<thead><tr>
-						<th scope="col"><?php p($l->t('Seat')); ?></th>
-						<th scope="col"><?php p($l->t('Holder')); ?></th>
+						<th scope="col"><?php p($l->t('Line')); ?></th>
+						<th scope="col" class="bck-num"><?php p($l->t('Qty')); ?></th>
+						<th scope="col"><?php p($l->t('Holders')); ?></th>
 						<th scope="col" class="bck-num"><?php p($l->t('Price')); ?></th>
 					</tr></thead>
 					<tbody>
 					<?php foreach ($lines as $ln): ?>
 						<tr>
-							<td><?php p((string)($ln['seat_label'] ?? $ln['id'])); ?></td>
-							<td><?php p((string)($ln['holder_name'] ?? '—')); ?></td>
-							<td class="bck-num"><?php p(number_format(((int)($ln['unit_cents'] ?? 0)) / 100, 2, ',', '.')); ?></td>
+							<td><?php p((string)($ln['catName'] ?? $ln['targetType'] . ' #' . $ln['targetId'])); ?></td>
+							<td class="bck-num"><?php p((string)(int)$ln['seats']); ?></td>
+							<td><?php p(implode(', ', $holdersByLine[(int)$ln['id']] ?? []) ?: '—'); ?></td>
+							<td class="bck-num"><?php p($fmt((int)$ln['lineCents'])); ?></td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
 				</table>
 			</div>
 		</section>
+
+		<?php if ($invoices !== []): ?>
+		<section class="bck-card" aria-labelledby="bck-order-inv">
+			<div class="bck-card__header"><h2 id="bck-order-inv" class="bck-card__title"><?php p($l->t('Invoices')); ?></h2></div>
+			<div class="bck-card__body bck-card__body--table">
+				<table class="bck-table">
+					<thead><tr>
+						<th scope="col"><?php p($l->t('Number')); ?></th>
+						<th scope="col"><?php p($l->t('Type')); ?></th>
+						<th scope="col"><?php p($l->t('Issued')); ?></th>
+						<th scope="col" class="bck-num"><?php p($l->t('Net')); ?></th>
+						<th scope="col" class="bck-num"><?php p($l->t('VAT')); ?></th>
+						<th scope="col" class="bck-num"><?php p($l->t('Gross')); ?></th>
+					</tr></thead>
+					<tbody>
+					<?php foreach ($invoices as $inv): ?>
+						<tr>
+							<td><code><?php p(sprintf('%s-%d-%04d', $inv['prefix'], $inv['year'], $inv['number'])); ?></code></td>
+							<td><span class="bck-badge bck-badge--<?php p($inv['type'] === 'credit' ? 'warning' : 'neutral'); ?>"><?php p((string)$inv['type']); ?></span></td>
+							<td><?php p(substr((string)$inv['issuedAt'], 0, 10)); ?></td>
+							<td class="bck-num"><?php p($fmt((int)$inv['netCents'])); ?></td>
+							<td class="bck-num"><?php p($fmt((int)$inv['vatCents'])); ?></td>
+							<td class="bck-num"><?php p($fmt((int)$inv['grossCents'])); ?></td>
+						</tr>
+					<?php endforeach; ?>
+					</tbody>
+				</table>
+			</div>
+		</section>
+		<?php endif; ?>
 
 		<?php if ($payment !== null): ?>
 		<section class="bck-card" aria-labelledby="bck-order-pay">

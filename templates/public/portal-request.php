@@ -1,6 +1,6 @@
 <?php
 /** Portal sign-in — email → one code or magic link. Nothing else on the page. */
-\OCP\Util::addScript('bookingcheck', 'pages/public-portal');
+\OCA\BookingCheck\Support\AssetRegistrar::registerPublic('public-portal');
 ?>
 <div class="bck-pub bck-pub--narrow">
 	<div class="bck-card">

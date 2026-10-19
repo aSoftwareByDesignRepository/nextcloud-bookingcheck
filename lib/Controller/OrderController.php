@@ -9,13 +9,14 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Controller;
 
+use OCA\BookingCheck\Db\InvoiceMapper;
 use OCA\BookingCheck\Db\OrderMapper;
 use OCA\BookingCheck\Db\OrderLineMapper;
 use OCA\BookingCheck\Db\PaymentMapper;
+use OCA\BookingCheck\Db\TicketMapper;
 use OCA\BookingCheck\Exception\NotFoundException;
 use OCA\BookingCheck\Exception\ValidationException;
 use OCA\BookingCheck\Psp\PspManager;
-use OCA\BookingCheck\Service\InvoiceService;
 use OCA\BookingCheck\Service\OrderService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -37,7 +38,8 @@ class OrderController extends Controller
 		private readonly OrderMapper $orderMapper,
 		private readonly OrderLineMapper $lines,
 		private readonly PaymentMapper $payments,
-		private readonly InvoiceService $invoices,
+		private readonly TicketMapper $tickets,
+		private readonly InvoiceMapper $invoices,
 		private readonly PspManager $psp,
 		private readonly IUserSession $userSession,
 		private readonly IDBConnection $db,
@@ -70,11 +72,25 @@ class OrderController extends Controller
 		if ($order === null) {
 			throw new NotFoundException();
 		}
+		$lineRows = $this->lines->findByOrder($id);
+		$holdersByLine = [];
+		foreach ($lineRows as $ln) {
+			$names = [];
+			foreach ($this->tickets->findByLine((int)$ln->getId()) as $t) {
+				if ($t->getAttendeeName() !== null && $t->getAttendeeName() !== '') {
+					$names[] = $t->getAttendeeName();
+				}
+			}
+			$holdersByLine[(int)$ln->getId()] = $names;
+		}
 		return new TemplateResponse($this->appName, 'admin/order-detail', [
 			'navId' => 'orders',
 			'order' => $order->jsonSerialize(),
-			'lines' => array_map(fn ($l) => $l->jsonSerialize(), $this->lines->findByOrder($id)),
+			'lines' => array_map(fn ($l) => $l->jsonSerialize(), $lineRows),
+			'holdersByLine' => $holdersByLine,
 			'payment' => $this->payments->findByOrder($id)?->jsonSerialize(),
+			'invoices' => array_map(fn ($i) => $i->jsonSerialize(),
+				$this->invoices->findByOrder($id)),
 		]);
 	}
 
@@ -129,33 +145,59 @@ class OrderController extends Controller
 			throw new ValidationException(['order' => 'Only paid orders can be refunded.']);
 		}
 		$amount = $this->strictId($this->request->getParam('amount_cents'));
-		if ($amount === null || $amount <= 0 || $amount > (int)$order->getAmountCents()) {
-			throw new ValidationException(['amount_cents' => 'Invalid refund amount.']);
+		// v1 is full-refund only — a partial amount would still release ALL
+		// seats and revoke ALL tickets (the transition is terminal). The
+		// quote must be echoed back exactly; partials arrive with the
+		// refund-policy engine, never as a silent semantic mismatch.
+		if ($amount === null || $amount !== (int)$order->getAmountCents()) {
+			throw new ValidationException(['amount_cents' => 'Only full refunds are supported — echo the quoted amount.']);
 		}
-		$payment = $this->payments->findByOrder($id);
+		$payment = $this->payments->findPaidByOrder($id);
 		if ($payment === null || $payment->getPspRef() === null) {
 			throw new ValidationException(['order' => 'No payment to refund.']);
 		}
-		// PSP refund first — order state only moves after money moved
-		$result = $this->psp->byName($payment->getProvider())
-			->refund($payment->getPspRef(), $amount, $order->getCurrency());
-		if (!$result->ok) {
-			return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Refund failed at the payment provider: ' . $result->error);
+		$refundRef = $payment->getRefundRef();
+		if ($refundRef === null || $refundRef === '') {
+			// PSP refund first — order state only moves after money moved.
+			// The refund_ref is persisted BEFORE the transition: if the
+			// transition below throws, a retry finds it set and skips the
+			// PSP call instead of submitting a second real refund.
+			$result = $this->psp->byName($payment->getProvider())
+				->refund($payment->getPspRef(), $amount, $order->getCurrency());
+			if (!$result->ok) {
+				return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Refund failed at the payment provider: ' . $result->error);
+			}
+			$refundRef = $result->refundRef !== '' ? $result->refundRef : 'ref-' . $payment->getPspRef();
+			$payment->setRefundRef($refundRef);
+			$this->payments->update($payment);
 		}
-		$this->invoices->issueCredit($order, $amount);
-		$this->orders->transitionToRefunded($id, $this->uid(), ['amount' => $amount]);
-		return $this->ok(['refunded_cents' => $amount, 'refund_ref' => $result->refundRef]);
+		// the credit note mints inside the refund transaction — allocate()'s
+		// FOR UPDATE only serializes while a transaction is open; minting in
+		// autocommit here could duplicate invoice numbers under a race.
+		$this->orders->transitionToRefunded($id, $this->uid(), ['amount' => $amount], $amount);
+		return $this->ok(['refunded_cents' => $amount, 'refund_ref' => $refundRef]);
 	}
 
 	#[NoAdminRequired]
 	public function resend(int $id): JSONResponse
 	{
-		$this->mustExist($id);
-		// re-queue the confirmation email — delivery is job-driven
-		$order = $this->orderMapper->find($id);
+		$order = $this->mustExist($id);
+		// A "confirmation" only makes sense while the order is alive —
+		// resending on a cancelled/refunded/expired order mails a working
+		// manage link and a confirmation the state machine contradicts.
+		if (!in_array($order->getStatus(), ['pending_payment', 'pending_approval', 'approved', 'paid'], true)) {
+			throw new ValidationException(['order' => 'Only live orders can be re-sent.']);
+		}
+		// Re-queue the confirmation. The stored token is a hash, so a resend
+		// mints a FRESH manage link and rotates the hash — the new email is
+		// the working link, the old one dies (same contract as /pub/m/recover).
+		[$tok, $hash] = \OCP\Server::get(\OCA\BookingCheck\Service\TokenService::class)->mint();
+		$this->orderMapper->rotateManageToken($id, $hash);
+		$manageUrl = \OCP\Server::get(\OCP\IURLGenerator::class)
+			->linkToRouteAbsolute('bookingcheck.manage.show', ['token' => $tok]);
 		\OCP\Server::get(\OCA\BookingCheck\Service\EmailService::class)
 			->queue('order_confirmed', $order->getBuyerEmail(), $order->getBuyerLocale(),
-				['order_ref' => $order->getRef()]);
+				['order_ref' => $order->getRef(), 'manage_url' => $manageUrl]);
 		return $this->ok(['queued' => true]);
 	}
 
@@ -164,13 +206,15 @@ class OrderController extends Controller
 	{
 		$order = $this->mustExist($id);
 		$note = trim((string)$this->request->getParam('note', ''));
-		if ($note === '' || mb_strlen($note) > 2000) {
-			throw new ValidationException(['note' => 'Note is required.']);
+		if (mb_strlen($note) > 2000) {
+			throw new ValidationException(['note' => 'Note is limited to 2000 characters.']);
 		}
+		$order->setStaffNote($note === '' ? null : $note);
+		$this->orderMapper->update($order);
 		\OCP\Server::get(\OCA\BookingCheck\Service\AuditService::class)
 			->log($id, (int)$order->getOfferingId(), $this->uid(), 'order.note', null, null,
 				['note_len' => mb_strlen($note)]); // content stays out of audit PII
-		return $this->ok();
+		return $this->ok(['note' => $note]);
 	}
 
 	private function mustExist(int $id): \OCA\BookingCheck\Db\Order

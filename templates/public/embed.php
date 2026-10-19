@@ -1,4 +1,5 @@
 <?php
+\OCA\BookingCheck\Support\AssetRegistrar::registerStyles();
 /** Minimal iframe embed — one card, book button deep-links to checkout. */
 $o = $_['offering'] ?? [];
 $url = \OCP\Server::get(\OCP\IURLGenerator::class);

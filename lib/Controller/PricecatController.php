@@ -33,6 +33,16 @@ class PricecatController extends Controller
 	}
 
 	#[NoAdminRequired]
+	public function index(int $id): JSONResponse
+	{
+		if ($this->offerings->find($id) === null) {
+			throw new NotFoundException();
+		}
+		return $this->ok(['pricecats' => array_map(
+			fn ($p) => $p->jsonSerialize(), $this->items->findByOffering($id))]);
+	}
+
+	#[NoAdminRequired]
 	public function store(int $id): JSONResponse
 	{
 		if ($this->offerings->find($id) === null) {
@@ -43,7 +53,7 @@ class PricecatController extends Controller
 		if ($name === '' || mb_strlen($name) > 190) {
 			throw new ValidationException(['name' => 'Name required.']);
 		}
-		if ($cents === null || $cents < 0) {
+		if ($cents === null || $cents < 0 || $cents > 99999999) {
 			throw new ValidationException(['price_cents' => 'Price required.']);
 		}
 		$c = new PriceCat();

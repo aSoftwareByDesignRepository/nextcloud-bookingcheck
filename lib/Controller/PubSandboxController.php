@@ -11,6 +11,10 @@ namespace OCA\BookingCheck\Controller;
 
 use OCA\BookingCheck\Db\OrderMapper;
 use OCA\BookingCheck\Db\PaymentMapper;
+use OCA\BookingCheck\Exception\NotFoundException;
+use OCA\BookingCheck\Psp\PspManager;
+use OCA\BookingCheck\Psp\TestProvider;
+use OCA\BookingCheck\Service\PspEventService;
 use OCA\BookingCheck\Service\SettingsService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -19,9 +23,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
-use OCP\Http\Client\IClientService;
 use OCP\IRequest;
-use OCP\IURLGenerator;
 
 /**
  * §9.13 sandbox checkout surface. Dead (404) unless psp_provider=test — an
@@ -38,8 +40,8 @@ class PubSandboxController extends Controller
 		private readonly SettingsService $settings,
 		private readonly PaymentMapper $payments,
 		private readonly OrderMapper $orders,
-		private readonly IClientService $clients,
-		private readonly IURLGenerator $url,
+		private readonly PspManager $psp,
+		private readonly PspEventService $processor,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -47,7 +49,7 @@ class PubSandboxController extends Controller
 	private function guard(): void
 	{
 		if ($this->settings->get('psp_provider') !== 'test') {
-			throw new \OCA\BookingCheck\Exception\NotFoundException();
+			throw new NotFoundException();
 		}
 	}
 
@@ -58,7 +60,7 @@ class PubSandboxController extends Controller
 		$this->guard();
 		$payment = $this->payments->findByPspRef('test', $pspRef);
 		if ($payment === null) {
-			throw new \OCA\BookingCheck\Exception\NotFoundException();
+			throw new NotFoundException();
 		}
 		return new PublicTemplateResponse($this->appName, 'public/sandbox', [
 			'pspRef' => $pspRef,
@@ -74,7 +76,7 @@ class PubSandboxController extends Controller
 		$this->guard();
 		$payment = $this->payments->findByPspRef('test', $pspRef);
 		if ($payment === null) {
-			throw new \OCA\BookingCheck\Exception\NotFoundException();
+			throw new NotFoundException();
 		}
 		$outcome = (string)$this->request->getParam('outcome', 'paid');
 		if (!in_array($outcome, ['paid', 'failed', 'refunded'], true)) {
@@ -91,15 +93,21 @@ class PubSandboxController extends Controller
 		if ($secret === '') {
 			return new JSONResponse(['error' => 'Sandbox secret not configured'], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
-		$webhook = $this->url->linkToRouteAbsolute('bookingcheck.psp.test');
-		$this->clients->newClient()->post($webhook, [
-			'headers' => [
-				'Content-Type' => 'application/json',
-				'X-Bck-Signature' => hash_hmac('sha256', $payload, $secret),
-			],
-			'body' => $payload,
-			'timeout' => 15,
-		]);
-		return new JSONResponse(['ok' => true, 'outcome' => $outcome]);
+		// In-process delivery through the real verification path — the webhook
+		// URL is not guaranteed reachable from inside this host (containers).
+		// The signature is still minted and verified; nothing bypasses PSP truth.
+		$sig = hash_hmac('sha256', $payload, $secret);
+		$provider = $this->psp->byName('test');
+		if (!$provider instanceof TestProvider) {
+			return new JSONResponse(['error' => 'sandbox provider unavailable'], 500);
+		}
+		try {
+			$event = $provider->verifyRaw($payload, $sig);
+		} catch (\OCA\BookingCheck\Exception\PspException $e) {
+			return new JSONResponse(['error' => 'sandbox self-verification failed'], 500);
+		}
+		$result = $this->processor->process('test', $event);
+		return new JSONResponse(['ok' => $result === 'ok', 'status' => $result, 'outcome' => $outcome],
+			$result === 'error' ? 500 : 200);
 	}
 }

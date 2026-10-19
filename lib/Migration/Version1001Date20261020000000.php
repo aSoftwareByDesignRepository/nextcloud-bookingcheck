@@ -22,10 +22,10 @@ use OCP\Migration\SimpleMigrationStep;
  */
 class Version1001Date20261020000000 extends SimpleMigrationStep
 {
-	public function changeSchema(IOutput $output, Closure $schemaGenerator, array $options): ?ISchemaWrapper
+	public function changeSchema(IOutput $output, Closure $schemaClosure, array $options): ?ISchemaWrapper
 	{
 		/** @var ISchemaWrapper $schema */
-		$schema = $schemaGenerator();
+		$schema = $schemaClosure();
 		if ($schema->hasTable('bc_ticket')) {
 			$t = $schema->getTable('bc_ticket');
 			if (!$t->hasColumn('qr_token_enc')) {

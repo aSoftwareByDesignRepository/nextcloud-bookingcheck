@@ -52,8 +52,18 @@ class VoucherController extends Controller
 		if ($cents === null || $cents <= 0 || $cents > 99999999) {
 			throw new ValidationException(['credit_cents' => 'Enter a valid amount.']);
 		}
+		if ($maxUses < 1 || $maxUses > 100000) {
+			throw new ValidationException(['max_uses' => 'At least one use.']);
+		}
+		// voucher credit is denominated — pricing rejects redemption in any
+		// other currency (a €50 code must never silently cover $50)
+		$currency = strtoupper(trim((string)$this->request->getParam('currency', 'EUR')));
+		if (!preg_match('/^[A-Z]{3}$/', $currency)) {
+			throw new ValidationException(['currency' => 'Invalid currency.']);
+		}
 		$v = new Voucher();
 		$v->setCode($this->tokens->voucherCode());
+		$v->setCurrency($currency);
 		$v->setCreditCents($cents);
 		$v->setRemainingCents($cents);
 		$v->setMaxUses($maxUses);

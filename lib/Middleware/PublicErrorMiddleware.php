@@ -12,6 +12,7 @@ namespace OCA\BookingCheck\Middleware;
 use OCA\BookingCheck\AppInfo\Application;
 use OCA\BookingCheck\Exception\CapacityException;
 use OCA\BookingCheck\Exception\NotFoundException;
+use OCA\BookingCheck\Exception\ProRequiredException;
 use OCA\BookingCheck\Exception\RateLimitException;
 use OCA\BookingCheck\Exception\StateConflictException;
 use OCA\BookingCheck\Exception\UnauthorizedException;
@@ -58,6 +59,22 @@ class PublicErrorMiddleware extends Middleware
 		}
 		if ($exception instanceof RateLimitException) {
 			return $this->envelope(429, 'RATE_LIMITED', 'Too many requests — please try again shortly.');
+		}
+		if ($exception instanceof ProRequiredException) {
+			$path = $this->request->getPathInfo();
+			if (str_contains($path, '/api/') || str_contains($path, '/capi/')) {
+				return $this->envelope(403, 'PRO_REQUIRED', $exception->getMessage());
+			}
+			if (str_contains($path, '/pub/')) {
+				// buyers never see seller upsells — a lapsed license reads
+				// as a normal "unavailable" page on public surfaces
+				return new \OCP\AppFramework\Http\Template\PublicTemplateResponse(
+					'bookingcheck', 'public/not-found', []);
+			}
+			// admin page navigations → the upsell page, not a JSON blob
+			return new \OCP\AppFramework\Http\RedirectResponse(
+				\OCP\Server::get(\OCP\IURLGenerator::class)
+					->linkToRoute('bookingcheck.page.pro'));
 		}
 		if ($exception instanceof \OCA\BookingCheck\Exception\PspException) {
 			return $this->envelope(502, 'PAYMENT_UNAVAILABLE', 'Payment is temporarily unavailable.');

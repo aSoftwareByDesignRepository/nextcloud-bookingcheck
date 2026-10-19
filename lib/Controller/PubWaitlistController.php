@@ -38,7 +38,7 @@ class PubWaitlistController extends Controller
 		$tt = (string)$this->request->getParam('target_type', '');
 		$tid = $this->strictId($this->request->getParam('target_id'));
 		$email = (string)$this->request->getParam('email', '');
-		if (in_array($tt, ['event', 'slot'], true) && $tid !== null) {
+		if (in_array($tt, ['event', 'slot', 'series'], true) && $tid !== null) {
 			$this->waitlist->join($tt, $tid, $email,
 				substr((string)$this->request->getParam('locale', 'en'), 0, 10));
 		}

@@ -548,6 +548,57 @@
 .bck-pub__foot { text-align: center; font-size: var(--bck-fs-sm); }
 .bck-pub__foot a { color: var(--bck-primary); }
 
+/* ---- Printable invoice ---- */
+.bck-invoice__sheet {
+	background: var(--bck-bg-card);
+	border: 1px solid var(--bck-border);
+	border-radius: var(--bck-radius-lg);
+	padding: var(--bck-space-6);
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-5);
+}
+.bck-invoice__head {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: var(--bck-space-4);
+}
+.bck-invoice__title { margin: 0; font-size: var(--bck-fs-2xl); font-weight: 600; }
+.bck-invoice__meta { margin: var(--bck-space-1) 0 0; color: var(--bck-muted); font-size: var(--bck-fs-sm); }
+.bck-invoice__parties {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: var(--bck-space-5);
+}
+.bck-invoice__party-title {
+	margin: 0 0 var(--bck-space-2);
+	font-size: var(--bck-fs-sm);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--bck-muted);
+}
+.bck-invoice__lines tfoot th { text-align: right; font-weight: 500; }
+.bck-invoice__total td, .bck-invoice__total th {
+	border-top: 2px solid var(--bck-form-border);
+	font-size: var(--bck-fs-lg);
+}
+.bck-invoice__note { margin: 0; font-size: var(--bck-fs-sm); color: var(--bck-muted); }
+.bck-invoice__back { margin: 0; }
+.bck-invoice__back a { color: var(--bck-primary); }
+
+@media (max-width: 480px) {
+	.bck-invoice__sheet { padding: var(--bck-space-4); }
+	.bck-invoice__parties { grid-template-columns: 1fr; }
+}
+
+@media print {
+	.bck-no-print, header#header, #app-navigation { display: none !important; }
+	.bck-invoice__sheet { border: none; padding: 0; }
+	.bck-pub { padding: 0; max-width: none; }
+}
+
 .bck-card--link {
 	display: block;
 	text-decoration: none;
@@ -610,6 +661,229 @@
 }
 
 .bck-checkout-lines { display: flex; flex-direction: column; gap: var(--bck-space-3); }
+
+/* ---- Guest surface: forms (scoped to .bck-pub — admin shell styles live
+ * in the shared packs under #app-content.bck-app and must not bleed) ---- */
+.bck-pub .bck-form { padding: 0; }
+.bck-pub .bck-field,
+.bck-pub .bck-fieldset {
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-2);
+	margin: 0 0 var(--bck-space-4);
+	padding: 0;
+	border: 0;
+	min-width: 0;
+}
+.bck-pub .bck-fieldset legend {
+	padding: 0;
+	margin: 0 0 var(--bck-space-1);
+}
+.bck-pub .bck-label,
+.bck-pub .bck-field__label {
+	font-weight: 600;
+	font-size: var(--bck-fs-md);
+}
+.bck-pub .bck-label__opt {
+	font-weight: 400;
+	color: var(--bck-muted);
+	font-size: var(--bck-fs-sm);
+}
+.bck-pub .bck-input,
+.bck-pub .bck-select,
+.bck-pub input[type='text'],
+.bck-pub input[type='email'],
+.bck-pub input[type='number'] {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 44px;
+	padding: var(--bck-space-2) var(--bck-space-3);
+	border: 1px solid var(--bck-form-border);
+	border-radius: var(--bck-radius-sm);
+	background: var(--bck-bg-card);
+	color: inherit;
+	font: inherit;
+}
+.bck-pub .bck-input:focus-visible,
+.bck-pub .bck-select:focus-visible,
+.bck-pub input:focus-visible {
+	outline: var(--bck-focus);
+	outline-offset: var(--bck-focus-offset);
+	border-color: var(--bck-primary);
+}
+.bck-pub [aria-invalid='true'].bck-input,
+.bck-pub input[aria-invalid='true'],
+.bck-pub select[aria-invalid='true'] {
+	border-color: var(--bck-danger-ink);
+}
+.bck-pub .bck-field__hint {
+	margin: 0;
+	font-size: var(--bck-fs-sm);
+	color: var(--bck-muted);
+}
+.bck-pub .bck-field-error {
+	margin: 0;
+	font-size: var(--bck-fs-sm);
+	color: var(--bck-danger-ink);
+	font-weight: 600;
+}
+.bck-pub .bck-inline-form {
+	display: flex;
+	gap: var(--bck-space-2);
+	align-items: stretch;
+}
+.bck-pub .bck-inline-form input { flex: 1; min-width: 0; }
+.bck-pub .bck-form-actions { margin-top: var(--bck-space-4); }
+.bck-pub .bck-form-actions .bck-btn { width: 100%; }
+.bck-pub .bck-check {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--bck-space-3);
+	padding: var(--bck-space-3);
+	border: 1px solid var(--bck-border);
+	border-radius: var(--bck-radius-sm);
+	cursor: pointer;
+	min-height: 44px;
+}
+.bck-pub .bck-check input {
+	width: 1.25rem;
+	height: 1.25rem;
+	margin-top: 0.15rem;
+	flex-shrink: 0;
+	accent-color: var(--bck-primary);
+}
+.bck-pub .bck-check:focus-within {
+	outline: var(--bck-focus);
+	outline-offset: var(--bck-focus-offset);
+}
+.bck-pub .bck-check__text { flex: 1; }
+.bck-pub .bck-hp {
+	position: absolute;
+	left: -9999px;
+	width: 1px;
+	height: 1px;
+	opacity: 0;
+	overflow: hidden;
+}
+
+/* Occurrence picker — one tappable card per date */
+.bck-pub .bck-occ {
+	display: flex;
+	align-items: center;
+	gap: var(--bck-space-3);
+	padding: var(--bck-space-3) var(--bck-space-4);
+	border: 1px solid var(--bck-border);
+	border-radius: var(--bck-radius-sm);
+	cursor: pointer;
+	min-height: 48px;
+}
+.bck-pub .bck-occ input {
+	width: 1.25rem;
+	height: 1.25rem;
+	flex-shrink: 0;
+	accent-color: var(--bck-primary);
+}
+.bck-pub .bck-occ:has(input:checked) {
+	border-color: var(--bck-primary);
+	box-shadow: inset 0 0 0 1px var(--bck-primary);
+}
+.bck-pub .bck-occ:focus-within {
+	outline: var(--bck-focus);
+	outline-offset: var(--bck-focus-offset);
+}
+.bck-pub .bck-occ--soldout {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+.bck-pub .bck-occ__label { flex: 1; font-weight: 600; }
+.bck-pub .bck-occ__avail {
+	font-size: var(--bck-fs-sm);
+	color: var(--bck-muted);
+	white-space: nowrap;
+}
+.bck-pub .bck-addon { justify-content: space-between; }
+
+/* Card internals on guest pages (shared card chrome is admin-scoped) */
+.bck-pub .bck-card { padding: 0; overflow: hidden; }
+.bck-pub .bck-card__header,
+.bck-pub .bck-card__head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--bck-space-3);
+	padding: var(--bck-space-4) var(--bck-space-4) 0;
+}
+.bck-pub .bck-card__body {
+	padding: var(--bck-space-4);
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-3);
+}
+.bck-pub .bck-card__title {
+	margin: 0;
+	font-size: var(--bck-fs-lg);
+	font-weight: 600;
+}
+.bck-pub .bck-card__lead {
+	margin: 0;
+	font-size: var(--bck-fs-lg);
+	font-weight: 600;
+}
+.bck-pub .bck-card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+	gap: var(--bck-space-4);
+}
+.bck-pub .bck-muted { color: var(--bck-muted); }
+.bck-pub .bck-page-stack {
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-5);
+}
+.bck-pub .bck-section { display: block; }
+.bck-pub .bck-btn-row,
+.bck-pub .bck-actions,
+.bck-pub .bck-line-list__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--bck-space-2);
+	align-items: center;
+}
+.bck-pub .bck-breadcrumb__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--bck-space-1) var(--bck-space-2);
+	list-style: none;
+	margin: 0 0 var(--bck-space-4);
+	padding: 0;
+	font-size: var(--bck-fs-sm);
+	color: var(--bck-muted);
+}
+.bck-pub .bck-breadcrumb__item:not(:last-child)::after {
+	content: '/';
+	margin-inline-start: var(--bck-space-2);
+	color: var(--bck-muted);
+}
+.bck-pub .bck-breadcrumb__link { color: var(--bck-primary); }
+
+/* Sandbox settle page — one card, one clear action */
+.bck-pub.bck-sandbox .bck-card { max-width: 26rem; margin: 0 auto; }
+
+/* Ticket sheet — QR centred, generous whitespace */
+.bck-pub .bck-ticket { max-width: 22rem; margin: 0 auto; }
+.bck-pub .bck-ticket__qr {
+	display: flex;
+	justify-content: center;
+	padding: var(--bck-space-4);
+}
+.bck-pub .bck-ticket__qr svg { max-width: 100%; height: auto; }
+
+@media (forced-colors: active) {
+	.bck-pub .bck-occ:has(input:checked) { border-width: 3px; }
+	.bck-pub .bck-check:focus-within,
+	.bck-pub .bck-occ:focus-within { outline: 3px solid Highlight; }
+}
+
 .bck-checkout-total {
 	font-size: var(--bck-fs-xl);
 	font-weight: 600;
@@ -639,3 +913,106 @@
 	.bck-pub__title { font-size: var(--bck-fs-xl); }
 	.bck-kv { grid-template-columns: 1fr; gap: var(--bck-space-1) 0; }
 }
+
+/* Waitlist join — progressive disclosure on full occurrences */
+.bck-waitlist { margin-top: var(--bck-space-2); }
+.bck-waitlist > summary { cursor: pointer; list-style: none; display: inline-flex; }
+.bck-waitlist > summary::-webkit-details-marker { display: none; }
+.bck-waitlist[open] > summary { margin-bottom: var(--bck-space-2); }
+.bck-waitlist form {
+	display: flex; flex-wrap: wrap; align-items: end; gap: var(--bck-space-2);
+	padding: var(--bck-space-3); border-radius: var(--bck-radius-md);
+	background: color-mix(in srgb, var(--color-main-text) 4%, var(--color-main-background));
+}
+.bck-waitlist .bck-label { font-size: var(--bck-fs-sm); width: 100%; }
+.bck-waitlist .bck-input { flex: 1 1 14rem; min-width: 0; }
+.bck-waitlist-msg { width: 100%; margin: var(--bck-space-1) 0 0; color: var(--bck-muted); font-size: var(--bck-fs-sm); }
+.bck-mt-4 { margin-top: var(--bck-space-4); }
+
+/* Per-attendee intake on the manage page */
+.bck-intake { margin-top: var(--bck-space-2); }
+.bck-intake > summary {
+	cursor: pointer; list-style: none; display: inline-flex; align-items: center;
+	gap: var(--bck-space-2); font-size: var(--bck-fs-sm);
+	color: var(--color-primary-element-text, var(--color-main-text));
+}
+.bck-intake > summary::before { content: "▸"; font-size: var(--bck-fs-xs); }
+.bck-intake[open] > summary::before { content: "▾"; }
+.bck-intake > summary::-webkit-details-marker { display: none; }
+.bck-intake__form {
+	display: flex; flex-direction: column; gap: var(--bck-space-2);
+	margin-top: var(--bck-space-2); padding: var(--bck-space-3);
+	border-radius: var(--bck-radius-md);
+	background: color-mix(in srgb, var(--color-main-text) 4%, var(--color-main-background));
+}
+.bck-roster-notes { font-size: var(--bck-fs-xs); color: var(--bck-muted); }
+
+/* Business billing — progressive disclosure in checkout */
+.bck-details { margin: var(--bck-space-2) 0; }
+.bck-details > summary {
+	cursor: pointer; list-style: none; display: inline-flex; align-items: center;
+	gap: var(--bck-space-2); font-size: var(--bck-fs-sm);
+	font-weight: 600; color: var(--color-primary-element-text, var(--color-main-text));
+}
+.bck-details > summary::before { content: "▸"; font-size: var(--bck-fs-xs); }
+.bck-details[open] > summary::before { content: "▾"; }
+.bck-details > summary::-webkit-details-marker { display: none; }
+
+/* Shared attendee files on the manage page */
+.bck-upload-list { list-style: none; margin: var(--bck-space-2) 0; padding: 0; display: flex; flex-direction: column; gap: var(--bck-space-1); }
+.bck-upload-item {
+	display: flex; flex-wrap: wrap; align-items: center; gap: var(--bck-space-2);
+	padding: var(--bck-space-2) 0; border-bottom: 1px solid var(--bck-border, var(--color-border));
+}
+.bck-upload-item:last-child { border-bottom: 0; }
+.bck-upload-item__name { font-weight: 600; }
+.bck-upload-item__meta { color: var(--bck-muted, var(--color-text-maxcontrast)); font-size: var(--bck-fs-sm); margin-inline-start: auto; }
+.bck-field--row { display: flex; flex-wrap: wrap; gap: var(--bck-space-3); }
+.bck-field--row > div { flex: 1 1 10rem; min-width: 0; }
+
+.bck-details__body {
+	display: flex; flex-direction: column; gap: var(--bck-space-2);
+	margin-top: var(--bck-space-2); padding: var(--bck-space-3);
+	border-radius: var(--bck-radius-md);
+	background: color-mix(in srgb, var(--color-main-text) 4%, var(--color-main-background));
+}
+@media (forced-colors: active) {
+	.bck-waitlist form, .bck-intake__form, .bck-details__body { border: 1px solid CanvasText; }
+}
+
+/*
+ * Control-border baseline (WCAG 1.4.11 >= 3:1 vs background) — DESIGN-SYSTEM §3.6.0.
+ * NC core styles every button/input with the faint `--color-border-dark`, and its
+ * `button:disabled` rule (0,2,1) outranks page-level `.button.secondary` (0,2,0),
+ * so disabled controls silently lose their frame. This rule only re-colours
+ * borders that are already drawn — borderless icon buttons are unaffected —
+ * and state classes keep their semantic borders.
+ */
+#app-content input:not([type='range'], [type='hidden'], [type='color'], [type='file'], [type='image'], [type='submit'], [type='button'], [type='reset'], .form-input--error, .form-input--success, .form-input--warning, .has-error, [aria-invalid='true'], .has-error *),
+#app-content select:not(.form-input--error, .form-input--success, .form-input--warning, [aria-invalid='true'], .has-error *),
+#app-content textarea:not(.form-input--error, .form-input--success, .form-input--warning, [aria-invalid='true'], .has-error *),
+#app-content button:not(.primary, .error, .warning, .success, .danger, .button-vue, .bck-btn--danger, .bck-danger-button),
+#app-content .button:not(.primary, .error, .warning, .success, .danger, .bck-btn--danger, .bck-danger-button),
+.oc-dialog input:not([type='range'], [type='hidden'], [type='color'], [type='file']),
+.oc-dialog select,
+.oc-dialog textarea,
+.oc-dialog button:not(.primary, .error, .warning, .success, .danger, .button-vue, .bck-btn--danger, .bck-danger-button),
+.oc-dialog .button:not(.primary, .error, .warning, .success, .danger, .bck-btn--danger, .bck-danger-button) {
+	border-color: var(--bck-form-border, var(--color-border-maxcontrast, var(--color-border)));
+}
+
+/* Scan page — order-ref ticket list (door flow) */
+.bck-scan-list {
+	list-style: none;
+	margin: var(--bck-space-2, 8px) 0 0;
+	padding: 0;
+}
+.bck-scan-list li {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 8px 0;
+	border-bottom: 1px solid var(--color-border-dark);
+}
+.bck-scan-list li:last-child { border-bottom: none; }

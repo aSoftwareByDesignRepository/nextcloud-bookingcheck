@@ -88,17 +88,22 @@ class TicketService
 
 	/**
 	 * QR check-in: verify token, then CAS-mark checked in.
-	 * Returns ['ok'=>bool, 'already'=>bool, 'ticket'=>?Ticket].
+	 * Returns ['ok'=>bool, 'already'=>bool, 'revoked'=>bool, 'ticket'=>?Ticket].
 	 */
 	public function checkInByToken(string $qrToken, string $actor): array
 	{
 		$hash = $this->tokens->hash($qrToken);
 		$ticket = $this->tickets->findByQrHash($hash);
 		if ($ticket === null) {
-			return ['ok' => false, 'already' => false, 'ticket' => null];
+			return ['ok' => false, 'already' => false, 'revoked' => false, 'ticket' => null];
+		}
+		// refunded/cancelled orders kill their tickets — the QR may still
+		// be in the buyer's wallet, so the door needs a distinct answer.
+		if ($ticket->getRevokedAt() !== null) {
+			return ['ok' => false, 'already' => false, 'revoked' => true, 'ticket' => $ticket];
 		}
 		if ($ticket->getCheckedInAt() !== null) {
-			return ['ok' => true, 'already' => true, 'ticket' => $ticket];
+			return ['ok' => true, 'already' => true, 'revoked' => false, 'ticket' => $ticket];
 		}
 		// CAS: only mark when still unchecked — two doors scanning the same
 		// ticket concurrently get exactly one winner.
@@ -113,7 +118,7 @@ class TicketService
 			$ticket->setCheckedInAt(new \DateTimeImmutable());
 			$ticket->setCheckedInBy($actor);
 		}
-		return ['ok' => true, 'already' => !$won, 'ticket' => $ticket];
+		return ['ok' => true, 'already' => !$won, 'revoked' => false, 'ticket' => $ticket];
 	}
 
 	public function undoCheckIn(int $ticketId): void
@@ -124,5 +129,62 @@ class TicketService
 			->set('checked_in_by', $qb->createNamedParameter(null))
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($ticketId)));
 		$qb->executeStatement();
+	}
+
+	/**
+	 * Kill every ticket of an order — refund/paid-cancel path. Idempotent:
+	 * only live tickets get stamped. Call inside the order transaction so
+	 * a rollback can't leave valid QRs on a refunded order.
+	 */
+	public function revokeForOrder(int $orderId): int
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_ticket')
+			->set('revoked_at', $qb->createNamedParameter(new \DateTime(), 'datetime'))
+			->where($qb->expr()->isNull('revoked_at'))
+			->andWhere($qb->expr()->in('line_id',
+				$qb->createFunction('(SELECT id FROM *PREFIX*bc_order_line WHERE order_id = '
+					. (int)$orderId . ')')));
+		return $qb->executeStatement();
+	}
+
+	/**
+	 * Resolve a raw QR bearer to its ticket WITHOUT checking in —
+	 * callers that must scope-check the offering first use this, then
+	 * checkInByTicket(). Returns null on an unknown/foreign token.
+	 */
+	public function resolveQrToken(string $qrToken): ?Ticket
+	{
+		return $this->tickets->findByQrHash($this->tokens->hash($qrToken));
+	}
+
+	/**
+	 * Live tickets of an order — door lookup by the printed order ref.
+	 * @return list<array{id:int,seat_no:?int,attendee_name:string,checked_in_at:?string}>
+	 */
+	public function liveTicketsForOrder(int $orderId): array
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('t.id', 't.seat_no', 't.attendee_name', 't.checked_in_at')
+			->from('bc_ticket', 't')
+			->innerJoin('t', 'bc_order_line', 'ol', $qb->expr()->eq('ol.id', 't.line_id'))
+			->where($qb->expr()->eq('ol.order_id', $qb->createNamedParameter($orderId)))
+			->andWhere($qb->expr()->isNull('t.revoked_at'))
+			->orderBy('ol.id', 'ASC')->addOrderBy('t.seat_no', 'ASC');
+		return $qb->executeQuery()->fetchAll();
+	}
+
+	/** Offering a ticket belongs to — for companion-token scope checks. */
+	public function offeringIdForTicket(Ticket $ticket): ?int
+	{
+		$line = $this->lines->find((int)$ticket->getLineId());
+		if ($line === null) {
+			return null;
+		}
+		$qb = $this->db->getQueryBuilder();
+		$v = $qb->select('offering_id')->from('bc_order')
+			->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$line->getOrderId())))
+			->executeQuery()->fetchOne();
+		return $v === false ? null : (int)$v;
 	}
 }

@@ -27,10 +27,12 @@ $items = $_['vouchers'] ?? [];
 					<tr>
 						<td data-label="<?php p($l->t('Code')); ?>"><code><?php p((string)$v['code']); ?></code></td>
 						<td data-label="<?php p($l->t('Credit')); ?>" class="bck-num">
-							<?php p(number_format(((int)$v['credit_cents']) / 100, 2, ',', '.') . ' ' . (string)$v['currency']); ?></td>
+							<?php p(number_format(((int)$v['remainingCents']) / 100, 2, ',', '.')
+								. ' / ' . number_format(((int)$v['creditCents']) / 100, 2, ',', '.')
+								. ' ' . (string)($v['currency'] ?? '')); ?></td>
 						<td data-label="<?php p($l->t('Status')); ?>">
 							<span class="bck-badge <?php p((int)$v['active'] === 1 ? 'bck-badge--success' : 'bck-badge--neutral'); ?>">
-								<?php p((int)$v['active'] === 1 ? $l->t('active') : $l->t('redeemed')); ?></span>
+								<?php p((int)$v['active'] === 1 ? $l->t('active') : $l->t('off')); ?></span>
 						</td>
 						<td class="bck-table-actions-col">
 							<?php if ((int)$v['active'] === 1): ?>

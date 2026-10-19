@@ -8,6 +8,10 @@ $_['pageActions'] = [['label' => $l->t('New webhook'), 'primary' => true, 'icon'
 include __DIR__ . '/../common/page-start.php';
 $items = $_['webhooks'] ?? [];
 ?>
+<script type="application/json" id="bck-webhook-events"><?php
+	p(json_encode(\OCA\BookingCheck\Service\OutboundWebhookService::EVENTS,
+		JSON_HEX_TAG | JSON_HEX_AMP));
+?></script>
 <div class="bck-page-stack">
 	<?php if ($items === []): ?>
 		<div class="bck-empty-state">

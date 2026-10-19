@@ -37,9 +37,11 @@ class Order extends Entity
 	protected $approvedBy;
 	protected $approvedAt;
 	protected $consentAt;
+	protected $consentText;
 	protected $createdAt;
 	protected $paidAt;
 	protected $expiresAt;
+	protected $staffNote;
 
 	public function __construct()
 	{
@@ -76,9 +78,8 @@ class Order extends Entity
 			'amountCents' => (int)$this->amountCents,
 			'currency' => $this->currency,
 			'status' => $this->status,
-			'idemToken' => $this->idemToken,
-			'manageTokenHash' => $this->manageTokenHash,
 			'isTest' => (int)$this->isTest,
+			'staffNote' => $this->staffNote,
 			'voucherId' => $this->voucherId === null ? null : (int)$this->voucherId,
 			'discountCents' => (int)$this->discountCents,
 			'promoId' => $this->promoId === null ? null : (int)$this->promoId,
@@ -87,6 +88,7 @@ class Order extends Entity
 			'approvedBy' => $this->approvedBy,
 			'approvedAt' => $this->approvedAt === null ? null : $this->approvedAt->format(\DateTimeInterface::ATOM),
 			'consentAt' => $this->consentAt === null ? null : $this->consentAt->format(\DateTimeInterface::ATOM),
+			'consentText' => $this->consentText,
 			'createdAt' => $this->createdAt === null ? null : $this->createdAt->format(\DateTimeInterface::ATOM),
 			'paidAt' => $this->paidAt === null ? null : $this->paidAt->format(\DateTimeInterface::ATOM),
 			'expiresAt' => $this->expiresAt === null ? null : $this->expiresAt->format(\DateTimeInterface::ATOM),

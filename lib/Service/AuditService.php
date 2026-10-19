@@ -71,6 +71,18 @@ class AuditService
 	}
 
 	/** Verify the whole chain; returns first broken row id or 0 = intact. */
+	/** Rate-cap helper: rows for (action, actor) written in the last $seconds. */
+	public function countRecentActions(string $action, string $actor, int $seconds): int
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select($qb->func()->count('id'))->from('bc_audit')
+			->where($qb->expr()->eq('action', $qb->createNamedParameter($action)))
+			->andWhere($qb->expr()->eq('actor', $qb->createNamedParameter($actor)))
+			->andWhere($qb->expr()->gte('created_at',
+				$qb->createNamedParameter(new \DateTimeImmutable('-' . $seconds . ' seconds'), 'datetime_immutable')));
+		return (int)$qb->executeQuery()->fetchOne();
+	}
+
 	public function verifyChain(): int
 	{
 		$prev = '0';

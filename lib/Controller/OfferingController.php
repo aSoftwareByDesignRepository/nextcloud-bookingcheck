@@ -33,6 +33,10 @@ class OfferingController extends Controller
 		private readonly OfferingMapper $offerings,
 		private readonly AuditService $audit,
 		private readonly IUserSession $userSession,
+		private readonly \OCA\BookingCheck\Integration\DeckIntegration $deck,
+		private readonly \OCA\BookingCheck\Integration\TalkIntegration $talk,
+		private readonly \OCA\BookingCheck\Service\LicenseService $license,
+		private readonly \OCP\IDBConnection $db,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -55,6 +59,7 @@ class OfferingController extends Controller
 	{
 		return new TemplateResponse($this->appName, 'admin/offering-edit', [
 			'navId' => 'offerings', 'offering' => null,
+			'pro' => $this->license->isPro(),
 		]);
 	}
 
@@ -64,6 +69,7 @@ class OfferingController extends Controller
 	{
 		return new TemplateResponse($this->appName, 'admin/offering-detail', [
 			'navId' => 'offerings', 'offeringId' => $id,
+			'pro' => $this->license->isPro(),
 		]);
 	}
 
@@ -71,9 +77,35 @@ class OfferingController extends Controller
 	#[NoCSRFRequired]
 	public function edit(int $id): TemplateResponse
 	{
+		$o = $this->offerings->find($id);
+		if ($o === null) {
+			throw new NotFoundException();
+		}
+		// AC-3: a board deleted in Deck clears its stale ref on render
+		if ($o->getDeckBoardId() !== null && $this->deck->boardExists((int)$o->getDeckBoardId()) === false) {
+			$o->setDeckBoardId(null);
+			$this->offerings->update($o);
+		}
 		return new TemplateResponse($this->appName, 'admin/offering-edit', [
 			'navId' => 'offerings', 'offeringId' => $id,
+			'offering' => $o->jsonSerialize(),
+			'pro' => $this->license->isPro(),
+			'deckAvailable' => $this->deck->isAvailable(),
+			'talkAvailable' => $this->talk->isAvailable(),
+			'deckBoardId' => $o->getDeckBoardId(),
+			'talkRoom' => $o->getTalkRoom(),
 		]);
+	}
+
+	/** JSON payload for the offering detail page. */
+	#[NoAdminRequired]
+	public function data(int $id): JSONResponse
+	{
+		$o = $this->offerings->find($id);
+		if ($o === null) {
+			throw new NotFoundException();
+		}
+		return $this->ok(['offering' => $o->jsonSerialize()]);
 	}
 
 	#[NoAdminRequired]
@@ -110,6 +142,59 @@ class OfferingController extends Controller
 		return $this->ok(['id' => $id]);
 	}
 
+	/**
+	 * US-526/527: per-offering Deck board / Talk room toggles. Both are
+	 * guarded — an absent sibling returns the same 'unavailable' result and
+	 * the UI never shows the toggle (availability flags render it).
+	 */
+	#[NoAdminRequired]
+	public function toggleIntegration(int $id): JSONResponse
+	{
+		$o = $this->offerings->find($id);
+		if ($o === null) {
+			throw new NotFoundException();
+		}
+		$kind = (string)$this->request->getParam('kind', '');
+		$on = in_array($this->request->getParam('on'), ['1', 'true', 'on', 1, true], true);
+		$uid = $this->userSession->getUser()?->getUID() ?? '';
+
+		if ($kind === 'deck') {
+			if ($on) {
+				if (!$this->deck->isAvailable()) {
+					return $this->ok(['enabled' => false, 'unavailable' => true]);
+				}
+				$boardId = $this->deck->createBoard('Offering: ' . $o->getTitle(), $uid);
+				if ($boardId === null) {
+					throw new ValidationException(['deck' => 'Deck board could not be created.']);
+				}
+				$o->setDeckBoardId($boardId);
+			} else {
+				$o->setDeckBoardId(null);
+			}
+		} elseif ($kind === 'talk') {
+			if ($on) {
+				if (!$this->talk->isAvailable()) {
+					return $this->ok(['enabled' => false, 'unavailable' => true]);
+				}
+				$url = $this->talk->createRoom($o->getTitle(), $uid);
+				if ($url === null) {
+					throw new ValidationException(['talk' => 'Talk room could not be created.']);
+				}
+				$o->setTalkRoom($url);
+			} else {
+				$o->setTalkRoom(null);
+			}
+		} else {
+			throw new ValidationException(['kind' => 'Unknown integration.']);
+		}
+
+		$o->setUpdatedAt(new \DateTimeImmutable());
+		$this->offerings->update($o);
+		$this->audit->log(null, $id, $uid !== '' ? $uid : 'system',
+			'offering.integration', null, null, ['kind' => $kind, 'on' => $on]);
+		return $this->ok(['enabled' => $on]);
+	}
+
 	#[NoAdminRequired]
 	public function destroy(int $id): JSONResponse
 	{
@@ -117,8 +202,20 @@ class OfferingController extends Controller
 		if ($o === null) {
 			throw new NotFoundException();
 		}
-		// delete only when nothing was ever sold — otherwise archive
-		$this->offerings->delete($o);
+		// delete only when nothing was ever sold — otherwise archive:
+		// a sold offering's orders/invoices/audit rows must never dangle.
+		if ($this->offerings->hasOrders($id)) {
+			throw new ValidationException(['offering' => 'This offering has orders — archive it instead.']);
+		}
+		$this->db->beginTransaction();
+		try {
+			$this->offerings->deleteChildren($id);
+			$this->offerings->delete($o);
+			$this->db->commit();
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
+		}
 		$this->audit->log(null, $id, $this->userSession->getUser()?->getUID() ?? 'system',
 			'offering.deleted');
 		return $this->ok(['deleted' => true]);
@@ -179,34 +276,87 @@ class OfferingController extends Controller
 		if (!in_array($type, ['event', 'course', 'timeslot'], true)) {
 			$fields['type'] = 'Pick a booking type.';
 		}
+		// strict digit check — is_numeric accepts "2.9"/"2e3" and (int)
+		// silently truncates money (api-security §7)
 		$price = $in['price_cents'] ?? null;
-		if (!is_numeric($price) || (int)$price < 0 || (int)$price > 99999999) {
+		if (!is_scalar($price) || !preg_match('/^\d+$/', (string)$price)
+			|| (int)$price > 99999999) {
 			$fields['price_cents'] = 'Invalid price.';
 		}
 		$currency = strtoupper((string)($in['currency'] ?? 'EUR'));
 		if (!preg_match('/^[A-Z]{3}$/', $currency)) {
 			$fields['currency'] = 'Invalid currency.';
 		}
-		$vat = $in['vat_bp'] ?? 1900;
-		if (!is_numeric($vat) || (int)$vat < 0 || (int)$vat > 10000) {
+		$vat = $in['vat_bp'] ?? '1900';
+		if (!is_scalar($vat) || !preg_match('/^\d+$/', (string)$vat)
+			|| (int)$vat > 10000) {
 			$fields['vat_bp'] = 'Invalid VAT rate.';
 		}
 		if ($fields !== []) {
 			throw new ValidationException($fields);
 		}
-		return [
+		$d = [
 			'title' => $title, 'type' => $type,
 			'descr' => $this->strOrNull($in['descr'] ?? null),
 			'price_cents' => (int)$price, 'currency' => $currency, 'vat_bp' => (int)$vat,
 			'approval_required' => $this->bool($in, 'approval_required'),
 			'book_series' => $this->bool($in, 'book_series'),
-			'waitlist_mode' => in_array($in['waitlist_mode'] ?? '', ['notify', 'allocate'], true)
-				? $in['waitlist_mode'] : 'allocate',
-			'sharing_enabled' => $this->bool($in, 'sharing_enabled'),
-			'review_display' => $this->bool($in, 'review_display'),
 			'list_in_directory' => $this->bool($in, 'list_in_directory'),
 			'tos_text' => $this->strOrNull($in['tos_text'] ?? null),
 		];
+		// Pro fields are only writable while licensed — an unlicensed save
+		// (or a hand-crafted request) leaves the stored values untouched.
+		if ($this->license->hasFeature('waitlist')) {
+			$d['waitlist_mode'] = in_array($in['waitlist_mode'] ?? '', ['none', 'notify', 'allocate'], true)
+				? $in['waitlist_mode'] : 'none';
+		}
+		if ($this->license->hasFeature('reviews')) {
+			$d['review_display'] = $this->bool($in, 'review_display');
+		}
+		if ($this->license->hasFeature('uploads')) {
+			$d['sharing_enabled'] = $this->bool($in, 'sharing_enabled');
+			$d['sharing_scope'] = in_array($in['sharing_scope'] ?? '', ['occurrence', 'offering'], true)
+				? $in['sharing_scope'] : 'occurrence';
+			$maxMb = is_numeric($in['upload_max_mb'] ?? null) ? (int)$in['upload_max_mb'] : 50;
+			$quotaMb = is_numeric($in['upload_quota_mb'] ?? null) ? (int)$in['upload_quota_mb'] : 5120;
+			if ($maxMb < 1 || $maxMb > 50) {
+				$fields['upload_max_mb'] = 'Between 1 and 50 MB.';
+			}
+			if ($quotaMb < $maxMb || $quotaMb > 102400) {
+				$fields['upload_quota_mb'] = 'Quota must be at least the file size limit.';
+			}
+			$d['upload_max_mb'] = $maxMb;
+			$d['upload_quota_mb'] = $quotaMb;
+		}
+		if ($this->license->hasFeature('embed')) {
+			$d['embed_domains'] = $this->embedDomains($in['embed_domains'] ?? '', $fields);
+		}
+		if ($fields !== []) {
+			throw new ValidationException($fields);
+		}
+		return $d;
+	}
+
+	/**
+	 * @return string|null JSON array of validated https origins, or null
+	 */
+	private function embedDomains(mixed $raw, array &$fields): ?string
+	{
+		$raw = trim((string)$raw);
+		if ($raw === '') {
+			return null;
+		}
+		$origins = [];
+		foreach (preg_split('/[\s,]+/', $raw) as $cand) {
+			$u = parse_url($cand);
+			$host = strtolower((string)($u['host'] ?? ''));
+			if ($host === '' || !in_array($u['scheme'] ?? '', ['https'], true)) {
+				$fields['embed_domains'] = 'Only https:// origins are allowed.';
+				return null;
+			}
+			$origins[] = 'https://' . $host . (isset($u['port']) ? ':' . (int)$u['port'] : '');
+		}
+		return json_encode(array_values(array_unique($origins)));
 	}
 
 	private function applyOffering(Offering $o, array $d): void
@@ -219,9 +369,28 @@ class OfferingController extends Controller
 		$o->setVatBp($d['vat_bp']);
 		$o->setApprovalRequired($d['approval_required']);
 		$o->setBookSeries($d['book_series']);
-		$o->setWaitlistMode($d['waitlist_mode']);
-		$o->setSharingEnabled($d['sharing_enabled']);
-		$o->setReviewDisplay($d['review_display']);
+		// Pro fields absent on the free tier → preserve the stored value
+		if (array_key_exists('waitlist_mode', $d)) {
+			$o->setWaitlistMode($d['waitlist_mode']);
+		}
+		if (array_key_exists('sharing_enabled', $d)) {
+			$o->setSharingEnabled($d['sharing_enabled']);
+		}
+		if (array_key_exists('sharing_scope', $d)) {
+			$o->setSharingScope($d['sharing_scope']);
+		}
+		if (array_key_exists('upload_max_mb', $d)) {
+			$o->setUploadMaxMb($d['upload_max_mb']);
+		}
+		if (array_key_exists('upload_quota_mb', $d)) {
+			$o->setUploadQuotaMb($d['upload_quota_mb']);
+		}
+		if (array_key_exists('review_display', $d)) {
+			$o->setReviewDisplay($d['review_display']);
+		}
+		if (array_key_exists('embed_domains', $d)) {
+			$o->setEmbedDomains($d['embed_domains']);
+		}
 		$o->setListInDirectory($d['list_in_directory']);
 		$o->setTosText($d['tos_text']);
 	}

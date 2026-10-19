@@ -84,4 +84,20 @@ class WebhookEventMapper extends QBMapper
 		$qb->executeStatement();
 	}
 
+	/**
+	 * Release a claim that was never processed (apply() threw). Guarded by
+	 * processed_at IS NULL so a successfully processed event can never be
+	 * re-claimed — retries of a failed event re-enter the pipeline instead
+	 * of being swallowed as duplicates.
+	 */
+	public function release(string $provider, string $eventId): void
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete($this->getTableName())
+			->where($qb->expr()->eq('provider', $qb->createNamedParameter($provider)))
+			->andWhere($qb->expr()->eq('event_id', $qb->createNamedParameter($eventId)))
+			->andWhere($qb->expr()->isNull('processed_at'));
+		$qb->executeStatement();
+	}
+
 }

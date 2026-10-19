@@ -94,8 +94,28 @@ class VoucherMapper extends QBMapper
 		$qb = $this->db->getQueryBuilder();
 		$qb->update($this->getTableName())
 			->set('remaining_cents', $qb->createFunction('remaining_cents + ' . $cents))
-			->set('uses', $qb->createFunction('GREATEST(uses - 1, 0)'))
+			->set('uses', $qb->createFunction('CASE WHEN uses > 0 THEN uses - 1 ELSE 0 END'))
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($id)));
+		$qb->executeStatement();
+	}
+
+	/**
+	 * Post-payment refund path: return the redeemed credit WITHOUT
+	 * un-counting the use — the redemption genuinely happened (a voucher
+	 * is stored value; refunding the order must not burn the buyer's
+	 * balance). Capped at the issued credit so a double-call can never
+	 * mint value out of thin air.
+	 */
+	public function restoreCredit(int $id, int $cents): void
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('remaining_cents', $qb->createFunction(
+				'CASE WHEN remaining_cents + ' . $cents . ' > credit_cents'
+				. ' THEN credit_cents ELSE remaining_cents + ' . $cents . ' END'))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id)))
+			// belt & braces: only an already-redeemed voucher can be topped up
+			->andWhere($qb->expr()->gt('uses', $qb->createNamedParameter(0)));
 		$qb->executeStatement();
 	}
 }

@@ -15,6 +15,7 @@ use OCA\BookingCheck\Exception\NotFoundException;
 use OCA\BookingCheck\Exception\PspException;
 use OCA\BookingCheck\Exception\StateConflictException;
 use OCA\BookingCheck\Exception\ValidationException;
+use OCA\BookingCheck\Service\CatalogService;
 use OCA\BookingCheck\Service\OrderService;
 use OCA\BookingCheck\Service\PaySessionService;
 use OCA\BookingCheck\Service\SettingsService;
@@ -45,10 +46,13 @@ class PubCheckoutController extends Controller
 		private readonly OrderService $orders,
 		private readonly OrderMapper $orderMapper,
 		private readonly OfferingMapper $offerings,
+		private readonly CatalogService $catalog,
 		private readonly PaySessionService $paySessions,
 		private readonly SettingsService $settings,
 		private readonly IURLGenerator $urlGenerator,
 		private readonly LoggerInterface $logger,
+		private readonly \OCA\BookingCheck\Service\ViesService $vies,
+		private readonly \OCA\BookingCheck\Service\LicenseService $license,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -64,6 +68,9 @@ class PubCheckoutController extends Controller
 		}
 		return new PublicTemplateResponse($this->appName, 'public/checkout', [
 			'offering' => $o->jsonSerialize(),
+			'occurrences' => $this->catalog->occurrenceList($o),
+			'priceCats' => $this->catalog->priceCatsFor($o),
+			'addons' => $this->catalog->addonsFor($o),
 			'approvalRequired' => (int)$o->getApprovalRequired() === 1,
 		]);
 	}
@@ -102,6 +109,9 @@ class PubCheckoutController extends Controller
 		// never mint test orders (structural sandbox isolation, §9.13).
 		$isTest = false;
 
+		// consent is a checkbox — arrive as '1'/'true' or absent (api-security §4)
+		$consented = in_array((string)($in['consent'] ?? ''), ['1', 'true'], true);
+
 		try {
 			$result = $this->orders->createOrder(
 				$offeringId,
@@ -116,6 +126,7 @@ class PubCheckoutController extends Controller
 				$billing,
 				$isTest,
 				'guest',
+				$consented,
 			);
 		} catch (StateConflictException $e) {
 			return $this->fail(409, $e->getCodeName(), $e->getMessage());
@@ -195,7 +206,7 @@ class PubCheckoutController extends Controller
 		if ($order === null) {
 			throw new NotFoundException();
 		}
-		$this->orders->cancelPending((int)$order->getId());
+		$this->orders->cancelPending((int)$order->getId(), 'public');
 		return $this->ok(['status' => 'cancelled']);
 	}
 
@@ -209,10 +220,11 @@ class PubCheckoutController extends Controller
 		if ($code === '' || mb_strlen($code) > 32) {
 			return $this->ok(['valid' => false]);
 		}
-		$promo = \OCP\Server::get(\OCA\BookingCheck\Db\PromoMapper::class)->findByCode($code);
+		$promo = \OCP\Server::get(\OCA\BookingCheck\Service\PricingService::class)
+			->usablePromo($code, $this->strictId($this->request->getParam('offering_id')));
 		// existence is deliberately part of the response — promo codes are
 		// published marketing material, not secrets. Still rate-limited.
-		if ($promo === null || (int)$promo->getActive() !== 1) {
+		if ($promo === null) {
 			return $this->ok(['valid' => false]);
 		}
 		return $this->ok([
@@ -296,16 +308,39 @@ class PubCheckoutController extends Controller
 		if ($country !== null && !preg_match('/^[A-Z]{2}$/', $country)) {
 			throw new ValidationException(['billing_country' => 'Invalid country code.']);
 		}
-		if ($vatId !== null && !preg_match('/^[A-Z]{2}[A-Z0-9]{8,12}$/i', $vatId)) {
-			throw new ValidationException(['vat_id' => 'Invalid VAT ID format.']);
+		if ($vatId !== null) {
+			if (!preg_match('/^[A-Z]{2}[A-Z0-9]{8,12}$/i', $vatId)) {
+				throw new ValidationException(['vat_id' => 'Invalid VAT ID format.']);
+			}
+			if ($country === null) {
+				throw new ValidationException(['billing_country' => 'Country required for a VAT ID.']);
+			}
+			$vatId = strtoupper($vatId);
+			$country = strtoupper($country);
+			if (substr($vatId, 0, 2) !== $country) {
+				throw new ValidationException(['vat_id' => 'VAT ID must start with the billing country.']);
+			}
+		}
+		$viesStatus = 'none';
+		$reverseCharge = false;
+		if ($vatId !== null && $this->license->hasFeature('b2b_vies')
+			&& \OCA\BookingCheck\Service\ViesService::isEuCountry($country)
+			&& $this->settings->get('seller_vat_id') !== ''
+			&& !$this->settings->getBool('kleinunternehmer')
+			&& $country !== $this->settings->get('seller_country')) {
+			$viesStatus = $this->vies->verify($country, $vatId);
+			if ($viesStatus === 'invalid') {
+				throw new ValidationException(['vat_id' => 'This VAT ID could not be verified.']);
+			}
+			// only a live 'valid' verdict zeroes VAT — 'unchecked' bills normally
+			$reverseCharge = $viesStatus === 'valid';
 		}
 		return [
 			'company' => $company,
 			'country' => $country,
 			'vat_id' => $vatId,
-			// VIES verification is async — checkout stores "none" until verified
-			'vies_status' => 'none',
-			'reverse_charge' => false,
+			'vies_status' => $viesStatus,
+			'reverse_charge' => $reverseCharge,
 		];
 	}
 }

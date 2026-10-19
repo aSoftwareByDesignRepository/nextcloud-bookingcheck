@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\BookingCheck\Service;
 
 use OCA\BookingCheck\Db\OfferingMapper;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
@@ -26,6 +27,7 @@ class EolService
 		private readonly OfferingMapper $offerings,
 		private readonly AuditService $audit,
 		private readonly IDBConnection $db,
+		private readonly \OCP\Files\IAppData $appData,
 	) {
 	}
 
@@ -96,7 +98,26 @@ class EolService
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('id', 'buyer_name', 'buyer_email')->from('bc_order')
 			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)));
-		foreach ($qb->executeQuery()->fetchAll() as $o) {
+		$orders = $qb->executeQuery()->fetchAll();
+		$emails = array_values(array_unique(array_map(
+			fn ($o) => strtolower((string)$o['buyer_email']), $orders)));
+
+		// queued + dead queue mail still carries the real address — kill it
+		// BEFORE the tombstone lands (to_email keys are plaintext). Portal
+		// sessions are email-keyed — the buyer's portal login dies with the
+		// offering's data too.
+		if ($emails !== []) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_email')->where($qb->expr()->in('to_email',
+				$qb->createNamedParameter($emails, IQueryBuilder::PARAM_STR_ARRAY)))
+				->executeStatement();
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_portal_sess')->where($qb->expr()->in('email',
+				$qb->createNamedParameter($emails, IQueryBuilder::PARAM_STR_ARRAY)))
+				->executeStatement();
+		}
+
+		foreach ($orders as $o) {
 			$upd = $this->db->getQueryBuilder();
 			$upd->update('bc_order')
 				->set('buyer_name', $upd->createNamedParameter($tomb((string)$o['buyer_name'])))
@@ -106,12 +127,19 @@ class EolService
 				->where($upd->expr()->eq('id', $upd->createNamedParameter((int)$o['id'])));
 			$upd->executeStatement();
 
-			// attendee PII on tickets of this order
+			// attendee PII on tickets + their intake answers
 			$q = $this->db->getQueryBuilder();
 			$q->select('t.id')->from('bc_ticket', 't')
 				->innerJoin('t', 'bc_order_line', 'ol', $q->expr()->eq('ol.id', 't.line_id'))
 				->where($q->expr()->eq('ol.order_id', $q->createNamedParameter((int)$o['id'])));
-			foreach ($q->executeQuery()->fetchAll(\PDO::FETCH_COLUMN) as $tid) {
+			$ticketIds = $q->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
+			if ($ticketIds !== []) {
+				$d = $this->db->getQueryBuilder();
+				$d->delete('bc_answer')->where($d->expr()->in('ticket_id',
+					$d->createNamedParameter($ticketIds, IQueryBuilder::PARAM_INT_ARRAY)))
+					->executeStatement();
+			}
+			foreach ($ticketIds as $tid) {
 				$u = $this->db->getQueryBuilder();
 				$u->update('bc_ticket')
 					->set('attendee_name', $u->createNamedParameter($tomb('a' . $tid)))
@@ -119,12 +147,45 @@ class EolService
 					->where($u->expr()->eq('id', $u->createNamedParameter((int)$tid)));
 				$u->executeStatement();
 			}
+			// reviews are buyer-authored text tied to this order's lines
+			$d = $this->db->getQueryBuilder();
+			$d->delete('bc_review')->where($d->expr()->in('line_id',
+				$d->createFunction('(SELECT id FROM *PREFIX*bc_order_line WHERE order_id = '
+					. (int)$o['id'] . ')')))->executeStatement();
 		}
-		// portal sessions + material links for the offering go too
+
+		// waitlist rows hold plaintext emails for this offering's targets
+		foreach (['event' => 'bc_event', 'series' => 'bc_series', 'slot' => 'bc_slot'] as $tt => $ttbl) {
+			$d = $this->db->getQueryBuilder();
+			$d->delete('bc_waitlist')
+				->where($d->expr()->eq('target_type', $d->createNamedParameter($tt)))
+				->andWhere($d->expr()->in('target_id', $d->createFunction(
+					'(SELECT id FROM *PREFIX*' . $ttbl . ' WHERE offering_id = '
+					. $offeringId . ')')))->executeStatement();
+		}
+
+		// uploads: the BLOB is the PII — purge appdata before the row
 		$qb = $this->db->getQueryBuilder();
-		$qb->delete('bc_upload')
+		$qb->select('file_ref')->from('bc_upload')
 			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)));
-		$qb->executeStatement();
+		$refs = $qb->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
+		if ($refs !== []) {
+			try {
+				$dir = $this->appData->getFolder('uploads');
+				foreach ($refs as $ref) {
+					if ($dir->fileExists((string)$ref)) {
+						$dir->getFile((string)$ref)->delete();
+					}
+				}
+			} catch (\Throwable) {
+				// blob purge is best-effort inside the txn; orphan blobs are
+				// worthless without their row and get janitor-cleaned
+			}
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_upload')
+				->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)));
+			$qb->executeStatement();
+		}
 	}
 
 	private function nextActionAt(string $state): ?\DateTimeImmutable

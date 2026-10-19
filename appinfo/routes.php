@@ -21,6 +21,8 @@ return [
 		// ---------------------------------------------------------------
 		['name' => 'page#index',        'url' => '/',                              'verb' => 'GET'],
 		['name' => 'page#needsRole',    'url' => '/needs-role',                    'verb' => 'GET'],
+		['name' => 'page#supportUs',    'url' => '/support-us',                    'verb' => 'GET'],
+		['name' => 'page#pro',          'url' => '/pro',                           'verb' => 'GET'],
 
 		// Overview / dashboard
 		['name' => 'dashboard#index',   'url' => '/overview',                      'verb' => 'GET'],
@@ -30,12 +32,14 @@ return [
 		['name' => 'offering#index',    'url' => '/offerings',                     'verb' => 'GET'],
 		['name' => 'offering#create',   'url' => '/offerings/new',                 'verb' => 'GET'],
 		['name' => 'offering#store',    'url' => '/api/offerings',                 'verb' => 'POST'],
+		['name' => 'offering#data',     'url' => '/api/offerings/{id}',            'verb' => 'GET',  'requirements' => ['id' => '\d+']],
 		['name' => 'offering#show',     'url' => '/offerings/{id}',                'verb' => 'GET',  'requirements' => ['id' => '\d+']],
 		['name' => 'offering#edit',     'url' => '/offerings/{id}/edit',           'verb' => 'GET',  'requirements' => ['id' => '\d+']],
 		['name' => 'offering#update',   'url' => '/api/offerings/{id}',            'verb' => 'PUT',  'requirements' => ['id' => '\d+']],
 		['name' => 'offering#destroy',  'url' => '/api/offerings/{id}',            'verb' => 'DELETE','requirements' => ['id' => '\d+']],
 		['name' => 'offering#transition','url' => '/api/offerings/{id}/transition','verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'offering#duplicate','url' => '/api/offerings/{id}/duplicate',  'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'offering#toggleIntegration','url' => '/api/offerings/{id}/integration','verb' => 'POST', 'requirements' => ['id' => '\d+']],
 
 		// Slots / sessions
 		['name' => 'slot#list',         'url' => '/api/offerings/{id}/slots',      'verb' => 'GET',  'requirements' => ['id' => '\d+']],
@@ -43,6 +47,9 @@ return [
 		['name' => 'slot#update',       'url' => '/api/slots/{id}',                'verb' => 'PUT',  'requirements' => ['id' => '\d+']],
 		['name' => 'slot#destroy',      'url' => '/api/slots/{id}',                'verb' => 'DELETE','requirements' => ['id' => '\d+']],
 		['name' => 'slot#series',       'url' => '/api/offerings/{id}/slot-series','verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'slot#templates',    'url' => '/api/offerings/{id}/slot-templates','verb' => 'GET','requirements' => ['id' => '\d+']],
+		['name' => 'slot#templateStore','url' => '/api/offerings/{id}/slot-templates','verb' => 'POST','requirements' => ['id' => '\d+']],
+		['name' => 'slot#templateDestroy','url' => '/api/slot-templates/{id}',     'verb' => 'DELETE','requirements' => ['id' => '\d+']],
 
 		// Orders
 		['name' => 'order#index',       'url' => '/orders',                        'verb' => 'GET'],
@@ -57,7 +64,7 @@ return [
 
 		// Roster & check-in (app)
 		['name' => 'roster#index',      'url' => '/roster',                        'verb' => 'GET'],
-		['name' => 'roster#slot',       'url' => '/api/slots/{id}/roster',         'verb' => 'GET',  'requirements' => ['id' => '\d+']],
+		['name' => 'roster#roster',     'url' => '/api/targets/{type}/{id}/roster','verb' => 'GET',  'requirements' => ['type' => 'event|slot|series', 'id' => '\d+']],
 		['name' => 'roster#checkIn',    'url' => '/api/attendees/{id}/check-in',   'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'roster#undoCheckIn','url' => '/api/attendees/{id}/check-in',   'verb' => 'DELETE','requirements' => ['id' => '\d+']],
 
@@ -72,8 +79,10 @@ return [
 		['name' => 'promo#index',       'url' => '/promos',                        'verb' => 'GET'],
 		['name' => 'promo#store',       'url' => '/api/promos',                    'verb' => 'POST'],
 		['name' => 'promo#destroy',     'url' => '/api/promos/{id}',               'verb' => 'DELETE','requirements' => ['id' => '\d+']],
+		['name' => 'addon#index',       'url' => '/api/offerings/{id}/addons',     'verb' => 'GET',  'requirements' => ['id' => '\d+']],
 		['name' => 'addon#store',       'url' => '/api/offerings/{id}/addons',     'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'addon#destroy',     'url' => '/api/addons/{id}',               'verb' => 'DELETE','requirements' => ['id' => '\d+']],
+		['name' => 'pricecat#index',    'url' => '/api/offerings/{id}/price-categories','verb' => 'GET','requirements' => ['id' => '\d+']],
 		['name' => 'pricecat#store',    'url' => '/api/offerings/{id}/price-categories','verb' => 'POST','requirements' => ['id' => '\d+']],
 		['name' => 'pricecat#destroy',  'url' => '/api/price-categories/{id}',     'verb' => 'DELETE','requirements' => ['id' => '\d+']],
 		['name' => 'resource#index',    'url' => '/resources',                     'verb' => 'GET'],
@@ -82,6 +91,7 @@ return [
 		['name' => 'resource#destroy',  'url' => '/api/resources/{id}',            'verb' => 'DELETE','requirements' => ['id' => '\d+']],
 
 		// Intake questions
+		['name' => 'intake#index',      'url' => '/api/offerings/{id}/intake',     'verb' => 'GET',  'requirements' => ['id' => '\d+']],
 		['name' => 'intake#store',      'url' => '/api/offerings/{id}/intake',     'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'intake#update',     'url' => '/api/intake/{id}',               'verb' => 'PUT',  'requirements' => ['id' => '\d+']],
 		['name' => 'intake#destroy',    'url' => '/api/intake/{id}',               'verb' => 'DELETE','requirements' => ['id' => '\d+']],
@@ -94,6 +104,15 @@ return [
 		['name' => 'material#index',    'url' => '/api/offerings/{id}/materials',  'verb' => 'GET',  'requirements' => ['id' => '\d+']],
 		['name' => 'material#upload',   'url' => '/api/offerings/{id}/materials',  'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'material#destroy',  'url' => '/api/materials/{id}',            'verb' => 'DELETE','requirements' => ['id' => '\d+']],
+
+		// Attendee uploads (moderation)
+		['name' => 'upload#index',      'url' => '/api/offerings/{id}/uploads',    'verb' => 'GET',  'requirements' => ['id' => '\d+']],
+		['name' => 'upload#file',       'url' => '/api/uploads/{id}/file',         'verb' => 'GET',  'requirements' => ['id' => '\d+']],
+		['name' => 'upload#destroy',    'url' => '/api/uploads/{id}',              'verb' => 'DELETE','requirements' => ['id' => '\d+']],
+
+		// Attendee broadcasts
+		['name' => 'broadcast#send',    'url' => '/api/offerings/{id}/broadcasts', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'broadcast#index',   'url' => '/api/offerings/{id}/broadcasts', 'verb' => 'GET',  'requirements' => ['id' => '\d+']],
 
 		// Reports / exports
 		['name' => 'report#index',      'url' => '/reports',                       'verb' => 'GET'],
@@ -109,6 +128,7 @@ return [
 		['name' => 'webhook#destroy',   'url' => '/api/webhooks/{id}',             'verb' => 'DELETE','requirements' => ['id' => '\d+']],
 
 		// Settings JSON endpoints
+		['name' => 'settings#setNotifyPaid','url' => '/api/settings/notify-paid',  'verb' => 'POST'],
 		['name' => 'settings#get',      'url' => '/api/settings/{section}',        'verb' => 'GET'],
 		['name' => 'settings#devices',  'url' => '/api/settings/devices/list',     'verb' => 'GET'],
 		['name' => 'settings#issueDevice','url' => '/api/settings/devices',        'verb' => 'POST'],
@@ -130,7 +150,12 @@ return [
 		// Manage link (bearer token in path, hashed at rest)
 		['name' => 'manage#show',        'url' => '/pub/m/{token}',                'verb' => 'GET'],
 		['name' => 'manage#cancel',      'url' => '/pub/m/{token}/cancel',         'verb' => 'POST'],
+		['name' => 'manage#answers',     'url' => '/pub/m/{token}/answers',        'verb' => 'POST'],
 		['name' => 'manage#ics',         'url' => '/pub/m/{token}/ics',            'verb' => 'GET'],
+		['name' => 'manage#invoice',     'url' => '/pub/m/{token}/invoice',        'verb' => 'GET'],
+		['name' => 'manage#uploadFile',  'url' => '/pub/m/{token}/uploads',        'verb' => 'POST'],
+		['name' => 'manage#uploadDownload', 'url' => '/pub/m/{token}/uploads/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'manage#uploadDelete', 'url' => '/pub/m/{token}/uploads/{id}',  'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
 		['name' => 'manage#ticket',      'url' => '/pub/m/{token}/tickets/{ticketId}', 'verb' => 'GET','requirements' => ['ticketId' => '\d+']],
 		['name' => 'manage#pay',         'url' => '/pub/m/{token}/pay',            'verb' => 'POST'],
 		['name' => 'manage#recover',     'url' => '/pub/m/recover',                'verb' => 'POST'],
@@ -185,9 +210,11 @@ return [
 		// ---------------------------------------------------------------
 		['name' => 'capi#events',        'url' => '/capi/v1/events',               'verb' => 'GET'],
 		['name' => 'capi#roster',        'url' => '/capi/v1/slots/{id}/roster',    'verb' => 'GET',  'requirements' => ['id' => '\d+']],
+		['name' => 'capi#targetRoster',  'url' => '/capi/v1/targets/{type}/{id}/roster', 'verb' => 'GET', 'requirements' => ['type' => 'event|slot|series', 'id' => '\d+']],
 		['name' => 'capi#checkIn',       'url' => '/capi/v1/check-in',             'verb' => 'POST'],
 		['name' => 'capi#undoCheckIn',   'url' => '/capi/v1/check-in',             'verb' => 'DELETE'],
 		['name' => 'capi#manifest',      'url' => '/capi/v1/manifest',             'verb' => 'GET'],
+		['name' => 'capi#stats',         'url' => '/capi/v1/stats',                'verb' => 'GET'],
 
 		// ---------------------------------------------------------------
 		// OCS API (admin, for integrations)

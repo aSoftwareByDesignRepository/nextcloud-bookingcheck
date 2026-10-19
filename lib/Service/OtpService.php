@@ -78,11 +78,18 @@ class OtpService
 		if ((int)$row->getAttempts() >= self::MAX_ATTEMPTS) {
 			return false;
 		}
-		// count the attempt BEFORE comparing — a race can only burn tries
+		// count the attempt BEFORE comparing — fenced at SQL level so the
+		// cap is exact under a parallel burst: losers get 0 rows and never
+		// evaluate a code. used_at guard: a consumed code is dead input.
 		$qb = $this->db->getQueryBuilder();
 		$qb->update('bc_otp')->set('attempts', $qb->createFunction('attempts + 1'))
-			->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$row->getId())));
-		$qb->executeStatement();
+			->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$row->getId())))
+			->andWhere($qb->expr()->lt('attempts',
+				$qb->createNamedParameter(self::MAX_ATTEMPTS)))
+			->andWhere($qb->expr()->isNull('used_at'));
+		if ($qb->executeStatement() === 0) {
+			return false;
+		}
 
 		if (!$this->tokens->verify($code, $row->getCodeHash())) {
 			return false;

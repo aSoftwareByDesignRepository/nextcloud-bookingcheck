@@ -88,13 +88,30 @@ class Application extends App implements IBootstrap
 		// ---------------------------------------------------------------
 		$context->registerMiddleware(PublicErrorMiddleware::class);
 		$context->registerMiddleware(AppAccessMiddleware::class);
+		$context->registerMiddleware(\OCA\BookingCheck\Middleware\LicenseGateMiddleware::class);
 		$context->registerMiddleware(PortalSessionMiddleware::class);
 		$context->registerMiddleware(CompanionAuthMiddleware::class);
 		$context->registerMiddleware(RateLimitMiddleware::class);
 		$context->registerMiddleware(SessionCsrfMiddleware::class);
+
+		$context->registerNotifierService(\OCA\BookingCheck\Notification\Notifier::class);
+		$context->registerDashboardWidget(\OCA\BookingCheck\Dashboard\BookingsWidget::class);
 	}
 
 	public function boot(IBootContext $context): void
 	{
+		$app = $context->getAppContainer();
+		\OCA\BookingCheck\Support\NavGate::register(
+			$app,
+			'bookingcheck.page.index',
+			'app.svg',
+			'BookingCheck',
+			10,
+			static function (string $uid) use ($app): bool {
+				$groups = $app->get(\OCP\IGroupManager::class);
+				return $groups->isAdmin($uid)
+					|| $groups->isInGroup($uid, \OCA\BookingCheck\Middleware\AppAccessMiddleware::ADMIN_GROUP);
+			},
+		);
 	}
 }

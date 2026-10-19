@@ -43,8 +43,14 @@ class AppAccessMiddleware extends Middleware
 			return;
 		}
 		$path = $this->request->getPathInfo();
-		if (!str_starts_with($path, '/apps/' . Application::APP_ID)
-			&& !str_starts_with($path, '/index.php/apps/' . Application::APP_ID)) {
+		$appPrefix = null;
+		foreach (['/index.php/apps/' . Application::APP_ID, '/apps/' . Application::APP_ID] as $p) {
+			if (str_starts_with($path, $p)) {
+				$appPrefix = $p;
+				break;
+			}
+		}
+		if ($appPrefix === null) {
 			return;
 		}
 		// Every bookingcheck page gets the shared asset layer before any
@@ -52,10 +58,13 @@ class AppAccessMiddleware extends Middleware
 		\OCA\BookingCheck\Support\AssetRegistrar::registerStyles();
 		\OCA\BookingCheck\Support\AssetRegistrar::registerScripts();
 
-		// Public + machine surfaces have their own guards. /scan is NOT
-		// public — it is the staff door page and stays behind the role.
+		// Public + machine surfaces have their own guards — segment-exact
+		// match so an admin route like /publish or /public-x can never
+		// accidentally share the /pub exemption. /scan is NOT public — it
+		// is the staff door page and stays behind the role.
+		$rest = substr($path, strlen($appPrefix)); // e.g. '/pub/api/orders'
 		foreach (['/pub', '/psp', '/capi'] as $open) {
-			if (str_contains($path, '/' . Application::APP_ID . $open)) {
+			if ($rest === $open || str_starts_with($rest, $open . '/')) {
 				return;
 			}
 		}

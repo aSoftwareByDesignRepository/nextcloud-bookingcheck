@@ -21,6 +21,7 @@ class Payment extends Entity
 	protected $disputed;
 	protected $amountCents;
 	protected $rawStatus;
+	protected $refundRef;
 	protected $createdAt;
 
 	public function __construct()

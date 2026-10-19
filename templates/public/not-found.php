@@ -1,4 +1,5 @@
 <?php
+\OCA\BookingCheck\Support\AssetRegistrar::registerPublic();
 /** Uniform 404 — same page for "gone", "not yours", and "never existed". */
 $recover = !empty($_['recover']);
 $url = \OCP\Server::get(\OCP\IURLGenerator::class);

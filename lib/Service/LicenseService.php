@@ -74,4 +74,12 @@ class LicenseService
 		}
 		return $this->isPro();
 	}
+
+	/** Throw when a Pro-gated feature is invoked on the free tier. */
+	public function requireFeature(string $feature): void
+	{
+		if (!$this->hasFeature($feature)) {
+			throw new \OCA\BookingCheck\Exception\ProRequiredException($feature);
+		}
+	}
 }

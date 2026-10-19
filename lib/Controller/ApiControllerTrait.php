@@ -16,7 +16,9 @@ trait ApiControllerTrait
 {
 	private function ok(array $data = [], int $status = 200): JSONResponse
 	{
-		return new JSONResponse(['success' => true] + $data, $status);
+		// family wire contract: {success, data:{…}} — BCK.api resolves body.data
+		return new JSONResponse(['success' => true, 'data' => $data], $status,
+			[], JSON_INVALID_UTF8_SUBSTITUTE);
 	}
 
 	private function fail(int $status, string $code, string $message, array $fields = []): JSONResponse

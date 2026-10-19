@@ -11,6 +11,11 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Attendee upload (UGC). occurrence_id stores the uploader's seat
+ * order-line id — the line pins target_type+target_id+order uniquely,
+ * so scope checks never collide across event/slot/series ids.
+ */
 class Upload extends Entity
 {
 	protected $offeringId;
@@ -39,15 +44,10 @@ class Upload extends Entity
 		return [
 			'id' => (int)$this->id,
 			'offeringId' => (int)$this->offeringId,
-			'occurrenceId' => $this->occurrenceId === null ? null : (int)$this->occurrenceId,
-			'uploaderEmail' => $this->uploaderEmail,
 			'displayName' => $this->displayName,
-			'fileRef' => $this->fileRef,
 			'sizeBytes' => (int)$this->sizeBytes,
 			'mime' => $this->mime,
-			'sha256' => $this->sha256,
-			'createdAt' => $this->createdAt === null ? null : $this->createdAt->format(\DateTimeInterface::ATOM),
-			'deletedAt' => $this->deletedAt === null ? null : $this->deletedAt->format(\DateTimeInterface::ATOM),
+			'createdAt' => $this->createdAt?->format(\DateTimeInterface::ATOM),
 		];
 	}
 }

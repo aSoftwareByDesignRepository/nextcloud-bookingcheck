@@ -14,6 +14,7 @@ use OCP\AppFramework\Db\Entity;
 class Voucher extends Entity
 {
 	protected $code;
+	protected $currency;
 	protected $creditCents;
 	protected $remainingCents;
 	protected $validUntil;
@@ -42,6 +43,7 @@ class Voucher extends Entity
 		return [
 			'id' => (int)$this->id,
 			'code' => $this->code,
+			'currency' => $this->currency,
 			'creditCents' => (int)$this->creditCents,
 			'remainingCents' => (int)$this->remainingCents,
 			'validUntil' => $this->validUntil === null ? null : $this->validUntil->format(\DateTimeInterface::ATOM),

@@ -9,9 +9,12 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Controller;
 
+use OCA\BookingCheck\Db\OfferingMapper;
 use OCA\BookingCheck\Db\OrderLineMapper;
+use OCA\BookingCheck\Db\OrderMapper;
 use OCA\BookingCheck\Db\Review;
 use OCA\BookingCheck\Db\ReviewMapper;
+use OCA\BookingCheck\Service\TokenService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -29,6 +32,9 @@ class PubReviewController extends Controller
 		IRequest $request,
 		private readonly ReviewMapper $reviews,
 		private readonly OrderLineMapper $lines,
+		private readonly OrderMapper $orders,
+		private readonly OfferingMapper $offerings,
+		private readonly TokenService $tokens,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -38,22 +44,30 @@ class PubReviewController extends Controller
 	#[NoCSRFRequired]
 	public function store(): JSONResponse
 	{
+		$token = (string)$this->request->getParam('manage_token', '');
 		$lineId = $this->strictId($this->request->getParam('line_id'));
 		$rating = $this->strictId($this->request->getParam('rating'));
 		$text = trim((string)$this->request->getParam('text', ''));
 		if ($lineId === null || $rating === null || $rating < 1 || $rating > 5) {
 			return $this->fail(400, 'VALIDATION', 'Pick a rating 1–5.');
 		}
-		// entitlement: the line must belong to a PAID order (verified purchase)
-		$line = $this->lines->find($lineId);
-		if ($line === null) {
+		// capability check: the manage token IS the authorization. A bare
+		// line_id is enumerable — without the token anyone could post
+		// reviews on a stranger's paid booking.
+		if ($token === '' || strlen($token) > 128) {
 			return $this->notFound();
 		}
-		$qb = \OCP\Server::get(\OCP\IDBConnection::class)->getQueryBuilder();
-		$qb->select('status')->from('bc_order')
-			->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$line->getOrderId())));
-		if ($qb->executeQuery()->fetchOne() !== 'paid') {
+		$order = $this->orders->findByManageTokenHash($this->tokens->hash($token));
+		if ($order === null || $order->getStatus() !== 'paid') {
 			return $this->notFound();
+		}
+		$line = $this->lines->find($lineId);
+		if ($line === null || (int)$line->getOrderId() !== (int)$order->getId()) {
+			return $this->notFound(); // foreign line — same uniform answer
+		}
+		$offering = $this->offerings->find((int)$order->getOfferingId());
+		if ($offering === null || (int)$offering->getReviewDisplay() !== 1) {
+			return $this->notFound(); // reviews disabled for this offering
 		}
 		$r = new Review();
 		$r->setLineId($lineId);

@@ -94,7 +94,11 @@ class MollieProvider extends AbstractProvider
 	{
 		try {
 			$res = $this->post(self::API . '/payments/' . $pspRef . '/refunds',
-				['Authorization' => 'Bearer ' . $this->apiKey(false)],
+				['Authorization' => 'Bearer ' . $this->apiKey(false),
+					// ignored where unsupported; a stored refund_ref on our
+					// side is the actual dedupe (see OrderController::refund)
+					'Idempotency-Key' => 'bck-refund-' . $pspRef . '-' . $amountCents,
+				],
 				['amount' => [
 					'currency' => $currency,
 					'value' => number_format($amountCents / 100, 2, '.', ''),

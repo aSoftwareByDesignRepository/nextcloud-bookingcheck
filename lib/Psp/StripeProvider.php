@@ -125,6 +125,9 @@ class StripeProvider extends AbstractProvider
 				'headers' => [
 					'Authorization' => 'Bearer ' . $key,
 					'Content-Type' => 'application/x-www-form-urlencoded',
+					// Stripe replays the original refund for a repeated key —
+					// a retry after a post-PSP crash cannot double-refund.
+					'Idempotency-Key' => 'bck-refund-' . $pspRef . '-' . $amountCents,
 				],
 				'body' => http_build_query([
 					'payment_intent' => $pspRef,

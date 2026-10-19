@@ -57,4 +57,20 @@ final class AssetRegistrar
 			Util::addScript(Application::APP_ID, 'pages/' . $pageScript);
 		}
 	}
+
+	/**
+	 * Guest-facing pages (PublicTemplateResponse) get no admin shell — but
+	 * they still need the token/surface styles and the BCK kernel (appBase,
+	 * toast) or every public page script silently no-ops.
+	 */
+	public static function registerPublic(string $pageScript = ''): void
+	{
+		self::registerStyles();
+		foreach (['common/toasts', 'common/field-errors', 'app'] as $script) {
+			Util::addScript(Application::APP_ID, $script);
+		}
+		if ($pageScript !== '') {
+			Util::addScript(Application::APP_ID, 'pages/' . $pageScript);
+		}
+	}
 }

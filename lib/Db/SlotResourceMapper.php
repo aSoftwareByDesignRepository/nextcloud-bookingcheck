@@ -54,4 +54,35 @@ class SlotResourceMapper extends QBMapper
 		$qb->select('*')->from($this->getTableName())->orderBy('id', 'ASC');
 		return $this->findEntities($qb);
 	}
+
+	/**
+	 * Any live booking/hold on this slot's pools? Resource-bound slots
+	 * keep zero counters on bc_slot — the truth lives here.
+	 */
+	public function hasBookings(int $slotId): bool
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')->from($this->getTableName())
+			->where($qb->expr()->eq('slot_id', $qb->createNamedParameter($slotId)))
+			->andWhere($qb->expr()->orX(
+				$qb->expr()->gt('sold', $qb->createNamedParameter(0)),
+				$qb->expr()->gt('held', $qb->createNamedParameter(0))))
+			->setMaxResults(1);
+		return $qb->executeQuery()->fetch() !== false;
+	}
+
+	/** @return list<SlotResource> active pools for the given slot ids */
+	public function forSlots(array $slotIds): array
+	{
+		if ($slotIds === []) {
+			return [];
+		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->in('slot_id', $qb->createNamedParameter(
+				array_map('intval', $slotIds), \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))
+			->andWhere($qb->expr()->eq('active', $qb->createNamedParameter(1)))
+			->orderBy('slot_id', 'ASC')->addOrderBy('resource_id', 'ASC');
+		return $this->findEntities($qb);
+	}
 }

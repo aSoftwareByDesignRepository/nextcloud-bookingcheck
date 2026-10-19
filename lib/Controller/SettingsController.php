@@ -26,11 +26,13 @@ class SettingsController extends Controller
 		'payments' => ['psp_provider', 'mollie_api_key', 'mollie_test_key',
 			'stripe_secret_key', 'stripe_webhook_secret', 'mollie_webhook_secret'],
 		'invoicing' => ['invoice_prefix', 'seller_name', 'seller_email',
-			'seller_address', 'seller_vat_id', 'seller_country', 'kleinunternehmer'],
+			'seller_address', 'seller_vat_id', 'seller_country', 'kleinunternehmer',
+			'vies_online'],
 		'flows' => ['order_hold_min', 'approval_hold_min', 'payment_ttl_min',
 			'otp_ttl_min', 'portal_sess_days', 'waitlist_offer_h'],
 		'directory' => ['directory_enabled', 'cors_origins', 'default_locale'],
 		'general' => ['portal_enabled', 'license_key'],
+		'integrations' => ['crm_sync_enabled', 'crm_sync_token'],
 	];
 
 	public function __construct(
@@ -41,6 +43,9 @@ class SettingsController extends Controller
 		private readonly \OCA\BookingCheck\Db\CompanionTokenMapper $companions,
 		private readonly \OCA\BookingCheck\Service\TokenService $tokens,
 		private readonly \OCP\IUserSession $userSession,
+		private readonly \OCA\BookingCheck\Service\SellerNotifyService $sellerNotify,
+		private readonly \OCA\BookingCheck\Service\LicenseService $license,
+		private readonly \OCA\BookingCheck\Db\OfferingMapper $offerings,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -72,12 +77,34 @@ class SettingsController extends Controller
 		if (!in_array($role, ['door', 'manager'], true)) {
 			throw new \OCA\BookingCheck\Exception\ValidationException(['role' => 'Role must be door or manager.']);
 		}
+		// scope: comma-separated offering ids — empty = all offerings.
+		// A garbage scope would silently mean "no offerings" (fail-closed);
+		// reject it loudly instead of minting a useless token.
+		$scopeRaw = trim((string)$this->request->getParam('offering_ids', ''));
+		if ($scopeRaw !== '') {
+			$scopeIds = [];
+			foreach (preg_split('/[\s,]+/', $scopeRaw) as $piece) {
+				if (!preg_match('/^\d+$/', $piece)) {
+					throw new \OCA\BookingCheck\Exception\ValidationException(
+						['offering_ids' => 'Offering ids must be a comma-separated list of numbers.']);
+				}
+				$scopeIds[] = (int)$piece;
+			}
+			foreach ($scopeIds as $oid) {
+				if ($this->offerings->find($oid) === null) {
+					throw new \OCA\BookingCheck\Exception\ValidationException(
+						['offering_ids' => 'Unknown offering in the scope list.']);
+				}
+			}
+			// stored as JSON — CapiController::deviceScope() json_decodes it
+			$scopeRaw = json_encode(array_values(array_unique($scopeIds)));
+		}
 		[$token, $hash] = $this->tokens->mint();
 		$d = new \OCA\BookingCheck\Db\CompanionToken();
 		$d->setTokenHash($hash);
 		$d->setLabel($label);
 		$d->setRole($role);
-		$d->setOfferingIds((string)$this->request->getParam('offering_ids', ''));
+		$d->setOfferingIds($scopeRaw);
 		$d->setCreatedBy($this->userSession->getUser()?->getUID() ?? 'admin');
 		$d->setCreatedAt(new \DateTimeImmutable());
 		$this->companions->insert($d);
@@ -115,6 +142,19 @@ class SettingsController extends Controller
 		return $this->ok(['settings' => $out]);
 	}
 
+	/** US-528 AC-2: per-user opt-out for paid-order notifications. */
+	#[NoAdminRequired]
+	public function setNotifyPaid(): JSONResponse
+	{
+		$uid = $this->userSession->getUser()?->getUID();
+		if ($uid === null || $uid === '') {
+			throw new \OCA\BookingCheck\Exception\UnauthorizedException();
+		}
+		$on = in_array($this->request->getParam('enabled'), ['1', 'true', 'on', 1, true], true);
+		$this->sellerNotify->setWantsPaid($uid, $on);
+		return $this->ok(['enabled' => $on]);
+	}
+
 	#[NoAdminRequired]
 	public function put(string $section): JSONResponse
 	{
@@ -136,17 +176,41 @@ class SettingsController extends Controller
 			if ($k === 'psp_provider' && !in_array($v, ['', 'mollie', 'stripe'], true)) {
 				throw new ValidationException(['psp_provider' => 'Unknown provider.']);
 			}
-			if ($k === 'kleinunternehmer') {
+			if (in_array($k, ['kleinunternehmer', 'vies_online', 'directory_enabled',
+				'crm_sync_enabled', 'portal_enabled'], true)) {
 				$v = in_array($v, ['1', 'true'], true) ? '1' : '0';
 			}
 			if ($k === 'seller_country' && !preg_match('/^[A-Z]{2}$/', $v)) {
 				throw new ValidationException(['seller_country' => 'ISO country code.']);
+			}
+			if (in_array($k, ['order_hold_min', 'approval_hold_min', 'payment_ttl_min',
+				'otp_ttl_min', 'portal_sess_days', 'waitlist_offer_h'], true)) {
+				if (!is_numeric($v) || (int)$v < 1 || (int)$v > 525600) {
+					throw new ValidationException([$k => 'Must be a positive duration.']);
+				}
+				$v = (string)(int)$v;
+			}
+			if ($k === 'cors_origins' && trim($v) !== '') {
+				foreach (preg_split('/[\s,]+/', trim($v)) as $origin) {
+					if ($origin === '*') {
+						throw new ValidationException(['cors_origins' => 'Wildcard origins are not allowed.']);
+					}
+					$u = parse_url($origin);
+					if (empty($u['host']) || !in_array($u['scheme'] ?? '', ['https', 'http'], true)
+						|| (($u['scheme'] === 'http') && !in_array($u['host'], ['localhost', '127.0.0.1'], true))) {
+						throw new ValidationException(['cors_origins' => 'Only https:// origins (or http://localhost) are allowed.']);
+					}
+				}
 			}
 			$this->settings->set($k, $v);
 		}
 		$result = ['saved' => true];
 		if ($section === 'payments' && $this->settings->get('psp_provider') !== '') {
 			$result['psp_ok'] = $this->psp->forCheckout()->testConnection();
+		}
+		if ($section === 'general' && array_key_exists('license_key', $in)) {
+			// echo the LIVE verdict back — a typoed key must surface at save
+			$result['license'] = $this->license->status();
 		}
 		return $this->ok($result);
 	}

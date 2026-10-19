@@ -41,12 +41,14 @@ class TokenService
 		return str_pad((string)random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 	}
 
-	/** Short public refs like BCK-2026-A3F9KQ — unambiguous alphabet. */
+	/** Short public refs like BCK-2026-A3F9KQX2 — unambiguous alphabet.
+	 *  8 chars ≈ 40 bits: the ref doubles as the capability for the public
+	 *  status/cancel routes, so it must survive brute force + throttling. */
 	public function publicRef(string $prefix, int $year): string
 	{
 		$alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 		$ref = '';
-		for ($i = 0; $i < 6; $i++) {
+		for ($i = 0; $i < 8; $i++) {
 			$ref .= $alphabet[random_int(0, strlen($alphabet) - 1)];
 		}
 		return sprintf('%s-%d-%s', $prefix, $year, $ref);

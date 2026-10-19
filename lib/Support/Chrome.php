@@ -90,6 +90,7 @@ final class Chrome
 					['id' => 'reports',   'label' => 'Reports',   'icon' => 'file-text',       'href' => $r('bookingcheck.report.index')],
 					['id' => 'audit',     'label' => 'Audit log', 'icon' => 'scroll-text',     'href' => $r('bookingcheck.audit.index')],
 					['id' => 'webhooks',  'label' => 'Webhooks',  'icon' => 'activity',        'href' => $r('bookingcheck.webhook.index')],
+					['id' => 'support',   'label' => 'Support & us', 'icon' => 'heart-handshake', 'href' => $r('bookingcheck.page.supportUs')],
 				],
 			),
 		]];
@@ -115,6 +116,7 @@ final class Chrome
 			'resources' => 'layout-grid',
 			'reports' => 'file-text',
 			'audit' => 'scroll-text',
+			'support' => 'heart-handshake',
 			default => 'clipboard-check',
 		};
 	}

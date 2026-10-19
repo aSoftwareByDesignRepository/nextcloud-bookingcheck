@@ -31,9 +31,23 @@ class OutboundWebhookJob extends TimedJob
 
 	protected function run($argument): void
 	{
+		$lease = new \DateTimeImmutable('+15 minutes');
 		foreach ($this->deliveries->dueBatch(50) as $d) {
+			$id = (int)$d->getId();
+			$epoch = (int)$d->getAttempts() + 1; // post-claim claim count
+			if (!$this->deliveries->claim($id, $lease)) {
+				continue; // another worker took it
+			}
 			$w = $this->webhooks->find((int)$d->getWebhookId());
-			if ($w === null || (int)$w->getActive() !== 1) {
+			if ($w === null) {
+				// recipient deleted — dead-letter instead of retrying forever
+				$this->service->markOrphaned($id, $epoch);
+				continue;
+			}
+			if ((int)$w->getActive() !== 1) {
+				// temporarily disabled — defer; the claim counts as a cycle,
+				// so permanently-disabled deliveries dead-letter after 8
+				$this->service->deferDelivery($id, $epoch);
 				continue;
 			}
 			try {
@@ -49,9 +63,9 @@ class OutboundWebhookJob extends TimedJob
 					'body' => $d->getPayloadJson(),
 					'timeout' => 10,
 				]);
-				$this->service->markDelivered((int)$d->getId());
+				$this->service->markDelivered($id, $epoch);
 			} catch (\Throwable) {
-				$this->service->markRetryOrDead((int)$d->getId());
+				$this->service->markRetryOrDead($id, $epoch);
 			}
 		}
 	}

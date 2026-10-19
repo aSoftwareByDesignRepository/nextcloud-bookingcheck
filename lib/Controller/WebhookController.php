@@ -59,6 +59,13 @@ class WebhookController extends Controller
 		if (!is_array($events) || $events === []) {
 			throw new ValidationException(['events' => 'Pick at least one event.']);
 		}
+		foreach ($events as $ev) {
+			if (!in_array($ev, OutboundWebhookService::EVENTS, true)) {
+				// a typo'd name subscribes to an event that can never fire —
+				// reject it instead of storing a dead subscription
+				throw new ValidationException(['events' => 'Unknown event: ' . (string)$ev]);
+			}
+		}
 		$w = new Webhook();
 		$w->setUrl($url);
 		$w->setSecretEnc($this->service->encryptSecret(bin2hex(random_bytes(24))));

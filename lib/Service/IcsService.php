@@ -37,6 +37,10 @@ class IcsService
 		$offering = $this->offerings->find((int)$order->getOfferingId());
 		$title = $offering !== null ? $offering->getTitle() : 'Booking ' . $order->getRef();
 
+		// a cancelled/refunded/failed order must export STATUS:CANCELLED —
+		// otherwise a previously-imported VEVENT stays a phantom booking
+		// on the buyer's calendar forever
+		$cancelled = in_array($order->getStatus(), ['cancelled', 'refunded', 'failed', 'expired'], true);
 		$out = [
 			'BEGIN:VCALENDAR',
 			'VERSION:2.0',
@@ -55,7 +59,7 @@ class IcsService
 				$out[] = 'DTEND:' . $end->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
 				$out[] = 'SUMMARY:' . self::esc($title);
 				$out[] = 'DESCRIPTION:' . self::esc('Order ' . $order->getRef() . ' — ' . $order->getBuyerName());
-				$out[] = 'STATUS:CONFIRMED';
+				$out[] = 'STATUS:' . ($cancelled ? 'CANCELLED' : 'CONFIRMED');
 				$out[] = 'END:VEVENT';
 			}
 		}

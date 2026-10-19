@@ -65,6 +65,11 @@ class PortalSessionService
 		if ($row->getAbsExpiresAt() !== null && $row->getAbsExpiresAt() < $now) {
 			return null;
 		}
+		// sliding expiry must be ENFORCED before it is renewed — without this
+		// check an idle session stays valid for the whole absolute cap
+		if ($row->getExpiresAt() !== null && $row->getExpiresAt() < $now) {
+			return null;
+		}
 		// slide the window, capped by the absolute expiry
 		$days = min($this->settings->getInt('portal_sess_days', 30), self::ABS_CAP_DAYS);
 		$newExp = $now->modify('+' . $days . ' days');

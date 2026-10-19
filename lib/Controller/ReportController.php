@@ -38,8 +38,13 @@ class ReportController extends Controller
 	#[NoAdminRequired]
 	public function export()
 	{
+		// only one export exists — a forged kind must not alias the
+		// download under a misleading filename
 		$kind = (string)$this->request->getParam('kind', 'orders');
+		if ($kind !== 'orders') {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
 		$data = $this->csv->orders();
-		return new DataDownloadResponse($data, 'bookingcheck-' . $kind . '-' . date('Ymd') . '.csv', 'text/csv');
+		return new DataDownloadResponse($data, 'bookingcheck-orders-' . date('Ymd') . '.csv', 'text/csv');
 	}
 }

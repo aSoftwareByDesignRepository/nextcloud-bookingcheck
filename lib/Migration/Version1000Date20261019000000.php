@@ -163,7 +163,7 @@ class Version1000Date20261019000000 extends SimpleMigrationStep
 			$t->addColumn('buyer_company', 'string', ['notnull' => false, 'length' => 190]);
 			$t->addColumn('billing_country', 'string', ['notnull' => false, 'length' => 2]);
 			$t->addColumn('vat_id', 'string', ['notnull' => false, 'length' => 32]);
-			$t->addColumn('vies_status', 'string', ['notnull' => true, 'length' => 8, 'default' => 'none']); // none|valid|invalid|down
+			$t->addColumn('vies_status', 'string', ['notnull' => true, 'length' => 16, 'default' => 'none']); // none|valid|invalid|unchecked|down
 			$t->addColumn('reverse_charge', 'integer', ['notnull' => true, 'default' => 0]);
 			$t->addColumn('amount_cents', 'bigint', ['notnull' => true]); // gross charged
 			$t->addColumn('currency', 'string', ['notnull' => true, 'length' => 3]);
@@ -288,7 +288,7 @@ class Version1000Date20261019000000 extends SimpleMigrationStep
 		if (!$schema->hasTable('bc_waitlist')) {
 			$t = $schema->createTable('bc_waitlist');
 			$t->addColumn('id', 'bigint', ['autoincrement' => true, 'notnull' => true]);
-			$t->addColumn('target_type', 'string', ['notnull' => true, 'length' => 8]); // event|slot
+			$t->addColumn('target_type', 'string', ['notnull' => true, 'length' => 8]); // event|series|slot
 			$t->addColumn('target_id', 'bigint', ['notnull' => true]);
 			$t->addColumn('email', 'string', ['notnull' => true, 'length' => 190]);
 			$t->addColumn('locale', 'string', ['notnull' => true, 'length' => 10, 'default' => 'en']);

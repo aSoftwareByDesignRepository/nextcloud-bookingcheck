@@ -26,28 +26,57 @@ class RetentionPruneJob extends TimedJob
 
 	protected function run($argument): void
 	{
-		$this->prune('bc_otp', 'expires_at', '-7 days');
-		$this->prune('bc_portal_sess', 'expires_at', '-7 days');
-		$this->pruneWhere('bc_webhook_dlvr', "status = 'delivered' AND delivered_at < " . $this->cutoff('-90 days'));
-		$this->pruneWhere('bc_webhook_dlvr', "status = 'dead' AND created_at < " . $this->cutoff('-90 days'));
-		$this->pruneWhere('bc_webhook_evt', "processed_at IS NOT NULL AND processed_at < " . $this->cutoff('-90 days'));
-	}
-
-	private function prune(string $table, string $col, string $olderThan): void
-	{
 		$qb = $this->db->getQueryBuilder();
-		$qb->delete($table)
-			->where($qb->expr()->lt($col, $qb->createNamedParameter(new \DateTime($olderThan), 'datetime')));
+		$qb->delete('bc_otp')->where($qb->expr()->lt('expires_at',
+			$qb->createNamedParameter(new \DateTimeImmutable('-7 days'), 'datetime_immutable')));
 		$qb->executeStatement();
-	}
 
-	private function pruneWhere(string $table, string $where): void
-	{
-		$this->db->executeStatement('DELETE FROM `*PREFIX*' . $table . '` WHERE ' . $where);
-	}
+		// expires_at is the sliding expiry — idle-dead sessions are prunable
+		// even when the absolute cap is still ahead (expires_at <= abs always)
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_portal_sess')->where($qb->expr()->lt('expires_at',
+			$qb->createNamedParameter(new \DateTimeImmutable('-7 days'), 'datetime_immutable')));
+		$qb->executeStatement();
 
-	private function cutoff(string $olderThan): string
-	{
-		return "'" . (new \DateTime($olderThan))->format('Y-m-d H:i:s') . "'";
+		$d90 = new \DateTimeImmutable('-90 days');
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_webhook_dlvr')
+			->where($qb->expr()->eq('status', $qb->createNamedParameter('delivered')))
+			->andWhere($qb->expr()->lt('delivered_at',
+				$qb->createNamedParameter($d90, 'datetime_immutable')));
+		$qb->executeStatement();
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_webhook_dlvr')
+			->where($qb->expr()->eq('status', $qb->createNamedParameter('dead')))
+			->andWhere($qb->expr()->lt('created_at',
+				$qb->createNamedParameter($d90, 'datetime_immutable')));
+		$qb->executeStatement();
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_webhook_evt')
+			->where($qb->expr()->isNotNull('processed_at'))
+			->andWhere($qb->expr()->lt('processed_at',
+				$qb->createNamedParameter($d90, 'datetime_immutable')));
+		$qb->executeStatement();
+		// queue rows are transient — sent/dead mail is not a legal record
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_email')
+			->where($qb->expr()->eq('status', $qb->createNamedParameter('sent')))
+			->andWhere($qb->expr()->lt('sent_at',
+				$qb->createNamedParameter($d90, 'datetime_immutable')));
+		$qb->executeStatement();
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_email')
+			->where($qb->expr()->eq('status', $qb->createNamedParameter('dead')))
+			->andWhere($qb->expr()->lt('created_at',
+				$qb->createNamedParameter($d90, 'datetime_immutable')));
+		$qb->executeStatement();
+		// finished sync tasks are operational noise, not audit
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_sync_task')
+			->where($qb->expr()->in('status', $qb->createNamedParameter(['done', 'dead'],
+				\OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)))
+			->andWhere($qb->expr()->lt('created_at',
+				$qb->createNamedParameter($d90, 'datetime_immutable')));
+		$qb->executeStatement();
 	}
 }

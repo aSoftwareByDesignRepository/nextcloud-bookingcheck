@@ -11,7 +11,9 @@ namespace OCA\BookingCheck\Service;
 
 use OCA\BookingCheck\Exception\CapacityException;
 use OCA\BookingCheck\Exception\StateConflictException;
+use OCA\BookingCheck\Exception\ValidationException;
 use OCP\DB\Exception as DbException;
+use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
 /**
@@ -42,6 +44,173 @@ class ReservationService
 	// ---------------------------------------------------------------
 	// Hold  (free → held)
 	// ---------------------------------------------------------------
+
+	/**
+	 * Deterministic pre-lock (deadlock prevention).
+	 *
+	 * SELECT … FOR UPDATE every inventory row this order will touch BEFORE
+	 * any counter mutation, in one global order: bc_event ids ASC (direct
+	 * targets + all members of every targeted series), bc_series ASC,
+	 * bc_slot ASC, then bc_slot_res pairs (slot_id ASC, resource_id ASC).
+	 *
+	 * Why: counter UPDATEs acquire row locks in execution order. Without
+	 * pre-locking, a series hold locks its member events mid-stream and
+	 * release paths iterate order lines in insertion order — two
+	 * transactions touching the same rows in different order can
+	 * cycle-wait. With pre-locking, every transaction acquires inventory
+	 * locks in identical order; later UPDATEs re-use held locks, so no
+	 * lock graph edge is ever introduced in opposing directions.
+	 *
+	 * Call inside the caller's transaction, before any hold/release/confirm.
+	 *
+	 * @param list<array{target_type:string,target_id:int,resource_id?:int|null}> $seatLines
+	 */
+	public function prelock(array $seatLines): void
+	{
+		$eventIds = [];
+		$seriesIds = [];
+		$slotIds = [];
+		$resPairs = [];
+		foreach ($seatLines as $l) {
+			$tid = (int)($l['target_id'] ?? 0);
+			switch ((string)($l['target_type'] ?? '')) {
+				case self::TARGET_EVENT:
+					$eventIds[$tid] = true;
+					break;
+				case self::TARGET_SERIES:
+					$seriesIds[$tid] = true;
+					break;
+				case self::TARGET_SLOT:
+					$rid = (int)($l['resource_id'] ?? 0);
+					if ($rid > 0) {
+						$resPairs[$tid][$rid] = true;
+					} else {
+						$slotIds[$tid] = true;
+					}
+					break;
+			}
+		}
+		// series holds lock every member event — pre-lock them in the same
+		// global id order as direct event targets, BEFORE the series rows
+		if ($seriesIds !== []) {
+			$qb = $this->db->getQueryBuilder();
+			$members = $qb->select('id')->from('bc_event')
+				->where($qb->expr()->in('series_id', $qb->createNamedParameter(
+					array_map('intval', array_keys($seriesIds)), IQueryBuilder::PARAM_INT_ARRAY)))
+				->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
+			foreach ($members as $id) {
+				$eventIds[(int)$id] = true;
+			}
+		}
+		$this->forUpdateIds('bc_event', array_map('intval', array_keys($eventIds)));
+		$this->forUpdateIds('bc_series', array_map('intval', array_keys($seriesIds)));
+		$this->forUpdateIds('bc_slot', array_map('intval', array_keys($slotIds)));
+		if ($resPairs !== []) {
+			ksort($resPairs);
+			foreach ($resPairs as $slotId => $rids) {
+				$rids = array_map('intval', array_keys($rids));
+				sort($rids);
+				$qb = $this->db->getQueryBuilder();
+				$qb->select('slot_id')->from('bc_slot_res')
+					->where($qb->expr()->eq('slot_id', $qb->createNamedParameter((int)$slotId)))
+					->andWhere($qb->expr()->in('resource_id', $qb->createNamedParameter(
+						$rids, IQueryBuilder::PARAM_INT_ARRAY)))
+					->orderBy('resource_id', 'ASC')
+					->forUpdate();
+				$qb->executeQuery()->fetchAll();
+			}
+		}
+	}
+
+	/** @param list<int> $ids */
+	private function forUpdateIds(string $table, array $ids): void
+	{
+		if ($ids === []) {
+			return;
+		}
+		sort($ids);
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')->from($table)
+			->where($qb->expr()->in('id', $qb->createNamedParameter($ids, IQueryBuilder::PARAM_INT_ARRAY)))
+			->orderBy('id', 'ASC')
+			->forUpdate();
+		$qb->executeQuery()->fetchAll();
+	}
+
+	/**
+	 * Fail closed: every seat-line target must belong to the offering being
+	 * booked. Without this an arbitrary target_id would hold (and sell)
+	 * seats on a foreign offering at this offering's price.
+	 *
+	 * Uniform rejection — never reveals whether an id exists on another
+	 * offering (existence oracle).
+	 *
+	 * @param list<array{target_type:string,target_id:int}> $seatLines
+	 */
+	public function assertTargetsOwnedBy(int $offeringId, array $seatLines): void
+	{
+		$wanted = [self::TARGET_EVENT => [], self::TARGET_SERIES => [], self::TARGET_SLOT => []];
+		foreach ($seatLines as $l) {
+			$type = (string)($l['target_type'] ?? '');
+			if (!isset($wanted[$type])) {
+				throw new ValidationException(['lines' => 'Invalid selection.']);
+			}
+			$wanted[$type][(int)($l['target_id'] ?? 0)] = true;
+		}
+		foreach ($wanted as $type => $idSet) {
+			if ($idSet === []) {
+				continue;
+			}
+			$qb = $this->db->getQueryBuilder();
+			$count = (int)$qb->select($qb->func()->count('id'))
+				->from('bc_' . $type)
+				->where($qb->expr()->in('id', $qb->createNamedParameter(
+					array_map('intval', array_keys($idSet)), IQueryBuilder::PARAM_INT_ARRAY)))
+				->andWhere($qb->expr()->eq('offering_id',
+					$qb->createNamedParameter($offeringId, IQueryBuilder::PARAM_INT)))
+				->executeQuery()->fetchOne();
+			if ($count !== count($idSet)) {
+				throw new ValidationException(['lines' => 'Invalid selection.']);
+			}
+		}
+
+		// ---- resource-pool pairing: a pooled slot MUST be booked through
+		// one of its pools — a bare slot line would draw on the never-used
+		// slot-row counter and sell capacity beyond the pools'. A pool-less
+		// slot must never carry a resource_id (foreign pool id = phantom
+		// counter row), and pools on non-slot targets are meaningless.
+		foreach ($seatLines as $l) {
+			if (($l['target_type'] ?? '') !== self::TARGET_SLOT
+				&& ($l['resource_id'] ?? null) !== null) {
+				throw new ValidationException(['lines' => 'Invalid selection.']);
+			}
+		}
+		$slotLines = array_values(array_filter($seatLines,
+			fn ($l) => ($l['target_type'] ?? '') === self::TARGET_SLOT));
+		if ($slotLines !== []) {
+			$slotIds = array_map('intval',
+				array_unique(array_column($slotLines, 'target_id')));
+			$qb = $this->db->getQueryBuilder();
+			$qb->select('slot_id', 'resource_id')->from('bc_slot_res')
+				->where($qb->expr()->in('slot_id', $qb->createNamedParameter(
+					$slotIds, IQueryBuilder::PARAM_INT_ARRAY)))
+				->andWhere($qb->expr()->eq('active', $qb->createNamedParameter(1)));
+			$pools = [];
+			foreach ($qb->executeQuery()->fetchAll() as $r) {
+				$pools[(int)$r['slot_id']][(int)$r['resource_id']] = true;
+			}
+			foreach ($slotLines as $l) {
+				$rid = $l['resource_id'] ?? null;
+				$has = isset($pools[(int)$l['target_id']]);
+				if ($has && ($rid === null || !isset($pools[(int)$l['target_id']][(int)$rid]))) {
+					throw new ValidationException(['lines' => 'Pick a resource for this timeslot.']);
+				}
+				if (!$has && $rid !== null) {
+					throw new ValidationException(['lines' => 'Invalid selection.']);
+				}
+			}
+		}
+	}
 
 	public function hold(string $targetType, int $targetId, int $seats, ?int $resourceId = null): void
 	{

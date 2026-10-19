@@ -94,6 +94,20 @@ final class AuthAndPricingIntegrationTest extends TestCase
 		$sess->revoke($token);
 		self::assertNull($sess->resolve($token), 'revoked session must not resolve');
 		self::assertNull($sess->resolve('nonexistent-token-xyz'));
+
+		// idle expiry is ENFORCED: a session past expires_at must die even
+		// while the absolute cap is still ahead — resolve() must check it
+		[$token2] = $sess->create($email, 'phpunit');
+		$db = \OC::$server->get(IDBConnection::class);
+		$qb = $db->getQueryBuilder();
+		$qb->update('bc_portal_sess')
+			->set('expires_at', $qb->createNamedParameter(
+				new \DateTime('-1 minute'), 'datetime'))
+			->where($qb->expr()->eq('email', $qb->createNamedParameter($email)))
+			->andWhere($qb->expr()->isNull('revoked_at'));
+		$qb->executeStatement();
+		self::assertNull($sess->resolve($token2),
+			'an idle-expired session must not resolve or renew');
 	}
 
 	public function testPricingServerSideOnly(): void
@@ -115,5 +129,60 @@ final class AuthAndPricingIntegrationTest extends TestCase
 		$offering = ['id' => 0, 'price_cents' => 2500, 'currency' => 'EUR', 'vat_bp' => 1900];
 		$this->expectException(\OCA\BookingCheck\Exception\ValidationException::class);
 		$pricing->price($offering, [['target_type' => 'event', 'target_id' => 1, 'seats' => 0]]);
+	}
+
+	public function testSplitVatOddBasisPointsNoFloatTypeError(): void
+	{
+		// odd vatBp made `(10000+$vatBp)/2` a float → intdiv threw TypeError
+		// under strict_types. Must compute for ANY integer rate.
+		[$net, $vat] = PricingService::splitVat(1000, 1901);
+		self::assertSame(1000, $net + $vat);
+		self::assertGreaterThan(0, $vat);
+		[$net0, $vat0] = PricingService::splitVat(0, 1901);
+		self::assertSame([0, 0], [$net0, $vat0]);
+	}
+
+	public function testUsablePromoHonoursWindowAndScope(): void
+	{
+		$pricing = \OC::$server->get(PricingService::class);
+		$code = 'IT-' . strtoupper(bin2hex(random_bytes(3)));
+		// promo valid only NEXT week — preview must reject it today
+		$ins = $this->db->getQueryBuilder();
+		$ins->insert('bc_promo')->values([
+			'code' => $ins->createNamedParameter($code),
+			'kind' => "'percent'", 'percent_bps' => '1000', 'active' => '1',
+			'scope' => "'all'",
+			'valid_from' => $ins->createNamedParameter(new \DateTimeImmutable('+7 days'), 'datetime'),
+		])->executeStatement();
+		$promoId = (int)$this->db->lastInsertId('oc_bc_promo');
+		try {
+			self::assertNull($pricing->usablePromo($code, 1),
+				'not-yet-valid promo must preview as unusable');
+		} finally {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_promo')->where($qb->expr()->eq('id',
+				$qb->createNamedParameter($promoId)))->executeStatement();
+		}
+	}
+
+	public function testUsablePromoScopeNeedsOfferingMatch(): void
+	{
+		$pricing = \OC::$server->get(PricingService::class);
+		$code = 'IT-' . strtoupper(bin2hex(random_bytes(3)));
+		$ins = $this->db->getQueryBuilder();
+		$ins->insert('bc_promo')->values([
+			'code' => $ins->createNamedParameter($code),
+			'kind' => "'fixed'", 'amount_cents' => '500', 'active' => '1',
+			'scope' => "'offerings'",
+		])->executeStatement();
+		$promoId = (int)$this->db->lastInsertId('oc_bc_promo');
+		try {
+			// scoped promo with no scope row for this offering → unusable
+			self::assertNull($pricing->usablePromo($code, 424242));
+		} finally {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_promo')->where($qb->expr()->eq('id',
+				$qb->createNamedParameter($promoId)))->executeStatement();
+		}
 	}
 }

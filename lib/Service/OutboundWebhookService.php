@@ -31,17 +31,30 @@ class OutboundWebhookService
 	public const SIGNATURE_HEADER = 'X-BookingCheck-Signature';
 	public const DUAL_ACCEPT_HOURS = 24;
 
+	/** Canonical event vocabulary — anything else is a dead subscription. */
+	public const EVENTS = [
+		'order.created', 'order.paid', 'order.failed', 'order.expired',
+		'order.approved', 'order.declined', 'order.cancelled', 'order.refunded',
+	];
+
 	public function __construct(
 		private readonly WebhookMapper $webhooks,
 		private readonly WebhookDeliveryMapper $deliveries,
 		private readonly IClientService $clientService,
 		private readonly ICrypto $crypto,
+		private readonly LicenseService $license,
+		private readonly \OCP\IDBConnection $db,
 	) {
 	}
 
 	/** Enqueue a domain event for every active webhook subscribed to it. */
 	public function emit(string $event, array $payload): void
 	{
+		// Pro-gated — service-level backstop: order transitions call emit()
+		// from free paths, and a pro→free downgrade must not keep firing
+		if (!$this->license->hasFeature('outbound_webhooks')) {
+			return;
+		}
 		foreach ($this->webhooks->findAll() as $w) {
 			if ((int)$w->getActive() !== 1) {
 				continue;
@@ -128,31 +141,52 @@ class OutboundWebhookService
 		}
 	}
 
-	public function markDelivered(int $deliveryId): void
+	/** Final CAS — only the claim-epoch owner may flip the row. */
+	public function markDelivered(int $deliveryId, int $epoch): void
 	{
-		$d = $this->deliveries->find($deliveryId);
-		if ($d !== null) {
-			$d->setStatus('delivered');
-			$d->setDeliveredAt(new \DateTimeImmutable());
-			$this->deliveries->update($d);
-		}
+		$this->cas($deliveryId, $epoch, 'delivered', deliveredAt: new \DateTimeImmutable());
 	}
 
-	public function markRetryOrDead(int $deliveryId): void
+	/** Webhook row deleted — the delivery can never reach anyone. */
+	public function markOrphaned(int $deliveryId, int $epoch): void
 	{
-		$d = $this->deliveries->find($deliveryId);
-		if ($d === null) {
+		$this->cas($deliveryId, $epoch, 'dead');
+	}
+
+	/**
+	 * Webhook exists but is inactive — hold the delivery for later.
+	 * Status 'retry' is required: dueBatch re-picks 'pending' regardless of
+	 * next_retry_at, so deferral without it would not actually defer.
+	 */
+	public function deferDelivery(int $deliveryId, int $epoch, int $minutes = 30): void
+	{
+		$this->cas($deliveryId, $epoch, 'retry',
+			nextRetryAt: new \DateTimeImmutable('+' . $minutes . ' minutes'));
+	}
+
+	/** Delivery failed — exponential backoff capped at 24h, dead at 8. */
+	public function markRetryOrDead(int $deliveryId, int $epoch): void
+	{
+		if ($epoch >= 8) {
+			$this->cas($deliveryId, $epoch, 'dead');
 			return;
 		}
-		$attempts = (int)$d->getAttempts() + 1;
-		$d->setAttempts($attempts);
-		if ($attempts >= 8) {
-			$d->setStatus('dead');
-		} else {
-			// exponential backoff capped at 24h
-			$d->setStatus('retry');
-			$d->setNextRetryAt(new \DateTimeImmutable('+' . min(1440, (2 ** $attempts) * 5) . ' minutes'));
-		}
-		$this->deliveries->update($d);
+		$this->cas($deliveryId, $epoch, 'retry',
+			nextRetryAt: new \DateTimeImmutable('+' . min(1440, (2 ** $epoch) * 5) . ' minutes'));
+	}
+
+	/** CAS against the claim epoch — a stale worker's write is a no-op. */
+	private function cas(int $id, int $epoch, string $status,
+		?\DateTimeImmutable $deliveredAt = null, ?\DateTimeImmutable $nextRetryAt = null): void
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_webhook_dlvr')
+			->set('status', $qb->createNamedParameter($status))
+			->set('delivered_at', $qb->createNamedParameter($deliveredAt, 'datetime_immutable'))
+			->set('next_retry_at', $qb->createNamedParameter($nextRetryAt, 'datetime_immutable'))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id)))
+			->andWhere($qb->expr()->eq('status', $qb->createNamedParameter('delivering')))
+			->andWhere($qb->expr()->eq('attempts', $qb->createNamedParameter($epoch)));
+		$qb->executeStatement();
 	}
 }

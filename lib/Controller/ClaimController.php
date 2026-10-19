@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Controller;
 
+use OCA\BookingCheck\Db\OfferingMapper;
 use OCA\BookingCheck\Db\WaitlistEntryMapper;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -25,6 +26,7 @@ class ClaimController extends Controller
 		string $appName,
 		IRequest $request,
 		private readonly WaitlistEntryMapper $waitlist,
+		private readonly OfferingMapper $offerings,
 		private readonly \OCA\BookingCheck\Service\TokenService $tokens,
 		private readonly \OCA\BookingCheck\Service\WaitlistService $waitlistService,
 		private readonly \OCA\BookingCheck\Service\OrderService $orders,
@@ -47,11 +49,16 @@ class ClaimController extends Controller
 			|| ($row->getOfferExpiresAt() !== null && $row->getOfferExpiresAt() < new \DateTimeImmutable())) {
 			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
 		}
+		// expose the offering's terms so the claim page can demand consent
+		$offeringId = $this->waitlistService->offeringForTarget($row->getTargetType(), (int)$row->getTargetId());
+		$offering = $offeringId !== null ? $this->offerings->find($offeringId) : null;
+		$tosText = trim((string)($offering?->getTosText() ?? ''));
 		return new PublicTemplateResponse($this->appName, 'public/claim', [
 			'target_type' => $row->getTargetType(),
 			'target_id' => (int)$row->getTargetId(),
 			'email' => $row->getEmail(),
 			'token' => $token,
+			'tosText' => $tosText,
 		]);
 	}
 
@@ -67,11 +74,13 @@ class ClaimController extends Controller
 				'message' => 'Please check the highlighted fields.',
 				'fields' => ['buyer_name' => 'Your name is required.']], 400);
 		}
+		$consented = in_array((string)$this->request->getParam('consent', ''), ['1', 'true'], true);
+		// the waitlister's own locale — never force 'en' on a booked claim
 		$row = $this->waitlist->findByClaimTokenHash($this->tokens->hash($token));
-		$email = $row !== null ? $row->getEmail() : '';
+		$locale = $row !== null ? (string)$row->getLocale() : 'en';
 		try {
 			$result = $this->waitlistService->acceptClaim($token, $buyerName,
-				'en', $this->orders);
+				$locale, $this->orders, $consented);
 		} catch (\OCA\BookingCheck\Exception\NotFoundException) {
 			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		} catch (\OCA\BookingCheck\Exception\CapacityException) {

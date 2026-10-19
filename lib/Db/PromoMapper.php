@@ -95,7 +95,7 @@ class PromoMapper extends QBMapper
 	{
 		$qb = $this->db->getQueryBuilder();
 		$qb->update($this->getTableName())
-			->set('uses', $qb->createFunction('GREATEST(uses - 1, 0)'))
+			->set('uses', $qb->createFunction('CASE WHEN uses > 0 THEN uses - 1 ELSE 0 END'))
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($id)));
 		$qb->executeStatement();
 	}

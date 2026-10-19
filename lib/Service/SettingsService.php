@@ -41,12 +41,15 @@ class SettingsService
 		'directory_enabled'  => '0',
 		'cors_origins'       => '',
 		'default_locale'     => 'en',
+		'crm_sync_enabled'   => '0',
+		'crm_sync_token'     => '',
+		'vies_online'        => '0',       // '1' = live VIES REST verdicts; '0' = format-only
 	];
 
 	// Keys that must only ever be written/read through the crypto pair.
 	public const SECRET_KEYS = [
 		'mollie_api_key', 'mollie_test_key', 'stripe_secret_key',
-		'stripe_webhook_secret', 'mollie_webhook_secret',
+		'stripe_webhook_secret', 'mollie_webhook_secret', 'crm_sync_token',
 	];
 
 	public function __construct(

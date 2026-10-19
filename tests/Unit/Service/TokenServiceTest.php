@@ -40,6 +40,6 @@ final class TokenServiceTest extends TestCase
 	{
 		$t = new TokenService();
 		$ref = $t->publicRef('BCK', 2026);
-		self::assertMatchesRegularExpression('/^BCK-2026-[A-Z0-9]{6}$/', $ref);
+		self::assertMatchesRegularExpression('/^BCK-2026-[A-Z0-9]{8}$/', $ref);
 	}
 }

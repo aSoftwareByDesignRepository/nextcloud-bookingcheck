@@ -57,7 +57,7 @@ class EntitlementService
 		// hydrate for display: ref + status + offering title (via the order's
 		// offering_id — a cancelled/refunded order keeps its last title)
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('o.id', 'o.ref', 'o.status', 'of.title')
+		$qb->select('o.id', 'o.ref', 'o.status', 'of.title', 'of.talk_room')
 			->from('bc_order', 'o')
 			->leftJoin('o', 'bc_offering', 'of', $qb->expr()->eq('of.id', 'o.offering_id'))
 			->where($qb->expr()->in('o.id', $qb->createNamedParameter($ids, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))

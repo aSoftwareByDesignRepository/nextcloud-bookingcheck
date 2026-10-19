@@ -13,8 +13,8 @@ $occurrences = $_['occurrences'] ?? [];
 		<select id="bck-roster-occ" class="bck-toolbar__search" data-bck-roster-picker>
 			<option value=""><?php p($l->t('Choose…')); ?></option>
 			<?php foreach ($occurrences as $o): ?>
-				<option value="<?php p((string)(int)$o['id']); ?>">
-					<?php p((string)$o['title'] . ' — ' . (string)$o['start_utc'] . ' (' . (int)$o['sold_qty'] . '/' . (int)$o['capacity'] . ')'); ?>
+				<option value="<?php p((string)$o['type'] . ':' . (int)$o['id']); ?>">
+					<?php p((string)$o['title'] . ' — ' . (string)$o['starts_at'] . ' (' . (int)$o['sold'] . '/' . (int)$o['capacity'] . ')'); ?>
 				</option>
 			<?php endforeach; ?>
 		</select>

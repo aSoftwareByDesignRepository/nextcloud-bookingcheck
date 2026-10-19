@@ -9,10 +9,15 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Controller;
 
+use OCA\BookingCheck\Db\AnswerMapper;
+use OCA\BookingCheck\Db\OfferingMapper;
 use OCA\BookingCheck\Db\OrderLineMapper;
 use OCA\BookingCheck\Db\OrderMapper;
+use OCA\BookingCheck\Db\QuestionMapper;
+use OCA\BookingCheck\Db\ReviewMapper;
 use OCA\BookingCheck\Db\TicketMapper;
 use OCA\BookingCheck\Exception\NotFoundException;
+use OCA\BookingCheck\Exception\ValidationException;
 use OCA\BookingCheck\Service\EmailService;
 use OCA\BookingCheck\Service\OrderService;
 use OCA\BookingCheck\Service\TokenService;
@@ -43,12 +48,21 @@ class ManageController extends Controller
 		private readonly OrderMapper $orders,
 		private readonly OrderLineMapper $lines,
 		private readonly TicketMapper $tickets,
+		private readonly OfferingMapper $offerings,
+		private readonly ReviewMapper $reviews,
+		private readonly QuestionMapper $questions,
+		private readonly AnswerMapper $answers,
 		private readonly \OCA\BookingCheck\Service\TicketService $ticketService,
 		private readonly \OCA\BookingCheck\Service\PaySessionService $paySessions,
 		private readonly OrderService $orderService,
 		private readonly TokenService $tokens,
 		private readonly EmailService $email,
 		private readonly IURLGenerator $url,
+		private readonly \OCA\BookingCheck\Service\LicenseService $license,
+		private readonly \OCA\BookingCheck\Service\UploadService $uploadService,
+		private readonly \OCA\BookingCheck\Db\UploadMapper $uploads,
+		private readonly \OCA\BookingCheck\Db\InvoiceMapper $invoices,
+		private readonly \OCA\BookingCheck\Service\SettingsService $settings,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -71,8 +85,24 @@ class ManageController extends Controller
 				$ticketsByLine[(int)$ln['id']][] = [
 					'id' => (int)$t->getId(),
 					'seat_no' => $t->getSeatNo() !== null ? (int)$t->getSeatNo() : null,
+					'attendee_name' => $t->getAttendeeName(),
 					'checked_in' => $t->getCheckedInAt() !== null,
 				];
+			}
+		}
+		// reviews are a paid-order perk on review-enabled offerings (Pro)
+		$offering = $this->offerings->find((int)$order->getOfferingId());
+		$reviewEnabled = $order->getStatus() === 'paid'
+			&& (int)($offering?->getReviewDisplay() ?? 0) === 1
+			&& $this->license->hasFeature('reviews');
+		// per-attendee intake: active questions on a paid order get a form (Pro)
+		$questionRows = $order->getStatus() === 'paid' && $offering !== null
+			&& $this->license->hasFeature('intake_questions')
+			? $this->questions->findActiveByOffering((int)$order->getOfferingId()) : [];
+		$allTicketIds = [];
+		foreach ($ticketsByLine as $ts) {
+			foreach ($ts as $t) {
+				$allTicketIds[] = $t['id'];
 			}
 		}
 		return new PublicTemplateResponse($this->appName, 'public/manage', [
@@ -85,6 +115,19 @@ class ManageController extends Controller
 			'token' => $token,
 			'ticketsByLine' => $ticketsByLine,
 			'actions' => $this->legalActions($order->getStatus()),
+			'reviewEnabled' => $reviewEnabled,
+			'reviewed' => $reviewEnabled
+				? $this->reviews->reviewedLineIds(array_map(fn ($l) => (int)$l['id'], $lineRows))
+				: [],
+			'questions' => array_map(fn ($q) => [
+				'id' => (int)$q->getId(), 'label' => $q->getLabel(), 'kind' => $q->getKind(),
+				'options' => $q->getOptionsJson() !== null ? (json_decode((string)$q->getOptionsJson(), true) ?: []) : [],
+				'required' => (int)$q->getRequired() === 1,
+			], $questionRows),
+			'answers' => $questionRows !== [] ? $this->answers->answersByTicket($allTicketIds) : [],
+			'canUpload' => $offering !== null && $order->getStatus() === 'paid'
+				&& $this->uploadService->enabledFor($offering),
+			'uploads' => $offering !== null ? $this->uploadService->listFor($order, $offering) : [],
 		]);
 	}
 
@@ -120,6 +163,45 @@ class ManageController extends Controller
 		return $resp;
 	}
 
+	/**
+	 * Printable invoice — the frozen GoBD document for a paid order.
+	 * Test orders never allocate numbers, so they have nothing to print.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function invoice(string $token): PublicTemplateResponse
+	{
+		$order = $this->resolve($token);
+		$invoice = $order !== null
+			? $this->invoices->findByOrderAndType((int)$order->getId(), 'invoice')
+			: null;
+		if ($order === null || $invoice === null) {
+			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
+		}
+		$offering = $this->offerings->find((int)$order->getOfferingId());
+		return new PublicTemplateResponse($this->appName, 'public/invoice', [
+			'token' => $token,
+			'order' => $order->jsonSerialize(),
+			'offeringTitle' => $offering?->getTitle() ?? '',
+			'invoice' => $invoice->jsonSerialize(),
+			'credits' => array_map(fn ($i) => $i->jsonSerialize(),
+				array_filter($this->invoices->findByOrder((int)$order->getId()),
+					fn ($i) => $i->getType() === 'credit')),
+			'lines' => array_map(fn ($l) => $l->jsonSerialize(),
+				$this->lines->findByOrder((int)$order->getId())),
+			'seller' => [
+				'name' => $this->settings->get('seller_name'),
+				'email' => $this->settings->get('seller_email'),
+				'address' => $this->settings->get('seller_address'),
+				'vatId' => $this->settings->get('seller_vat_id'),
+				'country' => $this->settings->get('seller_country'),
+				'kleinunternehmer' => $this->settings->getBool('kleinunternehmer'),
+			],
+			'vatBp' => (int)($offering?->getVatBp() ?? 0),
+		]);
+	}
+
 	/** One ticket page — QR SVG for the door, scoped to this order. */
 	#[PublicPage]
 	#[NoAdminRequired]
@@ -139,6 +221,7 @@ class ManageController extends Controller
 		if ($line === null || (int)$line->getOrderId() !== (int)$order->getId()) {
 			throw new NotFoundException();
 		}
+		$revoked = $ticket->getRevokedAt() !== null;
 		return new PublicTemplateResponse($this->appName, 'public/ticket', [
 			'ticket' => [
 				'id' => (int)$ticket->getId(),
@@ -146,11 +229,132 @@ class ManageController extends Controller
 				'seat_no' => $ticket->getSeatNo(),
 				'resource' => $ticket->getResourceName(),
 				'checked_in' => $ticket->getCheckedInAt() !== null,
+				'revoked' => $revoked,
 			],
 			'order' => ['ref' => $order->getRef()],
-			'qrSvg' => $this->ticketService->qrSvg($ticket),
+			// a revoked ticket shows no QR — a scannable code would imply validity
+			'qrSvg' => $revoked ? null : $this->ticketService->qrSvg($ticket),
 			'token' => $token,
 		]);
+	}
+
+	/**
+	 * Per-attendee intake answers — POST /pub/m/{token}/answers.
+	 * Payload: {ticket_id, answers: {question_id: value}}.
+	 * The ticket must belong to this order; every question must belong to
+	 * the order's offering; required questions must be answered.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function answers(string $token): JSONResponse
+	{
+		$order = $this->resolve($token);
+		if ($order === null || $order->getStatus() !== 'paid') {
+			throw new NotFoundException();
+		}
+		$ticketId = $this->strictId($this->request->getParam('ticket_id'));
+		$ticket = $ticketId !== null ? $this->tickets->find($ticketId) : null;
+		$line = $ticket !== null ? $this->lines->find((int)$ticket->getLineId()) : null;
+		if ($line === null || (int)$line->getOrderId() !== (int)$order->getId()) {
+			throw new NotFoundException(); // foreign ticket — uniform answer
+		}
+		$questions = $this->questions->findActiveByOffering((int)$order->getOfferingId());
+		if ($questions === []) {
+			throw new NotFoundException();
+		}
+		$raw = $this->request->getParam('answers', []);
+		$raw = is_string($raw) ? (json_decode($raw, true) ?: []) : (is_array($raw) ? $raw : []);
+		$fields = [];
+		$byId = [];
+		foreach ($questions as $q) {
+			$byId[(int)$q->getId()] = $q;
+			if ((int)$q->getRequired() === 1) {
+				$v = trim((string)($raw[(string)$q->getId()] ?? $raw[$q->getId()] ?? ''));
+				if ($v === '') {
+					$fields['q' . (int)$q->getId()] = 'This answer is required.';
+				}
+			}
+		}
+		if ($fields !== []) {
+			throw new ValidationException($fields);
+		}
+		foreach ($raw as $qid => $value) {
+			$q = $byId[(int)$qid] ?? null;
+			if ($q === null) {
+				continue; // unknown/foreign question ids are ignored, never stored
+			}
+			$v = trim(mb_substr((string)$value, 0, 2000));
+			if ($q->getKind() === 'select' && $v !== '') {
+				$options = json_decode((string)$q->getOptionsJson(), true) ?: [];
+				if (!in_array($v, $options, true)) {
+					continue; // forged option — skip rather than store garbage
+				}
+			}
+			if ($q->getKind() === 'checkbox') {
+				$v = in_array($v, ['1', 'true'], true) ? '1' : '0';
+			}
+			$this->answers->upsert($ticketId, (int)$q->getId(), $v, (int)$q->getWordingRev());
+		}
+		return $this->ok(['saved' => true]);
+	}
+
+	/**
+	 * Attendee upload — POST /pub/m/{token}/uploads (multipart `file` +
+	 * `display_name` + `line_id` of one of this order's seat lines).
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function uploadFile(string $token): JSONResponse
+	{
+		$order = $this->resolve($token);
+		$offering = $order !== null ? $this->offerings->find((int)$order->getOfferingId()) : null;
+		if ($order === null || $offering === null) {
+			throw new NotFoundException();
+		}
+		$lineId = $this->strictId($this->request->getParam('line_id'));
+		$displayName = trim((string)$this->request->getParam('display_name', ''));
+		$file = $this->request->getUploadedFile('file');
+		if ($lineId === null || $file === null) {
+			throw new ValidationException(['file' => 'Choose a file to share.']);
+		}
+		$u = $this->uploadService->store($order, $offering, $lineId, $displayName, $file);
+		$row = $u->jsonSerialize();
+		$row['own'] = true;
+		return $this->ok(['upload' => $row], 201);
+	}
+
+	/** Download a visible upload — GET /pub/m/{token}/uploads/{id}. */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function uploadDownload(string $token, int $id)
+	{
+		$order = $this->resolve($token);
+		$u = $order !== null ? $this->uploads->find($id) : null;
+		if ($order === null || $u === null
+			|| (int)$u->getOfferingId() !== (int)$order->getOfferingId()) {
+			throw new NotFoundException();
+		}
+		$offering = $this->offerings->find((int)$u->getOfferingId());
+		return $this->uploadService->streamFor($u, $order, $offering);
+	}
+
+	/** Remove own upload — DELETE /pub/m/{token}/uploads/{id}. */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function uploadDelete(string $token, int $id): JSONResponse
+	{
+		$order = $this->resolve($token);
+		$u = $order !== null ? $this->uploads->find($id) : null;
+		if ($order === null || $u === null || $u->getDeletedAt() !== null
+			|| (int)$u->getOfferingId() !== (int)$order->getOfferingId()) {
+			throw new NotFoundException();
+		}
+		$this->uploadService->delete($u, $order);
+		return $this->ok(['deleted' => true]);
 	}
 
 	/** "Pay now" for approved/ttl-extended orders — fresh PSP session. */
@@ -193,7 +397,9 @@ class ManageController extends Controller
 				[$token, $hash] = $this->tokens->mint();
 				$this->orders->rotateManageToken((int)$order->getId(), $hash);
 				$this->email->queue('manage_link', $email, $order->getBuyerLocale(), [
-					'order_ref' => $order->getRef(), 'token' => $token,
+					'order_ref' => $order->getRef(),
+					'manage_url' => $this->url->linkToRouteAbsolute(
+						'bookingcheck.manage.show', ['token' => $token]),
 				], capped: true);
 			}
 		}
@@ -220,9 +426,11 @@ class ManageController extends Controller
 	private function legalActions(string $status): array
 	{
 		return match ($status) {
-			'paid' => ['cancel', 'ics', 'tickets'],
+			'paid' => ['cancel', 'ics', 'tickets', 'invoice'],
 			'pending_payment', 'approved' => ['cancel', 'pay'],
 			'pending_approval' => ['cancel'],
+			// refunded buyers still need the invoice + credit note for their books
+			'refunded' => ['invoice'],
 			default => [],
 		};
 	}

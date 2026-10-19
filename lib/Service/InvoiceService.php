@@ -13,6 +13,7 @@ use OCA\BookingCheck\Db\Invoice;
 use OCA\BookingCheck\Db\InvoiceMapper;
 use OCA\BookingCheck\Db\OfferingMapper;
 use OCA\BookingCheck\Db\Order;
+use OCP\DB\Exception as DbException;
 use OCP\IDBConnection;
 
 /**
@@ -88,7 +89,9 @@ class InvoiceService
 		$prefix = $this->settings->get('invoice_prefix') !== '' ? $this->settings->get('invoice_prefix') : 'INV';
 		$year = (int)date('Y');
 
-		// ensure seq row exists (INSERT IGNORE-style: catch unique race)
+		// ensure seq row exists (INSERT IGNORE-style: catch unique race).
+		// Only the unique-violation is swallowed — a deadlock/timeout must
+		// abort loudly, not fall through to a phantom row.
 		$qb = $this->db->getQueryBuilder();
 		$qb->insert('bc_invoice_seq')
 			->setValue('prefix', $qb->createNamedParameter($prefix))
@@ -96,8 +99,10 @@ class InvoiceService
 			->setValue('next', $qb->createNamedParameter(1));
 		try {
 			$qb->executeStatement();
-		} catch (\Throwable) {
-			// row exists — the unique index already serialized us
+		} catch (DbException $e) {
+			if ($e->getReason() !== DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
 		}
 
 		$qb = $this->db->getQueryBuilder();
@@ -106,6 +111,9 @@ class InvoiceService
 			->andWhere($qb->expr()->eq('year', $qb->createNamedParameter($year)))
 			->forUpdate();
 		$row = $qb->executeQuery()->fetch();
+		if ($row === false) {
+			throw new DbException('bc_invoice_seq row vanished after ensure-insert');
+		}
 		$number = (int)$row['next'];
 
 		$qb = $this->db->getQueryBuilder();

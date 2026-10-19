@@ -34,6 +34,16 @@ class IntakeController extends Controller
 	}
 
 	#[NoAdminRequired]
+	public function index(int $id): JSONResponse
+	{
+		if ($this->offerings->find($id) === null) {
+			throw new NotFoundException();
+		}
+		return $this->ok(['questions' => array_map(
+			fn ($q) => $q->jsonSerialize(), $this->items->findByOffering($id))]);
+	}
+
+	#[NoAdminRequired]
 	public function store(int $id): JSONResponse
 	{
 		if ($this->offerings->find($id) === null) {
@@ -72,6 +82,9 @@ class IntakeController extends Controller
 			throw new NotFoundException();
 		}
 		$label = trim((string)$this->request->getParam('label', $q->getLabel()));
+		if ($label === '' || mb_strlen($label) > 500) {
+			throw new ValidationException(['label' => 'Question text required.']);
+		}
 		if ($label !== $q->getLabel()) {
 			// consent wording changed → bump the revision so future answers
 			// record which text the attendee actually saw

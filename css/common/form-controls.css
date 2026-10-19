@@ -7,7 +7,7 @@
 #content.app-bookingcheck {
 	--bck-form-bg: var(--color-main-background);
 	--bck-form-fg: var(--color-main-text);
-	--bck-form-border: var(--color-border, var(--bck-border, color-mix(in srgb, var(--color-main-text) 18%, transparent)));
+	--bck-form-border: var(--color-border-maxcontrast, var(--bck-border-strong));
 	--bck-form-border-focus: var(--color-primary-element);
 	/* Soft halo is decorative only — WCAG 2.4.11 focus contrast comes from solid --bck-focus outline */
 	--bck-form-ring: color-mix(in srgb, var(--color-primary-element) 28%, transparent);

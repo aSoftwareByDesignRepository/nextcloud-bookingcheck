@@ -1,6 +1,6 @@
 <?php
 /** Public catalog — the shop window. One card per thing you can book. */
-\OCP\Util::addScript('bookingcheck', 'pages/public');
+\OCA\BookingCheck\Support\AssetRegistrar::registerPublic('public');
 $offerings = $_['offerings'] ?? [];
 $url = \OCP\Server::get(\OCP\IURLGenerator::class);
 $money = static fn (int $c, string $cur): string =>

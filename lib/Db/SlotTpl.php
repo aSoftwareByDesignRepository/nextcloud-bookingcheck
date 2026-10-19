@@ -20,6 +20,7 @@ class SlotTpl extends Entity
 	protected $leadMin;
 	protected $horizonDays;
 	protected $weeklyRrule;
+	protected $resourceId;
 
 	public function __construct()
 	{
@@ -30,6 +31,7 @@ class SlotTpl extends Entity
 		$this->addType('bufferMin', 'integer');
 		$this->addType('leadMin', 'integer');
 		$this->addType('horizonDays', 'integer');
+		$this->addType('resourceId', 'integer');
 	}
 
 	public function jsonSerialize(): array
@@ -43,6 +45,7 @@ class SlotTpl extends Entity
 			'leadMin' => (int)$this->leadMin,
 			'horizonDays' => (int)$this->horizonDays,
 			'weeklyRrule' => $this->weeklyRrule,
+			'resourceId' => $this->resourceId === null ? null : (int)$this->resourceId,
 		];
 	}
 }

@@ -54,4 +54,15 @@ class AddonMapper extends QBMapper
 		$qb->select('*')->from($this->getTableName())->orderBy('id', 'ASC');
 		return $this->findEntities($qb);
 	}
+
+	/** @return list<Addon> scoped to one offering (public display). */
+	public function findByOffering(int $offeringId): array
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)))
+			->andWhere($qb->expr()->eq('active', $qb->createNamedParameter(1)))
+			->orderBy('id', 'ASC');
+		return $this->findEntities($qb);
+	}
 }

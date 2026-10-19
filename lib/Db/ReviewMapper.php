@@ -54,4 +54,17 @@ class ReviewMapper extends QBMapper
 		$qb->select('*')->from($this->getTableName())->orderBy('id', 'ASC');
 		return $this->findEntities($qb);
 	}
+
+	/** Line ids already carrying a review — hides the form on re-visit.
+	 * @param list<int> $lineIds @return list<int> */
+	public function reviewedLineIds(array $lineIds): array
+	{
+		if ($lineIds === []) {
+			return [];
+		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('line_id')->from($this->getTableName())
+			->where($qb->expr()->in('line_id', $qb->createNamedParameter($lineIds, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+		return array_map('intval', array_column($qb->executeQuery()->fetchAll(), 'line_id'));
+	}
 }

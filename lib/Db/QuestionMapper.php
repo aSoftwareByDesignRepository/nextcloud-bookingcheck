@@ -54,4 +54,27 @@ class QuestionMapper extends QBMapper
 		$qb->select('*')->from($this->getTableName())->orderBy('id', 'ASC');
 		return $this->findEntities($qb);
 	}
+
+	/** All questions for one offering (admin list — includes inactive). */
+	public function findByOffering(int $offeringId): array
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)))
+			->orderBy('sort', 'ASC')
+			->addOrderBy('id', 'ASC');
+		return $this->findEntities($qb);
+	}
+
+	/** Active intake questions for one offering, display order. */
+	public function findActiveByOffering(int $offeringId): array
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)))
+			->andWhere($qb->expr()->eq('active', $qb->createNamedParameter(1, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)))
+			->orderBy('sort', 'ASC')
+			->addOrderBy('id', 'ASC');
+		return $this->findEntities($qb);
+	}
 }
