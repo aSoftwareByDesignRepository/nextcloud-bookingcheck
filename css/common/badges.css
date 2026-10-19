@@ -1,0 +1,52 @@
+/*
+ * BookingCheck badges — SnackCheck/AZC info pill + leading cue (WCAG 1.4.1).
+ */
+#content.app-bookingcheck .bck-badge,
+#app-content.bck-app .bck-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--bck-space-1, 4px);
+	min-height: 0;
+	padding: var(--bck-space-1, 4px) var(--bck-space-2, 8px);
+	font-size: var(--bck-fs-xs, 0.75rem);
+	font-weight: 700;
+	line-height: 1.35;
+	border-radius: var(--bck-radius-pill, 999px);
+	border: none;
+	background: var(--bck-tint-info);
+	color: var(--bck-text, var(--color-main-text));
+	box-sizing: border-box;
+}
+
+/* Leading dot for brand / scope pills (status badges use .bck-badge__dot) */
+#content.app-bookingcheck .bck-brand .bck-badge::before,
+#content.app-bookingcheck .bck-scope-strip__badge::before,
+#app-content.bck-app .bck-scope-strip__badge::before {
+	content: '';
+	display: inline-block;
+	width: 0.45em;
+	height: 0.45em;
+	border-radius: 50%;
+	flex-shrink: 0;
+	background: var(--bck-primary, var(--color-primary-element));
+}
+
+#content.app-bookingcheck .bck-badge--neutral,
+#app-content.bck-app .bck-badge--neutral {
+	background: var(--bck-tint-info);
+	color: var(--bck-text, var(--color-main-text));
+}
+
+#content.app-bookingcheck .bck-badge__dot,
+#app-content.bck-app .bck-badge__dot {
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	flex: 0 0 auto;
+	background: var(--color-border-maxcontrast, var(--bck-muted));
+}
+
+#content.app-bookingcheck .bck-scope-strip__badge,
+#app-content.bck-app .bck-scope-strip__badge {
+	font-size: var(--bck-fs-xs, 0.75rem);
+}

@@ -1,0 +1,713 @@
+/* Shell chrome parity with arbeitszeitcheck (prefix dc-). */
+/* ── Skip link / live regions ─────────────────────────────── */
+.bck-skip-link {
+	min-height: var(--bck-touch, 44px);
+	position: absolute;
+	left: -9999px;
+	top: var(--bck-space-2);
+	padding: var(--bck-space-2) var(--bck-space-4);
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
+	border-radius: var(--bck-radius-sm);
+	z-index: 1000;
+	font-weight: 600;
+	text-decoration: none;
+}
+.bck-skip-link:focus,
+.bck-skip-link:focus-visible {
+	left: var(--bck-space-3);
+	outline: 3px solid var(--color-primary-element-text);
+	outline-offset: 2px;
+}
+
+/* ===== Skip links (AZ parity) — CRITICAL =====
+ * The nav skip link is the first child of the flex app wrapper. Without
+ * position:absolute it becomes a full-height flex column and destroys the
+ * sidebar/content layout. Hide off-screen until :focus / :focus-visible.
+ */
+#content.app-bookingcheck .skip-link,
+#content.app-bookingcheck a.bck-skip-link--nav {
+	position: absolute !important;
+	left: -9999px;
+	top: var(--bck-space-2, 8px);
+	z-index: 10000;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-height: 44px;
+	width: max-content;
+	max-width: calc(100vw - 1rem);
+	height: auto;
+	margin: 0;
+	padding: var(--bck-space-2, 8px) var(--bck-space-4, 16px);
+	flex: none;
+	align-self: flex-start;
+	box-sizing: border-box;
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
+	border-radius: var(--bck-radius-sm, 6px);
+	font-weight: 600;
+	text-decoration: none;
+	line-height: 1.3;
+}
+#content.app-bookingcheck .skip-link:focus,
+#content.app-bookingcheck .skip-link:focus-visible,
+#content.app-bookingcheck a.bck-skip-link--nav:focus,
+#content.app-bookingcheck a.bck-skip-link--nav:focus-visible {
+	left: 6px;
+	top: 6px;
+	outline: 3px solid var(--color-primary-element-text);
+	outline-offset: 2px;
+}
+#content.app-bookingcheck #bookingcheck-app,
+#content.app-bookingcheck .bookingcheck-app {
+	position: relative;
+}
+
+/* Buttons — AZ components.css touch targets (WCAG 2.5.5) */
+#content.app-bookingcheck .bck-btn,
+#content.app-bookingcheck .button,
+#content.app-bookingcheck button.button,
+#content.app-bookingcheck a.button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--bck-space-2, 0.5rem);
+	/* px token, not rem: NC root font-size can be 15px → 2.75rem = 41.25px,
+	 * below the 44px touch floor. --bck-touch is an absolute guarantee. */
+	min-height: var(--bck-touch, 44px);
+	min-width: var(--bck-touch, 44px);
+	padding: 0.625rem 1.15rem;
+	box-sizing: border-box;
+	border-radius: var(--bck-radius-md, 12px);
+	font-weight: 600;
+	line-height: 1.25;
+	text-decoration: none;
+	cursor: pointer;
+}
+#content.app-bookingcheck .bck-btn--sm,
+#content.app-bookingcheck .button.small,
+#content.app-bookingcheck .button--sm {
+	/* WCAG / product: touch targets ≥44×44 — never ship 36px “compact” chrome */
+	min-height: var(--bck-touch, 44px);
+	min-width: var(--bck-touch, 44px);
+	padding: 0.35rem 0.75rem;
+}
+/* ===== END AZ skip/btn parity ===== */
+
+/* ===== AZ content surfaces — cards/sections/buttons (match azc-card / azc-btn) ===== */
+#content.app-bookingcheck #app-content .bck-card,
+#content.app-bookingcheck #app-content .bck-section,
+#content.app-bookingcheck #app-content .bck-filter-panel {
+	background: var(--bck-bg-card, var(--color-main-background));
+	border: 1px solid var(--bck-border, var(--bck-form-border));
+	border-radius: var(--bck-radius-md, 12px);
+	box-shadow: var(--bck-shadow-sm, 0 1px 2px color-mix(in srgb, var(--color-main-text) 8%, transparent));
+	box-sizing: border-box;
+}
+#content.app-bookingcheck #app-content .bck-card,
+#content.app-bookingcheck #app-content .bck-section {
+	padding: var(--bck-space-5, 24px);
+	margin-top: var(--bck-space-5, 24px);
+}
+#content.app-bookingcheck #app-content .bck-section:first-child,
+#content.app-bookingcheck #app-content .bck-main > .bck-section:first-of-type,
+#content.app-bookingcheck #app-content .bck-main > .bck-card:first-of-type,
+#content.app-bookingcheck #app-content .bck-main > .bck-filter-panel:first-of-type {
+	margin-top: 0;
+}
+#content.app-bookingcheck #app-content .bck-section__title,
+#content.app-bookingcheck #app-content .bck-card__title {
+	margin: 0 0 var(--bck-space-3, 12px);
+	font-size: var(--bck-fs-lg, 1.125rem);
+	font-weight: 600;
+	line-height: var(--bck-line-tight, 1.2);
+	color: var(--bck-text, var(--color-main-text));
+}
+/*
+ * Bachus / AZ parity: structured cards must match Filter panel chrome.
+ * Plain .bck-card { padding } above is (2,2,0) — without this peer rule, list
+ * headers stay inset on white and look nothing like dc-filter-panel__head.
+ */
+#content.app-bookingcheck #app-content .bck-card:has(.bck-card__header),
+#content.app-bookingcheck #app-content .bck-card:has(.bck-card__body),
+#content.app-bookingcheck #app-content .bck-filter-panel {
+	padding: 0;
+	overflow: hidden;
+}
+#content.app-bookingcheck #app-content .bck-filter-panel__head,
+#content.app-bookingcheck #app-content .bck-filter-panel > header,
+#content.app-bookingcheck #app-content .bck-card__header {
+	padding: var(--bck-space-5, 24px);
+	border-bottom: 1px solid var(--bck-border, var(--color-border));
+	background: var(--bck-bg-soft, color-mix(in srgb, var(--color-main-background) 96%, var(--color-main-text) 4%));
+}
+#content.app-bookingcheck #app-content .bck-card__header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--bck-space-3, 12px) var(--bck-space-4, 16px);
+}
+#content.app-bookingcheck #app-content .bck-card__header .bck-card__title {
+	margin: 0;
+}
+#content.app-bookingcheck #app-content .bck-card__header .bck-card__lead {
+	margin: var(--bck-space-2, 8px) 0 0;
+	max-width: 65ch;
+	font-size: var(--bck-fs-sm, 0.875rem);
+	line-height: var(--bck-line-base, 1.5);
+	color: var(--bck-muted, var(--color-text-maxcontrast));
+}
+#content.app-bookingcheck #app-content .bck-card__body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-4, 16px);
+	padding: var(--bck-space-5, 24px);
+}
+#content.app-bookingcheck #app-content .bck-card__body--table {
+	padding: 0;
+}
+#content.app-bookingcheck #app-content .bck-filter-panel__form,
+#content.app-bookingcheck #app-content .bck-filter-panel__body,
+#content.app-bookingcheck #app-content .bck-filter-panel > form,
+#content.app-bookingcheck #app-content .bck-filter-panel > .form {
+	padding: var(--bck-space-5, 24px);
+}
+/* Body already pads — nested form must not double the inset (Claim / Assets). */
+#content.app-bookingcheck #app-content .bck-filter-panel__body > .bck-filter-panel__form,
+#content.app-bookingcheck #app-content .bck-filter-panel__body > form.bck-filter-panel__form,
+#content.app-bookingcheck #app-content .bck-filter-panel__body > form {
+	padding: 0;
+}
+/* Buttons — AZ azc-btn uses radius-md (12px), not sm */
+#content.app-bookingcheck #app-content .bck-btn,
+#content.app-bookingcheck #app-content .button,
+#content.app-bookingcheck #app-content button.button,
+#content.app-bookingcheck #app-content a.button {
+	border-radius: var(--bck-radius-md, 12px);
+	min-height: var(--bck-touch, 44px);
+	padding: 0.625rem 1.15rem;
+	font-weight: 600;
+}
+#content.app-bookingcheck #app-content .bck-btn--sm,
+#content.app-bookingcheck #app-content .button.small,
+#content.app-bookingcheck #app-content .button--sm {
+	border-radius: var(--bck-radius-sm, 6px);
+	min-height: 44px;
+	min-width: 44px;
+	padding: 0.35rem 0.75rem;
+}
+#content.app-bookingcheck #app-content .bck-table-wrap {
+	border: 1px solid var(--bck-border, var(--color-border));
+	border-radius: var(--bck-radius-md, 12px);
+	overflow: hidden;
+	background: var(--bck-bg-card, var(--color-main-background));
+}
+/* Empty states — AZ-like bordered soft panel (never page how-to guides) */
+#content.app-bookingcheck #app-content .bck-empty:not(.bck-page-guide),
+#content.app-bookingcheck #app-content .bck-empty-state {
+	border: 1px solid var(--bck-border-strong, var(--color-border));
+	border-radius: var(--bck-radius-md, 12px);
+	padding: var(--bck-space-7, 48px) var(--bck-space-5, 24px);
+	text-align: center;
+	background: var(--bck-bg-soft, transparent);
+}
+/* ===== END AZ content surfaces ===== */
+
+
+/* ===== AZ table parity (prefix dc) =====
+ * Matches arbeitszeitcheck/css/common/components.css table chrome.
+ * Covers both .bck-table and legacy .table / .grid-table.
+ */
+#content.app-bookingcheck .bck-table-wrap,
+#content.app-bookingcheck .table-container,
+#content.app-bookingcheck .table-responsive {
+	overflow-x: auto;
+	border: 1px solid var(--bck-border, var(--color-border));
+	border-radius: var(--bck-radius-md, 12px);
+	background-color: var(--bck-bg-card, var(--color-main-background));
+	-webkit-overflow-scrolling: touch;
+	width: 100%;
+	box-sizing: border-box;
+}
+#content.app-bookingcheck .bck-table,
+#content.app-bookingcheck .table,
+#content.app-bookingcheck .grid-table {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--bck-fs-sm, 0.875rem);
+	margin-bottom: 0;
+}
+#content.app-bookingcheck .bck-table thead,
+#content.app-bookingcheck .table thead,
+#content.app-bookingcheck .grid-table thead {
+	background-color: var(--color-background-dark, var(--bck-bg-stripe, transparent));
+}
+#content.app-bookingcheck .bck-table th,
+#content.app-bookingcheck .table th,
+#content.app-bookingcheck .grid-table th {
+	padding: var(--bck-space-3, 0.75rem) var(--bck-space-4, 1rem);
+	text-align: left;
+	font-weight: 600;
+	color: var(--bck-text, var(--color-main-text));
+	border-bottom: 1px solid var(--bck-border, var(--color-border));
+	white-space: nowrap;
+	vertical-align: middle;
+	background-color: var(--color-background-dark, var(--bck-bg-stripe, color-mix(in srgb, var(--color-main-text) 12%, transparent)));
+}
+#content.app-bookingcheck .bck-table td,
+#content.app-bookingcheck .table td,
+#content.app-bookingcheck .grid-table td {
+	padding: var(--bck-space-3, 0.75rem) var(--bck-space-4, 1rem);
+	border-bottom: 1px solid var(--bck-border, var(--color-border));
+	color: var(--bck-text, var(--color-main-text));
+	vertical-align: middle;
+}
+#content.app-bookingcheck .bck-table tbody tr:last-child td,
+#content.app-bookingcheck .table tbody tr:last-child td,
+#content.app-bookingcheck .grid-table tbody tr:last-child td {
+	border-bottom: none;
+}
+#content.app-bookingcheck .bck-table.table--hover tbody tr:hover,
+#content.app-bookingcheck .bck-table--hover tbody tr:hover,
+#content.app-bookingcheck .table--hover tbody tr:hover,
+#content.app-bookingcheck .grid-table.table--hover tbody tr:hover {
+	background-color: var(--color-background-hover);
+}
+/* ===== END AZ table parity ===== */
+
+
+.bck-sr-only {
+	position: absolute !important;
+	width: 1px !important;
+	height: 1px !important;
+	min-width: 0 !important;
+	min-height: 0 !important;
+	max-width: 1px !important;
+	max-height: 1px !important;
+	margin: -1px !important;
+	padding: 0 !important;
+	border: 0 !important;
+	overflow: hidden !important;
+	clip: rect(0 0 0 0) !important;
+	clip-path: inset(50%) !important;
+	white-space: nowrap !important;
+	inset-inline-start: 0 !important;
+	inset-block-start: 0 !important;
+}
+
+/* ── App shell ─────────────────────────────────────────────── */
+/* Sidebar alignment: see navigation.css (canonical); keep minimal guard here too */
+#content.app-bookingcheck #app-navigation .nav-menu a,
+#content.app-bookingcheck #app-navigation .nav-submenu a,
+#content.app-bookingcheck #app-navigation .nav-parent-toggle {
+	justify-content: flex-start;
+	text-align: left;
+}
+
+#app-content.bck-app {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	text-align: left;
+	min-height: 100%;
+	background: var(--bck-bg-soft);
+}
+#app-content.bck-app #app-content-wrapper.bck-shell {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	text-align: left;
+	width: 100%;
+	max-width: none;
+	margin: 0;
+	padding: var(--bck-space-5) var(--bck-space-5) var(--bck-space-7);
+	/* Notched phones: keep CTAs clear of home indicator (NC mobile) */
+	padding-left: max(var(--bck-space-5), env(safe-area-inset-left, 0px));
+	padding-right: max(var(--bck-space-5), env(safe-area-inset-right, 0px));
+	padding-bottom: max(var(--bck-space-7), env(safe-area-inset-bottom, 0px));
+	box-sizing: border-box;
+}
+#app-content.bck-app--dashboard .bck-dashboard-alerts .bck-callout {
+	margin: 0;
+}
+#app-content.bck-app #bck-main-content.bck-main,
+#app-content.bck-app #bck-main-content.bck-main {
+	flex: 1 1 auto;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	text-align: left;
+	gap: var(--bck-space-5);
+	outline: none;
+}
+#app-content.bck-app--admin-notifications #bck-main-content,
+#app-content.bck-app--admin-settings #bck-main-content {
+	gap: var(--bck-space-4);
+}
+#bck-main-content.bck-main:focus-visible,
+#bck-main-content.bck-main:focus-visible {
+	outline: var(--bck-focus, 3px solid var(--color-primary-element));
+	outline-offset: var(--bck-focus-offset, 2px);
+}
+
+/* Heading contrast in all NC themes */
+#app-content.bck-app h1,
+#app-content.bck-app h2,
+#app-content.bck-app h3 {
+	color: var(--bck-text) !important;
+	opacity: 1 !important;
+}
+
+/* ── Header / breadcrumb ───────────────────────────────────── */
+.bck-page-header {
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-3);
+	margin-bottom: var(--bck-space-5);
+}
+#app-content.bck-app .bck-breadcrumb {
+	font-size: var(--bck-fs-sm);
+	line-height: var(--bck-line-tight);
+	color: var(--bck-muted);
+}
+#app-content.bck-app .bck-breadcrumb__list {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+#app-content.bck-app .bck-breadcrumb__item {
+	display: inline-flex;
+	align-items: center;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	max-width: 100%;
+}
+#app-content.bck-app .bck-breadcrumb__item:not(:last-child)::after {
+	content: '/';
+	margin-inline: var(--bck-space-2);
+	color: var(--bck-muted);
+	font-weight: 400;
+	opacity: 0.65;
+	pointer-events: none;
+	user-select: none;
+}
+#app-content.bck-app .bck-breadcrumb__link {
+	color: var(--color-primary-element);
+	font-weight: 600;
+	text-decoration: none;
+	border-radius: var(--bck-radius-sm);
+	padding-block: 2px;
+	/* WCAG 2.5.8: the anchor is the target — give it a >=24px box
+	   (was ~20px text-line; ds_chrome sweep touch probe). */
+	display: inline-flex;
+	align-items: center;
+	min-block-size: 24px;
+}
+#app-content.bck-app .bck-breadcrumb__link:hover {
+	text-decoration: underline;
+}
+#app-content.bck-app .bck-breadcrumb__link:focus-visible {
+	outline: var(--bck-focus);
+	outline-offset: var(--bck-focus-offset);
+}
+#app-content.bck-app .bck-breadcrumb__text {
+	color: var(--bck-muted);
+	font-weight: 500;
+}
+#app-content.bck-app .bck-breadcrumb__item--current {
+	color: var(--bck-text);
+	min-width: 0;
+}
+#app-content.bck-app .bck-breadcrumb__current {
+	font-weight: 600;
+	color: var(--bck-text);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: min(100%, 28rem);
+}
+/* Mobile-first: icon + title; actions full-width below (no 3-col squeeze at 320px) */
+.bck-page-header__main {
+	display: grid;
+	grid-template-columns: 56px minmax(0, 1fr);
+	gap: var(--bck-space-3) var(--bck-space-4);
+	align-items: start;
+}
+.bck-page-header__actions {
+	grid-column: 1 / -1;
+	justify-content: flex-start;
+}
+/* ≥768px tablet+: icon | title | actions on one row (NC tablet / desktop) */
+@media (min-width: 768px) {
+	.bck-page-header__main {
+		grid-template-columns: 56px 1fr auto;
+		gap: var(--bck-space-4);
+	}
+	.bck-page-header__actions {
+		grid-column: auto;
+		justify-content: flex-end;
+	}
+}
+.bck-page-header__icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 56px;
+	height: 56px;
+	border-radius: var(--bck-radius-md);
+	background: var(--bck-tint-info);
+	color: var(--color-primary-element);
+}
+.bck-page-header__icon-svg {
+	width: 28px;
+	height: 28px;
+	max-width: none;
+	stroke: currentColor;
+	fill: none;
+	color: inherit;
+	stroke-width: var(--bck-icon-stroke, 2);
+}
+.bck-page-header__text h1 {
+	margin: 0 0 var(--bck-space-1);
+	font-size: var(--bck-fs-2xl);
+	line-height: var(--bck-line-tight);
+}
+.bck-page-header__lead {
+	margin: 0;
+	color: var(--bck-muted);
+	font-size: var(--bck-fs-md);
+	line-height: var(--bck-line-base);
+	max-width: 60ch;
+}
+.bck-page-header__actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--bck-space-2);
+	align-items: center;
+	/* grid-column / justify set with .bck-page-header__main (mobile-first above) */
+}
+
+/* ── Scope strip ───────────────────────────────────────────── */
+.bck-scope-strip {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--bck-space-2);
+	padding: var(--bck-space-2) var(--bck-space-3);
+	border: 1px solid var(--bck-border);
+	border-radius: var(--bck-radius-sm);
+	background: var(--bck-bg-card);
+	font-size: var(--bck-fs-sm);
+}
+.bck-scope-strip--quiet {
+	padding: var(--bck-space-1) var(--bck-space-3);
+	border-style: dashed;
+	/* Never dim the whole strip — opacity tanks WCAG contrast on muted labels. */
+}
+.bck-scope-strip__label {
+	color: var(--bck-text, var(--color-main-text));
+	font-weight: 600;
+}
+.bck-scope-strip__value {
+	font-weight: 600;
+	color: var(--bck-text);
+}
+.bck-scope-strip__sep {
+	color: var(--bck-muted);
+}
+.bck-scope-strip__chip {
+	text-decoration: none;
+}
+.bck-scope-strip__select {
+	min-height: 44px;
+	min-width: min(12rem, 100%);
+	padding: 0.5rem 2.25rem 0.5rem 0.75rem;
+	border: 1px solid var(--bck-border-strong);
+	border-radius: var(--bck-radius-sm);
+	background: var(--bck-bg-card);
+	color: var(--bck-text);
+	font: inherit;
+	font-weight: 600;
+}
+.bck-scope-strip__select:focus-visible {
+	outline: 3px solid var(--color-primary-element);
+	outline-offset: 2px;
+}
+
+/* ── Buttons (dc-btn taxonomy) ──────────────────────────────── */
+.bck-btn,
+.bck-app .btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: var(--bck-space-2);
+	min-height: 44px;
+	min-width: 44px;
+	padding: var(--bck-space-2) var(--bck-space-4);
+	border-radius: var(--bck-radius-sm);
+	font-size: var(--bck-fs-md);
+	font-weight: 600;
+	line-height: 1.2;
+	text-decoration: none;
+	cursor: pointer;
+	border: 1px solid transparent;
+	transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.bck-btn:focus-visible,
+.bck-app .btn:focus-visible {
+	outline: var(--bck-focus, 3px solid var(--color-primary-element));
+	outline-offset: var(--bck-focus-offset, 2px);
+}
+.bck-btn--primary,
+.bck-app .btn--primary {
+	background: var(--color-primary-element);
+	color: var(--color-primary-element-text);
+}
+.bck-btn--secondary,
+.bck-app .btn--secondary {
+	background: color-mix(in srgb, var(--color-main-background) 82%, var(--color-main-text) 18%);
+	color: var(--bck-text);
+	border-color: var(--bck-control-border, var(--bck-border-strong));
+}
+#app-content.bck-app .bck-btn--danger,
+#app-content-wrapper .bck-btn--danger,
+.bck-app .btn--danger {
+	/* Solid fill — never pale --color-error tint (WCAG 1.4.3 / design-system §3.3).
+	   ID-scoped + !important: NC core button:not(...) (0-1-1) otherwise paints
+	   --color-primary-element-light over the danger fill. */
+	background: var(--bck-danger-fill) !important;
+	color: var(--bck-danger-on-fill) !important;
+	/* Border == fill so the control keeps a painted edge (boundary = fill vs
+	   surface, WCAG 1.4.11) instead of a transparent border. */
+	border-color: var(--bck-danger-fill) !important;
+}
+.bck-btn--danger:hover,
+.bck-app .btn--danger:hover {
+	filter: brightness(0.92);
+}
+.bck-btn--danger:focus-visible,
+.bck-app .btn--danger:focus-visible {
+	filter: brightness(0.92);
+	outline: 3px solid var(--bck-danger-fill);
+	outline-offset: var(--bck-focus-offset);
+}
+.bck-btn--ghost {
+	background: transparent;
+	color: var(--bck-text);
+	border-color: var(--bck-control-border, var(--bck-border-strong));
+}
+.bck-btn--sm {
+	min-height: 44px;
+	min-width: 44px;
+	padding: var(--bck-space-1) var(--bck-space-3);
+	font-size: var(--bck-fs-sm);
+}
+.bck-btn[aria-busy="true"] {
+	opacity: 0.7;
+	pointer-events: none;
+}
+
+/* Badges: css/common/badges.css (loaded after app-vanilla to override legacy rules) */
+
+/* ── Cards / callouts ──────────────────────────────────────── */
+.bck-card {
+	background: var(--bck-bg-card);
+	border: 1px solid var(--bck-border);
+	border-radius: var(--bck-radius-md);
+	padding: var(--bck-space-5);
+	box-shadow: var(--bck-shadow-sm);
+}
+#app-content.bck-app .bck-card:has(.bck-card__header),
+#app-content.bck-app .bck-card:has(.bck-card__body) {
+	padding: 0;
+}
+#app-content.bck-app .bck-card__header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--bck-space-3) var(--bck-space-4);
+	padding: var(--bck-space-5);
+	border-bottom: 1px solid var(--bck-border);
+	background: var(--bck-bg-soft);
+}
+#app-content.bck-app .bck-card__header-text {
+	flex: 1 1 14rem;
+	min-width: 0;
+}
+#app-content.bck-app .bck-card__header-actions {
+	flex: 0 0 auto;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--bck-space-2);
+}
+#app-content.bck-app .bck-card__title {
+	margin: 0;
+	font-size: var(--bck-fs-lg);
+	font-weight: 600;
+	line-height: var(--bck-line-tight);
+	color: var(--bck-text);
+}
+#app-content.bck-app .bck-card__lead {
+	margin: var(--bck-space-2) 0 0;
+	max-width: 52rem;
+	font-size: var(--bck-fs-sm);
+	line-height: var(--bck-line-base);
+	color: var(--bck-muted);
+}
+#app-content.bck-app .bck-card__body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-4);
+	padding: var(--bck-space-5);
+}
+#app-content.bck-app .bck-btn .bck-btn__icon,
+#app-content.bck-app .bck-btn .bck-icon {
+	width: var(--bck-icon-md);
+	height: var(--bck-icon-md);
+	flex-shrink: 0;
+}
+#app-content.bck-app .bck-btn--sm .bck-btn__icon,
+#app-content.bck-app .bck-btn--sm .bck-icon {
+	width: var(--bck-icon-sm);
+	height: var(--bck-icon-sm);
+}
+/* Legacy card header shim (compliance/dashboard until fully migrated) */
+#app-content.bck-app .card-header--with-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--bck-space-3) var(--bck-space-4);
+	padding: var(--bck-space-4) var(--bck-space-5);
+	margin-bottom: 0;
+	border-bottom: 1px solid var(--bck-border);
+	background: var(--bck-bg-soft);
+}
+#app-content.bck-app .card-header--with-actions .card-title {
+	margin: 0;
+	font-size: var(--bck-fs-lg);
+	font-weight: 600;
+	color: var(--bck-text);
+}
+#app-content.bck-app .card-header--with-actions .bck-btn {
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+#app-content.bck-app .bck-card + .bck-card {
+	margin-top: var(--bck-space-5);
+}
+#app-content.bck-app .compliance-dashboard__status .bck-callout {
+	margin-bottom: 0;
+}
+

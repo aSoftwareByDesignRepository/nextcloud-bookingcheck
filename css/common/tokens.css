@@ -1,0 +1,257 @@
+/* Auto-adapted from arbeitszeitcheck/css/common/tokens.css for the Check-family shell. Do not invent divergent layout rules here. */
+/*
+ * BookingCheck design tokens (--bck-*).
+ * Colors derive from Nextcloud theme variables; no raw hex in feature CSS.
+ * Spacing/typography on :root; theme colors on body + themed app surfaces
+ * (NC sets --color-* on body [data-theme-*]).
+ */
+:root {
+	--bck-space-1: 4px;
+	--bck-space-2: 8px;
+	--bck-space-3: 12px;
+	--bck-space-4: 16px;
+	--bck-space-5: 24px;
+	--bck-space-6: 32px;
+	--bck-space-7: 48px;
+	--bck-space-8: 64px;
+
+	/* Legacy --space-* aliases used by ported AZC layout/dialog sheets */
+	--space-1: var(--bck-space-1);
+	--space-2: var(--bck-space-2);
+	--space-3: var(--bck-space-3);
+	--space-4: var(--bck-space-4);
+	--space-5: var(--bck-space-5);
+	--space-6: var(--bck-space-6);
+	--space-7: var(--bck-space-7);
+	--space-8: var(--bck-space-8);
+	--space-10: 80px;
+	--space-12: 96px;
+
+	/* Radii — design-system scale, bound to NC --border-radius-* when present */
+	--bck-radius-sm: var(--border-radius, 6px);
+	--bck-radius-md: var(--border-radius-element, var(--border-radius-large, 12px));
+	--bck-radius-lg: var(--border-radius-large, 16px);
+	--bck-radius-pill: var(--border-radius-pill, 999px);
+
+	/* Legacy --radius-* used by ported app-layout / dialogs sheets */
+	--radius-base: var(--bck-radius-sm);
+	--radius-lg: var(--bck-radius-md);
+	--radius-xl: var(--bck-radius-lg);
+	--radius-2xl: var(--bck-radius-lg);
+	--radius-full: var(--bck-radius-pill);
+
+	/* Floor 0.875rem (14px) — no type below 14px on mobile (responsive directive) */
+	--bck-fs-xs: 0.875rem;
+	--bck-fs-sm: 0.875rem;
+	--bck-fs-md: 1rem;
+	--bck-fs-lg: 1.125rem;
+	--bck-fs-xl: 1.5rem;
+	--bck-fs-2xl: 1.875rem;
+
+	--bck-line-tight: 1.2;
+	--bck-line-base: 1.45;
+
+	--bck-breakpoint-sm: 480px;
+	--bck-breakpoint-md: 768px;
+	--bck-breakpoint-lg: 1024px;
+
+	/* Inline SVG catalogue (IconCatalog / AzcCatalog) */
+	--bck-icon-sm: 1rem;
+	--bck-icon-md: 1.125rem;
+	--bck-icon-lg: 1.375rem;
+	--bck-icon-well: 2.25rem;
+	--bck-icon-stroke: 2;
+
+	--bck-tab-num: tabular-nums;
+	/* Touch targets (WCAG 2.5.5 / design-system) */
+	--bck-touch: 44px;
+	--bck-touch-lg: 48px;
+
+	/*
+	 * QR / barcode canvas must stay light for scannability in every theme.
+	 * This is the only intentional non-theme surface in BookingCheck feature CSS.
+	 */
+	--bck-qr-canvas: #ffffff;
+}
+
+/*
+ * Theme-dependent tokens MUST resolve where Nextcloud sets --color-* (body /
+ * [data-theme-*]) and on themed app surfaces. Resolving color-mix only on
+ * :root can fall back to light surfaces while text inherits dark-theme ink.
+ */
+body,
+#content.app-bookingcheck,
+#app-content.bck-app,
+.bck-app,
+.bck-dialog,
+.bck-modal,
+.bck-toast-region,
+.bck-toasts,
+.bck-license-modal {
+	/* Fixed overlays (panels, backdrops, mobile nav) sit below NC #header */
+	--bck-overlay-top: var(--header-height, 50px);
+	--bck-overlay-height: calc(100dvh - var(--header-height, 50px));
+
+	--bck-bg-soft: color-mix(in srgb, var(--color-main-background) 96%, var(--color-main-text) 4%);
+	--bck-bg-card: var(--color-main-background);
+	--bck-bg-stripe: color-mix(in srgb, var(--color-main-background) 92%, var(--color-main-text) 8%);
+	--bck-text: var(--color-main-text);
+	--bck-muted: var(--color-text-maxcontrast);
+	--bck-border: color-mix(in srgb, var(--color-main-text) 12%, transparent);
+	/* Boundaries of cards/controls/callouts/dialogs need >=3:1 vs the adjacent
+	   surface (WCAG 1.4.11): NC's --color-border-maxcontrast is theme-tuned for
+	   exactly that (dark + high-contrast themes included). The faint 24% mix
+	   measured ~1.3:1 — below the floor in every theme. */
+	--bck-border-strong: var(--color-border-maxcontrast, color-mix(in srgb, var(--color-main-text) 24%, transparent));
+	/* Interactive controls need >=3:1 (WCAG 1.4.11): maxcontrast is NC's own
+	   input border; --color-border / --bck-border stay surface-only. */
+	--bck-form-border: var(--color-border-maxcontrast, var(--bck-border-strong));
+	/* Filled controls (secondary/ghost/summary buttons): the border sits on a
+	   mid-gray fill, so it must read against BOTH fill and page — maxcontrast
+	   lands ~2.9:1 on the 18%-ink secondary fill. Ink-tuned maxcontrast text
+	   token clears 3:1 against both in every theme. */
+	--bck-control-border: var(--color-text-maxcontrast, var(--color-border-maxcontrast, var(--bck-border-strong)));
+
+	/* Primary / focus — track NC accent for custom branding */
+	--bck-primary: var(--color-primary-element);
+	--bck-primary-text: var(--color-primary-element-text);
+	--bck-focus: 3px solid var(--color-primary-element);
+	--bck-focus-offset: 2px;
+
+	/* Mix with main background — not transparent — so callouts stay visible on all NC themes */
+	--bck-tint-success: color-mix(in srgb, var(--color-success-text, var(--color-success)) 18%, var(--color-main-background));
+	--bck-tint-warning: color-mix(in srgb, var(--color-warning-text, var(--color-warning)) 22%, var(--color-main-background));
+	--bck-tint-danger: color-mix(in srgb, var(--color-error-text, var(--color-error)) 18%, var(--color-main-background));
+	/* Alias used by badges/callouts/toasts — mix into main-bg (never transparent) so dark themes stay visible */
+	--bck-tint-critical: var(--bck-tint-danger);
+	--bck-tint-info: color-mix(in srgb, var(--color-primary-element) 16%, var(--color-main-background));
+
+	/*
+	 * Solid danger CTA fill (design-system §3.3 / WCAG 1.4.3).
+	 * NC 30+ maps --color-error to a pale tint — never put on-fill text on that.
+	 */
+	--bck-danger-fill: var(--color-element-error, var(--color-error));
+	--bck-danger-on-fill: var(--color-primary-element-text, var(--color-primary-text));
+	--bck-danger-ink: var(--color-error-text, var(--color-error));
+
+	/*
+	 * Notification icon wells — pale tint + semantic stroke (see .bck-page-header__icon).
+	 * NC *-text tokens are tuned per theme for contrast on main-background.
+	 */
+	--bck-notif-fg-info: var(--color-primary-element);
+	--bck-notif-fg-warning: var(--color-warning-text, var(--color-warning));
+	--bck-notif-fg-success: var(--color-success-text, var(--color-success));
+	--bck-notif-fg-danger: var(--color-error-text, var(--color-error));
+
+	--bck-shadow-sm: 0 1px 2px color-mix(in srgb, var(--color-main-text) 8%, transparent);
+	--bck-shadow-md: 0 8px 24px color-mix(in srgb, var(--color-main-text) 12%, transparent);
+	--bck-shadow-lg: 0 1rem 3rem color-mix(in srgb, var(--color-main-text) 28%, transparent);
+
+	/* Overlay scrims — theme ink, never hardcoded #000 */
+	--bck-scrim: color-mix(in srgb, var(--color-main-text) 45%, transparent);
+	--bck-scrim-strong: color-mix(in srgb, var(--color-main-text) 55%, transparent);
+
+	/*
+	 * Legacy --bookingcheck-* aliases (shell dialogs / app-layout ported from AZC).
+	 * Feature CSS should prefer --bck-*; every alias maps to NC/--bck-* so
+	 * undefined custom properties never blank out surfaces in any theme.
+	 */
+	--bookingcheck-color-modal-background: var(--bck-bg-card);
+	--bookingcheck-color-modal-border: var(--bck-border);
+	--bookingcheck-color-modal-footer-background: var(--bck-bg-soft);
+	--bookingcheck-color-background: var(--color-main-background);
+	--bookingcheck-color-background-elevated: var(--bck-bg-card);
+	--bookingcheck-color-background-secondary: var(--bck-bg-soft);
+	--bookingcheck-color-background-tertiary: var(--bck-bg-soft);
+	--bookingcheck-color-text: var(--bck-text);
+	--bookingcheck-color-text-muted: var(--bck-muted);
+	--bookingcheck-color-text-maxcontrast: var(--bck-muted);
+	--bookingcheck-color-text-secondary: var(--bck-muted);
+	--bookingcheck-color-text-tertiary: var(--bck-muted);
+	--bookingcheck-color-primary: var(--color-primary-element);
+	--bookingcheck-color-primary-element: var(--color-primary-element);
+	--bookingcheck-color-primary-light: color-mix(in srgb, var(--color-primary-element) 28%, transparent);
+	--bookingcheck-color-border: var(--bck-border);
+	--bookingcheck-color-border-focus: var(--color-primary-element);
+	--bookingcheck-color-border-warning: var(--color-warning-text, var(--color-warning));
+	--bookingcheck-color-error: var(--bck-danger-ink);
+	--bookingcheck-color-error-light: color-mix(in srgb, var(--bck-danger-ink) 28%, transparent);
+	--bookingcheck-color-success-light: color-mix(in srgb, var(--color-success-text, var(--color-success)) 28%, transparent);
+	--bookingcheck-color-warning-light: color-mix(in srgb, var(--color-warning-text, var(--color-warning)) 28%, transparent);
+	--bookingcheck-color-form-required: var(--bck-danger-ink);
+	--bookingcheck-color-form-label: var(--bck-text);
+	--bookingcheck-color-form-background: var(--color-main-background);
+	--bookingcheck-color-form-border: var(--color-border-maxcontrast, var(--bck-border-strong));
+	--bookingcheck-color-form-border-focus: var(--color-primary-element);
+	--bookingcheck-color-form-border-error: var(--bck-danger-ink);
+	--bookingcheck-color-form-border-success: var(--color-success-text, var(--color-success));
+	--bookingcheck-color-table-border: var(--bck-border);
+	--bookingcheck-color-table-header-background: var(--color-background-dark, var(--bck-bg-stripe));
+	--bookingcheck-font-family-sans: var(--font-face, inherit);
+	--bookingcheck-font-size-sm: var(--bck-fs-sm);
+	--bookingcheck-font-size-base: var(--bck-fs-md);
+	--bookingcheck-font-size-lg: var(--bck-fs-lg);
+	--bookingcheck-font-size-xl: var(--bck-fs-xl);
+	--bookingcheck-font-size-3xl: var(--bck-fs-2xl);
+	--bookingcheck-font-weight-medium: 500;
+	--bookingcheck-font-weight-semibold: 600;
+	--bookingcheck-font-weight-bold: 700;
+	--bookingcheck-letter-spacing-tight: -0.02em;
+	--bookingcheck-line-height-tight: var(--bck-line-tight);
+	--bookingcheck-line-height-normal: var(--bck-line-base);
+	--bookingcheck-line-height-relaxed: 1.6;
+}
+
+/* Bright accent fills on dark themes fail AA with white ink — darken fill + use main-text. */
+body[data-theme-dark],
+body[data-theme-dark-highcontrast],
+body[data-theme-dark] #content.app-bookingcheck,
+body[data-theme-dark-highcontrast] #content.app-bookingcheck {
+	--bck-danger-fill: color-mix(
+		in srgb,
+		var(--color-element-error, var(--color-error)) 40%,
+		var(--color-main-background)
+	);
+	--bck-danger-on-fill: var(--color-main-text);
+}
+
+/* NC high-contrast themes: stronger borders / shadows for 3:1 UI chrome */
+body[data-theme-light-highcontrast],
+body[data-theme-dark-highcontrast],
+body[data-theme-light-highcontrast] #content.app-bookingcheck,
+body[data-theme-dark-highcontrast] #content.app-bookingcheck {
+	--bck-border: color-mix(in srgb, var(--color-main-text) 32%, transparent);
+	/* HC themes push --color-border-maxcontrast to near-ink — keep it first so
+	   boundary chrome stays >=3:1 against HC surfaces. */
+	--bck-border-strong: var(--color-border-maxcontrast, color-mix(in srgb, var(--color-main-text) 48%, transparent));
+	--bck-shadow-sm: 0 0 0 1px var(--bck-border-strong);
+	--bck-shadow-md: 0 0 0 2px var(--bck-border-strong);
+	--bookingcheck-color-border: var(--bck-border);
+	--bookingcheck-color-modal-border: var(--bck-border);
+}
+
+@media (prefers-contrast: more) {
+	:root {
+		--bck-icon-stroke: 2.25;
+	}
+
+	body,
+	#content.app-bookingcheck,
+	#app-content.bck-app,
+	.bck-app,
+	.bck-dialog,
+	.bck-modal,
+	.bck-toast-region,
+	.bck-toasts,
+	.bck-license-modal {
+		--bck-border: color-mix(in srgb, var(--color-main-text) 28%, transparent);
+		--bck-border-strong: var(--color-border-maxcontrast, color-mix(in srgb, var(--color-main-text) 40%, transparent));
+		--bck-shadow-sm: 0 0 0 1px var(--bck-border-strong);
+		--bck-shadow-md: 0 0 0 1px var(--bck-border-strong);
+	}
+}
+
+/* Alias for dead-name ref (literal fallback masked it). */
+body {
+	--bck-bg: var(--bck-bg-card);
+}

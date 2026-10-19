@@ -1,0 +1,33 @@
+{
+	"translations": {
+		"%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice — or official mobile licenses — choose an option below:": "%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice — or official mobile licenses — choose an option below:",
+		"%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice, choose an option below:": "%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice, choose an option below:",
+		"(opens in a new tab)": "(opens in a new tab)",
+		"A scoped change with acceptance criteria and a delivery date — billed as project work.": "A scoped change with acceptance criteria and a delivery date — billed as project work.",
+		"Additional invoiceable options": "Additional invoiceable options",
+		"Annual hour packs — Small, Standard, or Premium — with priority email for your organisation. This is invoiceable service — not a donation. See packages on our support page.": "Annual hour packs — Small, Standard, or Premium — with priority email for your organisation. This is invoiceable service — not a donation. See packages on our support page.",
+		"Ask about setup or training": "Ask about setup or training",
+		"Ask for a partner offer": "Ask for a partner offer",
+		"Check Partner": "Check Partner",
+		"Commissioned feature": "Commissioned feature",
+		"Email is best-effort — no reply SLA. Need booked help? Use Support & us.": "Email is best-effort — no reply SLA. Need booked help? Use Support & us.",
+		"Get the App": "Get the App",
+		"GitHub Sponsors (voluntary, no invoice SLA)": "GitHub Sponsors (voluntary, no invoice SLA)",
+		"Help": "Help",
+		"List prices on our site apply to published Check apps. For this app, ask for an individual partner offer — we invoice only after you accept a quote.": "List prices on our site apply to published Check apps. For this app, ask for an individual partner offer — we invoice only after you accept a quote.",
+		"Mobile & terminal": "Mobile & terminal",
+		"More Check apps": "More Check apps",
+		"Named seats for the official apps — a software licence on invoice.": "Named seats for the official apps — a software licence on invoice.",
+		"Official mobile & terminal licenses": "Official mobile & terminal licenses",
+		"Open GitHub Issues": "Open GitHub Issues",
+		"Open support page": "Open support page",
+		"Packages and terms:": "Packages and terms:",
+		"Remote onboarding or a workshop so your team can roll out cleanly — billed as a service.": "Remote onboarding or a workshop so your team can roll out cleanly — billed as a service.",
+		"Report a problem": "Report a problem",
+		"Report this problem": "Report this problem",
+		"Request a commissioned feature": "Request a commissioned feature",
+		"Setup & training": "Setup & training",
+		"Suggest an improvement": "Suggest an improvement",
+		"Support & us": "Support & us"
+	}
+}

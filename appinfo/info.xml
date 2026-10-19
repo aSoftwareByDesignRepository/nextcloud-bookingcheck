@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<!--
+  - SPDX-FileCopyrightText: 2026 Alexander Mäule
+  - SPDX-License-Identifier: AGPL-3.0-or-later
+-->
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+	<id>bookingcheck</id>
+	<name>BookingCheck</name>
+	<summary>Sell seats, courses, timeslots and tickets — guest checkout, real payments, invoicing</summary>
+	<description><![CDATA[
+		Bookable-capacity commerce for Nextcloud: one-off events, recurring course
+		series and bookable timeslots with atomic seat reservation, guest checkout
+		(no account needed), Mollie/Stripe payments, gapless invoicing with
+		credit notes, QR tickets, and an email-OTP participant portal.
+
+		Sovereign ticketing without per-ticket commissions — your customers' data
+		stays on your server.
+	]]></description>
+	<description lang="de"><![CDATA[
+Buchbare Kapazität direkt aus Nextcloud verkaufen: einmalige Events,
+wiederkehrende Kursreihen und buchbare Zeitfenster mit atomarer
+Platzreservierung, Gäste-Checkout (ohne Konto), Mollie-/Stripe-Zahlung,
+lückenloser Rechnungsstellung mit Storno, QR-Tickets und einem
+Teilnehmer-Portal per E-Mail-Code.
+
+Souveränes Ticketing ohne Ticketprovision — Kundendaten bleiben auf Ihrem Server.
+	]]></description>
+	<version>0.9.1</version>
+	<licence>agpl</licence>
+	<author>Alexander Mäule</author>
+	<namespace>BookingCheck</namespace>
+	<category>organization</category>
+	<category>integration</category>
+	<website>https://nextcloud.software-by-design.de/</website>
+	<bugs>https://github.com/aSoftwareByDesignRepository/nextcloud-bookingcheck/issues</bugs>
+	<repository>https://github.com/aSoftwareByDesignRepository/nextcloud-bookingcheck</repository>
+	<dependencies>
+		<nextcloud min-version="32" max-version="35"/>
+		<!-- Must live under <dependencies>: MigrationService only reads these for migration naming checks -->
+		<database>mysql</database>
+		<database>pgsql</database>
+	</dependencies>
+	<background-jobs>
+		<job>OCA\BookingCheck\BackgroundJob\OrderExpiryJob</job>
+		<job>OCA\BookingCheck\BackgroundJob\EmailQueueJob</job>
+		<job>OCA\BookingCheck\BackgroundJob\WaitlistAllocationJob</job>
+		<job>OCA\BookingCheck\BackgroundJob\WaitlistExpiryJob</job>
+		<job>OCA\BookingCheck\BackgroundJob\OutboundWebhookJob</job>
+		<job>OCA\BookingCheck\BackgroundJob\EolJob</job>
+		<job>OCA\BookingCheck\BackgroundJob\RetentionPruneJob</job>
+		<job>OCA\BookingCheck\BackgroundJob\AuditChainVerifyJob</job>
+	</background-jobs>
+	<navigations>
+		<navigation>
+			<name>BookingCheck</name>
+			<route>bookingcheck.page.index</route>
+			<icon>app.svg</icon>
+			<order>10</order>
+		</navigation>
+	</navigations>
+	<settings>
+		<admin>OCA\BookingCheck\Settings\AdminSettings</admin>
+		<admin-section>OCA\BookingCheck\Settings\AdminSection</admin-section>
+	</settings>	<commands>
+		<command>OCA\BookingCheck\Command\UpgradeBackupCommand</command>
+	</commands>
+
+	<repair-steps>
+		<install>
+			<step>OCA\BookingCheck\Repair\EnsureBookingCheckSchema</step>
+		</install>
+		<pre-migration>
+			<step>OCA\BookingCheck\Repair\BackupBeforeUpdate</step>
+		</pre-migration>
+		<post-migration>
+			<step>OCA\BookingCheck\Repair\EnsureBookingCheckSchema</step>
+		</post-migration>
+		<uninstall>
+			<step>OCA\BookingCheck\Repair\UninstallDropTables</step>
+		</uninstall>
+	</repair-steps>
+</info>

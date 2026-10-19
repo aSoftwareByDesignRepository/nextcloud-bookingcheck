@@ -1,0 +1,33 @@
+{
+	"translations": {
+		"%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice — or official mobile licenses — choose an option below:": "%s ist auf Ihrer Nextcloud kostenlos (AGPL). Fehler und Ideen über GitHub bleiben willkommen — das gehört zur kostenlosen Open-Source-Pflege. Wenn Ihre Organisation planbare Hilfe mit Rechnung braucht — oder offizielle Mobile-Lizenzen — wählen Sie unten eine Option:",
+		"%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice, choose an option below:": "%s ist auf Ihrer Nextcloud kostenlos (AGPL). Fehler und Ideen über GitHub bleiben willkommen — das gehört zur kostenlosen Open-Source-Pflege. Wenn Ihre Organisation planbare Hilfe mit Rechnung braucht, wählen Sie unten eine Option:",
+		"(opens in a new tab)": "(öffnet in neuem Tab)",
+		"A scoped change with acceptance criteria and a delivery date — billed as project work.": "Eine abgegrenzte Änderung mit Abnahmekriterien und Liefertermin — als Auftrag abrechenbar.",
+		"Additional invoiceable options": "Weitere verrechenbare Optionen",
+		"Annual hour packs — Small, Standard, or Premium — with priority email for your organisation. This is invoiceable service — not a donation. See packages on our support page.": "Jährliche Stundenpakete — Small, Standard oder Premium — plus priorisierte E-Mail für Ihre Organisation. Verrechenbare Leistung, keine Spende. Pakete auf unserer Support-Seite.",
+		"Ask about setup or training": "Einrichtung oder Schulung anfragen",
+		"Ask for a partner offer": "Partner-Angebot anfragen",
+		"Check Partner": "Check Partner",
+		"Commissioned feature": "Beauftragte Funktion",
+		"Email is best-effort — no reply SLA. Need booked help? Use Support & us.": "E-Mail ohne Antwort-SLA. Nutzen Sie für gebuchte Hilfe „Hilfe & Support“.",
+		"Get the App": "App holen",
+		"GitHub Sponsors (voluntary, no invoice SLA)": "GitHub Sponsors (freiwillig, ohne Rechnungs-SLA)",
+		"Help": "Hilfe",
+		"List prices on our site apply to published Check apps. For this app, ask for an individual partner offer — we invoice only after you accept a quote.": "Listenpreise auf unserer Website gelten für veröffentlichte Check-Apps. Für diese App fragen Sie ein individuelles Partner-Angebot an — Rechnung erst nach Annahme des Angebots.",
+		"Mobile & terminal": "Mobil & Terminal",
+		"More Check apps": "Weitere Check-Apps",
+		"Named seats for the official apps — a software licence on invoice.": "Namensgebundene Sitze für die offiziellen Apps — Softwarelizenz mit Rechnung.",
+		"Official mobile & terminal licenses": "Offizielle Mobile- und Terminal-Lizenzen",
+		"Open GitHub Issues": "GitHub Issues öffnen",
+		"Open support page": "Support-Seite öffnen",
+		"Packages and terms:": "Pakete und Konditionen:",
+		"Remote onboarding or a workshop so your team can roll out cleanly — billed as a service.": "Fern-Einrichtung oder Workshop, damit Ihr Team sauber starten kann — als Dienstleistung abrechenbar.",
+		"Report a problem": "Fehler melden",
+		"Report this problem": "Diesen Fehler melden",
+		"Request a commissioned feature": "Feature-Auftrag anfragen",
+		"Setup & training": "Einrichtung & Schulung",
+		"Suggest an improvement": "Verbesserung vorschlagen",
+		"Support & us": "Hilfe & Support"
+	}
+}

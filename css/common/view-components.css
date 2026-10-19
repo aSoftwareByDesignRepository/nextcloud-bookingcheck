@@ -1,0 +1,300 @@
+/*
+ * Check family — view components (canonical, bck-templated).
+ * Implements DESIGN-SYSTEM §3.2 badges, §3.4 callouts, §3.5 stat tiles,
+ * §3.6b filter panels (recipe A), §3.6c quick-filter pills (recipe B),
+ * §3.7 table card-rows, §3.8 empty/loading, §3.11 pagination.
+ *
+ * Every var() carries a literal fallback so the pack still renders sanely
+ * in an app whose token layer is thinner than §1 requires.
+ */
+
+/* ---------- §3.5 Stat strip / tiles ---------- */
+.bck-stat-strip {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(11rem, 100%), 1fr));
+	gap: var(--bck-space-3, 12px);
+	margin: 0 0 var(--bck-space-5, 24px);
+}
+.bck-stat-tile {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-1, 4px);
+	padding: var(--bck-space-3, 12px) var(--bck-space-4, 16px);
+	background: var(--bck-bg-card, var(--color-main-background));
+	border: 1px solid var(--bck-border, var(--color-border));
+	border-inline-start: 3px solid var(--bck-border-strong, var(--color-border-maxcontrast));
+	border-radius: var(--bck-radius-md, 12px);
+	color: var(--bck-text, var(--color-main-text));
+	text-decoration: none;
+}
+a.bck-stat-tile:hover, a.bck-stat-tile:focus-visible,
+button.bck-stat-tile:hover, button.bck-stat-tile:focus-visible {
+	background: var(--color-background-hover);
+}
+.bck-stat-tile--primary { border-inline-start-color: var(--color-primary-element); }
+.bck-stat-tile--success { border-inline-start-color: var(--color-success-text, var(--color-success)); }
+.bck-stat-tile--warning { border-inline-start-color: var(--color-warning-text, var(--color-warning)); }
+.bck-stat-tile--danger  { border-inline-start-color: var(--bck-danger-fill, var(--color-error)); }
+.bck-stat-tile__label {
+	font-size: var(--bck-fs-xs, 0.75rem);
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	color: var(--bck-muted, var(--color-text-maxcontrast));
+}
+.bck-stat-tile__value {
+	font-size: clamp(1.25rem, 2vw, 1.6rem);
+	font-weight: 700;
+	font-variant-numeric: var(--bck-tab-num, tabular-nums);
+	line-height: var(--bck-line-tight, 1.2);
+}
+.bck-stat-tile__meta { font-size: var(--bck-fs-xs, 0.75rem); color: var(--bck-muted, var(--color-text-maxcontrast)); }
+
+/* ---------- Card grid ---------- */
+.bck-card-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+	gap: var(--bck-space-4, 16px);
+	margin: 0 0 var(--bck-space-4, 16px);
+}
+
+/* ---------- §3.6b Filter panel — recipe A ---------- */
+.bck-filter-panel {
+	background: var(--bck-bg-card, var(--color-main-background));
+	border: 1px solid var(--bck-border, var(--color-border));
+	border-inline-start: 4px solid var(--color-primary-element);
+	border-radius: var(--bck-radius-md, 12px);
+	padding: 0;
+	margin: 0 0 var(--bck-space-4, 16px);
+	overflow: hidden;
+}
+.bck-filter-panel[hidden] { display: none !important; }
+.bck-filter-panel__head {
+	background: var(--bck-bg-soft, var(--color-background-dark));
+	border-bottom: 1px solid var(--bck-border, var(--color-border));
+	padding: var(--bck-space-3, 12px) var(--bck-space-5, 24px);
+}
+.bck-filter-panel__head > h2,
+.bck-filter-panel__head > h3 {
+	margin: 0;
+	font-size: var(--bck-fs-lg, 1.125rem);
+	font-weight: 600;
+}
+.bck-filter-panel__intro {
+	margin: var(--bck-space-1, 4px) 0 0;
+	color: var(--bck-muted, var(--color-text-maxcontrast));
+	font-size: var(--bck-fs-sm, 0.875rem);
+	max-width: 65ch;
+}
+.bck-filter-panel__body { padding: var(--bck-space-4, 16px) var(--bck-space-5, 24px); }
+.bck-filter-panel__form { margin: 0; }
+.bck-filter-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(13rem, 100%), 1fr));
+	gap: var(--bck-space-3, 12px);
+	align-items: end;
+}
+/* Single-search variant: one wide field, actions beside it — never an
+   empty 4-column grid (DS §3.6b do/don't). */
+.bck-filter-grid--search { grid-template-columns: minmax(min(16rem, 100%), 28rem) auto; }
+.bck-filter-field { display: flex; flex-direction: column; gap: var(--bck-space-1, 4px); min-width: 0; }
+.bck-filter-field__label {
+	font-size: var(--bck-fs-sm, 0.875rem);
+	font-weight: 600;
+	color: var(--bck-text, var(--color-main-text));
+}
+.bck-filter-field__control { display: flex; min-width: 0; }
+.bck-filter-field__control > :is(input, select) { flex: 1 1 auto; min-width: 0; width: 100%; }
+.bck-filter-field--actions { flex-direction: row; gap: var(--bck-space-2, 8px); align-items: flex-end; }
+/* Filter controls are interactive targets (DS §3.6.0): touch height +
+   real control border, regardless of whether the app's form scope hits. */
+#app-content .bck-filter-panel :is(input, select, textarea):not([type='checkbox'], [type='radio'], [type='hidden'], [type='range'], [type='file']) {
+	min-height: var(--bck-touch, 44px);
+	border-color: var(--bck-form-border, var(--color-border-maxcontrast));
+}
+@media (max-width: 768.98px) {
+	.bck-filter-grid--search { grid-template-columns: 1fr; }
+	.bck-filter-field--actions { flex-direction: column; align-items: stretch; }
+	.bck-filter-field--actions > * { width: 100%; }
+	.bck-filter-panel__head, .bck-filter-panel__body { padding-inline: var(--bck-space-4, 16px); }
+}
+
+/* ---------- §3.6c recipe B — quick-filter pills ---------- */
+.bck-quick-filters {
+	display: flex;
+	align-items: center;
+	gap: var(--bck-space-3, 12px);
+	flex-wrap: wrap;
+	margin: 0 0 var(--bck-space-4, 16px);
+}
+.bck-quick-filters__label {
+	font-size: var(--bck-fs-sm, 0.875rem);
+	font-weight: 600;
+	color: var(--bck-muted, var(--color-text-maxcontrast));
+}
+.bck-filter-bar { display: flex; gap: var(--bck-space-1, 4px); flex-wrap: wrap; }
+#app-content .bck-filter {
+	min-height: var(--bck-touch, 44px);
+	padding: var(--bck-space-1, 4px) var(--bck-space-3, 12px);
+	border: 1px solid var(--bck-form-border, var(--color-border-maxcontrast));
+	border-radius: var(--bck-radius-pill, 999px);
+	background: var(--bck-bg-card, var(--color-main-background));
+	color: var(--bck-text, var(--color-main-text));
+	font-size: var(--bck-fs-sm, 0.875rem);
+	font-weight: 500;
+	cursor: pointer;
+}
+.bck-filter:hover { background: var(--color-background-hover); }
+.bck-filter[aria-pressed='true'] {
+	background: var(--bck-tint-info, var(--color-primary-element-light));
+	border-color: var(--color-primary-element);
+	color: var(--bck-text, var(--color-main-text));
+	font-weight: 600;
+}
+
+/* ---------- §3.2 Badges / status pills (leading dot + text, never colour alone) ---------- */
+.bck-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 2px var(--bck-space-2, 8px);
+	border-radius: var(--bck-radius-pill, 999px);
+	font-size: var(--bck-fs-xs, 0.75rem);
+	font-weight: 600;
+	white-space: nowrap;
+	background: var(--bck-bg-soft, var(--color-background-dark));
+	color: var(--bck-text, var(--color-main-text));
+}
+.bck-badge__dot { width: 0.5em; height: 0.5em; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+.bck-badge--success { background: var(--bck-tint-success, var(--color-background-dark)); }
+.bck-badge--success .bck-badge__dot { color: var(--color-success-text, var(--color-success)); }
+.bck-badge--warning { background: var(--bck-tint-warning, var(--color-background-dark)); }
+.bck-badge--warning .bck-badge__dot { color: var(--color-warning-text, var(--color-warning)); }
+.bck-badge--danger { background: var(--bck-tint-danger, var(--color-background-dark)); }
+.bck-badge--danger .bck-badge__dot { color: var(--bck-danger-ink, var(--color-error)); }
+.bck-badge--info { background: var(--bck-tint-info, var(--color-primary-element-light)); }
+.bck-badge--info .bck-badge__dot { color: var(--color-primary-element); }
+
+/* ---------- §3.4 Callouts ---------- */
+.bck-callout {
+	border: 1px solid var(--bck-border, var(--color-border));
+	border-inline-start: 4px solid var(--bck-border-strong, var(--color-border-maxcontrast));
+	border-radius: var(--bck-radius-md, 12px);
+	padding: var(--bck-space-4, 16px);
+	margin: 0 0 var(--bck-space-4, 16px);
+	background: var(--bck-bg-card, var(--color-main-background));
+}
+.bck-callout__title { margin: 0 0 var(--bck-space-2, 8px); font-size: var(--bck-fs-lg, 1.125rem); font-weight: 600; }
+.bck-callout--info    { border-inline-start-color: var(--color-primary-element); background: var(--bck-tint-info, var(--color-primary-element-light)); }
+.bck-callout--success { border-inline-start-color: var(--color-success-text, var(--color-success)); background: var(--bck-tint-success, var(--color-background-dark)); }
+.bck-callout--warning { border-inline-start-color: var(--color-warning-text, var(--color-warning)); background: var(--bck-tint-warning, var(--color-background-dark)); }
+.bck-callout--danger  { border-inline-start-color: var(--bck-danger-fill, var(--color-error)); background: var(--bck-tint-danger, var(--color-background-dark)); }
+
+/* ---------- List head (title + count + primary action row) ---------- */
+.bck-list-head {
+	display: flex;
+	align-items: center;
+	gap: var(--bck-space-3, 12px);
+	flex-wrap: wrap;
+	margin: 0 0 var(--bck-space-3, 12px);
+}
+.bck-list-head__title { margin: 0; font-size: var(--bck-fs-lg, 1.125rem); font-weight: 600; }
+.bck-list-head__count { color: var(--bck-muted, var(--color-text-maxcontrast)); font-size: var(--bck-fs-sm, 0.875rem); font-variant-numeric: var(--bck-tab-num, tabular-nums); }
+.bck-list-head__actions { margin-inline-start: auto; display: flex; gap: var(--bck-space-2, 8px); flex-wrap: wrap; }
+
+/* ---------- §3.8 Empty & loading ---------- */
+.bck-empty-state { text-align: center; padding: var(--bck-space-7, 48px) var(--bck-space-4, 16px); }
+.bck-empty-state__title { margin: 0 0 var(--bck-space-2, 8px); font-size: var(--bck-fs-lg, 1.125rem); font-weight: 600; }
+.bck-empty-state__text { margin: 0 auto var(--bck-space-4, 16px); max-width: 42ch; color: var(--bck-muted, var(--color-text-maxcontrast)); }
+.bck-loading {
+	display: flex;
+	align-items: center;
+	gap: var(--bck-space-2, 8px);
+	color: var(--bck-muted, var(--color-text-maxcontrast));
+	padding: var(--bck-space-4, 16px);
+}
+.bck-loading::before {
+	content: '';
+	width: 1rem;
+	height: 1rem;
+	border-radius: 50%;
+	border: 2px solid var(--bck-border-strong, var(--color-border-maxcontrast));
+	border-top-color: var(--color-primary-element);
+	animation: bck-vc-spin 0.8s linear infinite;
+}
+@keyframes bck-vc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+	.bck-loading::before { animation: none; }
+}
+
+/* ---------- §3.11 Pagination ---------- */
+.bck-pagination {
+	display: flex;
+	align-items: center;
+	gap: var(--bck-space-3, 12px);
+	margin: var(--bck-space-4, 16px) 0 0;
+}
+.bck-pagination__info { font-variant-numeric: var(--bck-tab-num, tabular-nums); color: var(--bck-muted, var(--color-text-maxcontrast)); }
+@media (max-width: 479.98px) {
+	.bck-pagination { flex-wrap: wrap; }
+	.bck-pagination > * { flex: 1 1 auto; }
+	.bck-pagination__info { text-align: center; order: -1; flex-basis: 100%; }
+}
+
+/* ---------- §3.7 Table → stacked card rows (mobile) ----------
+ * Add `.bck-table--cards` to a table whose `td`s carry `data-cell="Label"`.
+ * Below 768 px the table becomes a card list; each cell gets its header
+ * label back via ::before — no horizontal scroll, no clipped columns.
+ * Cells without data-cell (action columns) render label-free.
+ * The table keeps its normal scroll wrap; on desktop the modifier
+ * changes nothing. */
+@media (max-width: 768.98px) {
+	.bck-table--cards thead {
+		position: absolute;
+		width: 1px; height: 1px;
+		padding: 0; margin: -1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+		border: 0;
+	}
+	.bck-table--cards,
+	.bck-table--cards tbody { display: block; width: 100%; }
+	.bck-table--cards tr {
+		display: block;
+		border: 1px solid var(--bck-border, var(--color-border));
+		border-radius: var(--bck-radius-md, 12px);
+		padding: var(--bck-space-2, 8px) var(--bck-space-3, 12px);
+		margin-bottom: var(--bck-space-3, 12px);
+		background: var(--bck-bg-card, var(--color-main-background));
+	}
+	.bck-table--cards td {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: var(--bck-space-3, 12px);
+		/* Long unbreakable values (uids, refs) must not force the card row
+		   wider than the viewport — core `td` nowrap must also be undone. */
+		overflow-wrap: anywhere;
+		white-space: normal;
+		padding: var(--bck-space-2, 8px) 0;
+		border: 0;
+		border-bottom: 1px solid var(--bck-border, var(--color-border));
+		text-align: end;
+	}
+	.bck-table--cards td:last-child { border-bottom: 0; }
+	.bck-table--cards td[data-cell]::before {
+		content: attr(data-cell);
+		font-weight: 600;
+		font-size: var(--bck-fs-sm, 0.875rem);
+		color: var(--bck-muted, var(--color-text-maxcontrast));
+		text-align: start;
+		flex: 0 0 auto;
+	}
+	/* Action cells (no data-cell): keep buttons right-aligned, wrap if long */
+	.bck-table--cards td:not([data-cell]) { justify-content: flex-end; flex-wrap: wrap; }
+	/* Empty-state / loading rows must not render as fake cards */
+	.bck-table--cards td[colspan] { display: block; text-align: center; }
+	.bck-table--cards td[colspan]::before { content: none; }
+}

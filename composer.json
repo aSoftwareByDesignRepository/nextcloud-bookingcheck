@@ -1,0 +1,40 @@
+{
+    "name": "bookingcheck/nextcloud-bookingcheck",
+    "description": "Capacity-based booking and ticketing for Nextcloud — seats, courses, events, timeslots",
+    "type": "project",
+    "license": "AGPL-3.0-or-later",
+    "authors": [
+        {
+            "name": "Alexander Mäule"
+        }
+    ],
+    "require": {
+        "php": ">=8.2"
+    },
+    "require-dev": {
+        "doctrine/dbal": "^3.9",
+        "nextcloud/ocp": "^32.0 || ^33.0 || ^34.0 || ^35.0",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^10.0",
+        "symfony/console": "^6.4 || ^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "OCA\\BookingCheck\\": "lib/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "OCA\\BookingCheck\\Tests\\": "tests/",
+            "OCP\\": "vendor/nextcloud/ocp/OCP/",
+            "NCU\\": "vendor/nextcloud/ocp/NCU/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit"
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}

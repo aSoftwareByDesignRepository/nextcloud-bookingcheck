@@ -1,0 +1,231 @@
+/**
+ * BookingCheck sidebar — SnackCheck/DeskCheck family chrome (brand + icon rows).
+ *
+ * Responsive: desktop (≥1024) sticky sidebar here. Phone/tablet drawer is
+ * owned by css/common/mobile-nav.css + js/common/mobile-nav.js (in-page Menu;
+ * #content overflow:hidden clips core #app-navigation-toggle — AZC#33).
+ */
+
+/* Base chrome (all viewports). Width/position for the in-flow desktop shell
+ * are applied at min-width: 1024px; mobile drawer rules live in mobile-nav.css. */
+#content.app-bookingcheck > #app-navigation.bck-nav,
+#app-navigation.bck-nav {
+	display: flex;
+	flex-direction: column;
+	align-self: stretch;
+	min-height: 0;
+	max-height: none;
+	background: var(--bck-bg-card, var(--color-main-background));
+	border-inline-end: 1px solid var(--bck-border);
+	overflow: hidden;
+	box-sizing: border-box;
+	z-index: 100;
+}
+
+/* ≥1024px: restore sticky sidebar in the grid track (NC desktop layout) */
+@media (min-width: 1024px) {
+	#content.app-bookingcheck > #app-navigation.bck-nav,
+	#app-navigation.bck-nav {
+		position: relative !important;
+		transform: none !important;
+		flex: 0 0 var(--bck-nav-width, 280px);
+		width: var(--bck-nav-width, 280px);
+		min-width: var(--bck-nav-width, 280px);
+		max-width: var(--bck-nav-width, 280px);
+		height: 100%;
+		overflow: hidden;
+	}
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-brand {
+	display: flex;
+	align-items: center;
+	gap: var(--bck-space-3);
+	padding: var(--bck-space-4);
+	border-bottom: 1px solid var(--bck-border);
+	flex-shrink: 0;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-brand__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--bck-touch, 44px);
+	height: var(--bck-touch, 44px);
+	border-radius: var(--bck-radius-md);
+	background: var(--bck-tint-info);
+	color: var(--bck-primary, var(--color-primary-element));
+	flex-shrink: 0;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-brand__icon-svg,
+#content.app-bookingcheck #app-navigation.bck-nav .bck-brand__icon .bck-icon {
+	width: 1.5rem;
+	height: 1.5rem;
+	display: block;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-brand__text {
+	min-width: 0;
+	display: grid;
+	gap: var(--bck-space-1);
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-brand__title {
+	margin: 0;
+	font-size: var(--bck-fs-md);
+	font-weight: 700;
+	line-height: var(--bck-line-tight);
+	color: var(--bck-text, var(--color-main-text));
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-brand__subtitle {
+	margin: 0;
+	color: var(--bck-muted);
+	font-size: var(--bck-fs-xs);
+	line-height: var(--bck-line-base);
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-brand .bck-badge {
+	justify-self: start;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__body {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	-webkit-overflow-scrolling: touch;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__group {
+	padding: 0 var(--bck-space-2);
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__divider {
+	border: 0;
+	border-top: 1px solid var(--bck-border);
+	margin: var(--bck-space-2) var(--bck-space-2);
+}
+
+/* group + divider adjacency already draws the separator — avoid double lines */
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__divider + .bck-nav__group,
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__divider:first-child {
+	margin-top: 0;
+	border-top: 0;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__group + .bck-nav__group {
+	margin-top: var(--bck-space-2);
+	padding-top: var(--bck-space-2);
+	border-top: 1px solid var(--bck-border);
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__group-label {
+	margin: var(--bck-space-2) var(--bck-space-2) var(--bck-space-1);
+	font-size: var(--bck-fs-xs);
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--bck-muted);
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-1);
+	list-style: none;
+	margin: 0;
+	padding: var(--bck-space-1) var(--bck-space-2) var(--bck-space-2);
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__item {
+	min-width: 0;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__link {
+	display: grid;
+	grid-template-columns: 1.5rem 1fr;
+	gap: var(--bck-space-2);
+	align-items: center;
+	min-height: var(--bck-touch-lg, 48px);
+	padding: var(--bck-space-2) var(--bck-space-3);
+	border-radius: var(--bck-radius-sm);
+	text-decoration: none;
+	color: var(--bck-text, var(--color-main-text));
+	box-sizing: border-box;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__link:hover {
+	background: var(--bck-bg-soft, var(--color-background-hover));
+	text-decoration: none;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__link.is-active,
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__item.is-active .bck-nav__link {
+	background: var(--bck-tint-info);
+	color: var(--bck-text, var(--color-main-text));
+	font-weight: 700;
+	box-shadow: inset 3px 0 0 var(--bck-primary, var(--color-primary-element));
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__link:focus-visible {
+	outline: var(--bck-focus, 3px solid var(--color-primary-element));
+	outline-offset: var(--bck-focus-offset, 2px);
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.5rem;
+	height: 1.5rem;
+	color: inherit;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__icon .bck-icon {
+	width: 1.25rem;
+	height: 1.25rem;
+	display: block;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__label {
+	display: flex;
+	flex-direction: column;
+	gap: 0;
+	min-width: 0;
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__name {
+	display: block;
+	font-size: var(--bck-fs-md);
+	line-height: var(--bck-line-tight);
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__hint {
+	display: block;
+	font-size: var(--bck-fs-xs);
+	color: var(--bck-muted);
+	font-weight: 400;
+	line-height: var(--bck-line-base);
+}
+
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__item.is-active .bck-nav__hint,
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__link.is-active .bck-nav__hint {
+	color: var(--bck-text, var(--color-main-text));
+	font-weight: 500;
+}
+
+/* Help footer sticks under scrollable body */
+#content.app-bookingcheck #app-navigation.bck-nav .bck-nav-footer {
+	flex-shrink: 0;
+	margin-top: auto;
+	border-top: 1px solid var(--bck-border);
+}
+
+@media (forced-colors: active) {
+	#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__link.is-active,
+	#content.app-bookingcheck #app-navigation.bck-nav .bck-nav__item.is-active .bck-nav__link {
+		outline: 2px solid CanvasText;
+		box-shadow: none;
+	}
+}
