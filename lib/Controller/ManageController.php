@@ -98,9 +98,9 @@ class ManageController extends Controller
 			throw new NotFoundException();
 		}
 		if ($order->getStatus() === 'paid') {
-			$this->orderService->transitionToCancelled((int)$order->getId());
+			$this->orderService->transitionToCancelled((int)$order->getId(), 'buyer');
 		} else {
-			$this->orderService->cancelPending((int)$order->getId());
+			$this->orderService->cancelPending((int)$order->getId(), 'buyer');
 		}
 		return $this->ok(['status' => 'cancelled']);
 	}

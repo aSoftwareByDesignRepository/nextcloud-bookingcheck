@@ -12,6 +12,7 @@ namespace OCA\BookingCheck\Service;
 use OCA\BookingCheck\Db\WaitlistEntry;
 use OCA\BookingCheck\Db\WaitlistEntryMapper;
 use OCP\IDBConnection;
+use OCA\BookingCheck\Exception\NotFoundException;
 
 /**
  * Allocated waitlist (§9.13).
@@ -75,6 +76,71 @@ class WaitlistService
 		} catch (\Throwable) {
 			return false; // unique dedup — already listed
 		}
+	}
+
+	/**
+	 * Accept a claim token: the offer's held seat converts into a real order
+	 * inside one transaction — release our hold, createOrder re-holds it.
+	 * If order creation fails, rollback restores the offer untouched, so the
+	 * seat is never double-promised and never publicly free mid-claim.
+	 *
+	 * @return array{order:\OCA\BookingCheck\Db\Order, manageToken:string, action:string}
+	 */
+	public function acceptClaim(string $token, string $buyerName, string $locale,
+		OrderService $orders): array
+	{
+		if ($token === '' || strlen($token) > 128) {
+			throw new NotFoundException();
+		}
+		$this->db->beginTransaction();
+		try {
+			$row = $this->waitlist->findByClaimTokenHash($this->tokens->hash($token));
+			$locked = $row !== null ? $this->waitlist->findForUpdate((int)$row->getId()) : null;
+			if ($locked === null || $locked->getState() !== 'offered'
+				|| ($locked->getOfferExpiresAt() !== null
+					&& $locked->getOfferExpiresAt() < new \DateTimeImmutable())) {
+				throw new NotFoundException();
+			}
+			$offeringId = $this->offeringForTarget($locked->getTargetType(), (int)$locked->getTargetId());
+			if ($offeringId === null) {
+				throw new NotFoundException();
+			}
+
+			// claim first — a failed createOrder rolls this back to 'offered'
+			$locked->setState('claimed');
+			$locked->setClaimTokenHash(null); // one-shot: the token is dead now
+			$this->waitlist->update($locked);
+
+			// free our offer-hold, then let the normal order path re-hold it
+			$this->inventory->releaseHold($locked->getTargetType(), (int)$locked->getTargetId(), 1);
+			$result = $orders->createOrder(
+				$offeringId, $buyerName, $locked->getEmail(), $locale,
+				[['target_type' => $locked->getTargetType(), 'target_id' => (int)$locked->getTargetId(), 'seats' => 1]],
+				[], null, null,
+				'claim-' . (int)$locked->getId() . '-' . substr($this->tokens->hash($token), 0, 16),
+				null, false, 'waitlist-claim');
+			$this->db->commit();
+			return $result;
+		} catch (\Throwable $e) {
+			if ($this->db->inTransaction()) {
+				$this->db->rollBack();
+			}
+			throw $e;
+		}
+	}
+
+	private function offeringForTarget(string $targetType, int $targetId): ?int
+	{
+		$map = ['event' => 'bc_event', 'series' => 'bc_series', 'slot' => 'bc_slot'];
+		$table = $map[$targetType] ?? null;
+		if ($table === null) {
+			return null;
+		}
+		$qb = $this->db->getQueryBuilder();
+		$v = $qb->select('offering_id')->from($table)
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($targetId)))
+			->executeQuery()->fetchOne();
+		return $v === false ? null : (int)$v;
 	}
 
 	/**

@@ -14,6 +14,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
+use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Template\PublicTemplateResponse;
 use OCP\IRequest;
 
@@ -25,6 +26,10 @@ class ClaimController extends Controller
 		IRequest $request,
 		private readonly WaitlistEntryMapper $waitlist,
 		private readonly \OCA\BookingCheck\Service\TokenService $tokens,
+		private readonly \OCA\BookingCheck\Service\WaitlistService $waitlistService,
+		private readonly \OCA\BookingCheck\Service\OrderService $orders,
+		private readonly \OCA\BookingCheck\Service\PaySessionService $paySessions,
+		private readonly \OCP\IURLGenerator $url,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -48,5 +53,48 @@ class ClaimController extends Controller
 			'email' => $row->getEmail(),
 			'token' => $token,
 		]);
+	}
+
+	/** Convert the offer into a real order — atomic claim + hold transfer. */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function accept(string $token): JSONResponse
+	{
+		$buyerName = trim((string)$this->request->getParam('buyer_name', ''));
+		if ($buyerName === '' || mb_strlen($buyerName) > 190) {
+			return new JSONResponse(['success' => false, 'error' => 'VALIDATION',
+				'message' => 'Please check the highlighted fields.',
+				'fields' => ['buyer_name' => 'Your name is required.']], 400);
+		}
+		$row = $this->waitlist->findByClaimTokenHash($this->tokens->hash($token));
+		$email = $row !== null ? $row->getEmail() : '';
+		try {
+			$result = $this->waitlistService->acceptClaim($token, $buyerName,
+				'en', $this->orders);
+		} catch (\OCA\BookingCheck\Exception\NotFoundException) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		} catch (\OCA\BookingCheck\Exception\CapacityException) {
+			return new JSONResponse(['success' => false, 'error' => 'SOLD_OUT',
+				'message' => 'The seat was just taken — you are back on the waitlist.',
+				'fields' => []], 409);
+		}
+		$order = $result['order'];
+		$base = ['success' => true, 'order_ref' => $order->getRef(), 'status' => $order->getStatus()];
+		if ($result['action'] === 'pay') {
+			try {
+				$session = $this->paySessions->createForOrder($order);
+			} catch (\OCA\BookingCheck\Exception\PspException) {
+				$this->orders->cancelPending((int)$order->getId(), 'psp');
+				return new JSONResponse(['success' => false, 'error' => 'PAYMENT_UNAVAILABLE',
+					'message' => 'Payment is temporarily unavailable — please try again.', 'fields' => []], 502);
+			}
+			return new JSONResponse($base + ['action' => 'pay', 'checkout_url' => $session->checkoutUrl], 201);
+		}
+		$manage = $result['manageToken'] !== ''
+			? $this->url->linkToRouteAbsolute('bookingcheck.manage.show', ['token' => $result['manageToken']])
+			: null;
+		return new JSONResponse($base + ['action' => $result['action'] === 'approve' ? 'approval' : 'done',
+			'manage_url' => $manage], 201);
 	}
 }

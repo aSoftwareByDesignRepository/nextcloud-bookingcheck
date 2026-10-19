@@ -52,12 +52,19 @@ class TestProvider implements PaymentProviderInterface
 
 	public function verifyWebhook(IRequest $request): VerifiedEvent
 	{
+		return $this->verifyRaw(
+			(string)file_get_contents('php://input'),
+			$request->getHeader('X-Bck-Signature'),
+		);
+	}
+
+	/** Verify + normalize a raw signed body — the unit-testable seam. */
+	public function verifyRaw(string $raw, string $sig): VerifiedEvent
+	{
 		$secret = $this->settings->get('psp_test_secret');
 		if ($secret === '') {
 			throw new PspException('Sandbox secret not configured');
 		}
-		$raw = file_get_contents('php://input');
-		$sig = $request->getHeader('X-Bck-Signature');
 		if ($sig === '' || !hash_equals(hash_hmac('sha256', $raw, $secret), $sig)) {
 			throw new PspException('Bad sandbox signature');
 		}

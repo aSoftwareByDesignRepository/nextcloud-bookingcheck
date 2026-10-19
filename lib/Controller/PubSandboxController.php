@@ -47,7 +47,7 @@ class PubSandboxController extends Controller
 	private function guard(): void
 	{
 		if ($this->settings->get('psp_provider') !== 'test') {
-			throw new \OCP\AppFramework\Http\NotFoundException();
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
 	}
 
@@ -58,7 +58,7 @@ class PubSandboxController extends Controller
 		$this->guard();
 		$payment = $this->payments->findByPspRef('test', $pspRef);
 		if ($payment === null) {
-			throw new \OCP\AppFramework\Http\NotFoundException();
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
 		return new PublicTemplateResponse($this->appName, 'public/sandbox', [
 			'pspRef' => $pspRef,
@@ -74,7 +74,7 @@ class PubSandboxController extends Controller
 		$this->guard();
 		$payment = $this->payments->findByPspRef('test', $pspRef);
 		if ($payment === null) {
-			throw new \OCP\AppFramework\Http\NotFoundException();
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
 		$outcome = (string)$this->request->getParam('outcome', 'paid');
 		if (!in_array($outcome, ['paid', 'failed', 'refunded'], true)) {

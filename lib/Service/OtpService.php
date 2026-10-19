@@ -87,8 +87,8 @@ class OtpService
 		if (!$this->tokens->verify($code, $row->getCodeHash())) {
 			return false;
 		}
-		$this->consume((int)$row->getId());
-		return true;
+		// exactly-once: only the request that wins the used_at CAS may proceed
+		return $this->consume((int)$row->getId());
 	}
 
 	/** Magic-link consume: single use, hashed lookup. */
@@ -98,16 +98,16 @@ class OtpService
 		if ($row === null) {
 			return null;
 		}
-		$this->consume((int)$row->getId());
-		return $row->getEmail();
+		// exactly-once under concurrency; loser sees null (dead link)
+		return $this->consume((int)$row->getId()) ? $row->getEmail() : null;
 	}
 
-	private function consume(int $id): void
+	private function consume(int $id): bool
 	{
 		$qb = $this->db->getQueryBuilder();
 		$qb->update('bc_otp')->set('used_at', $qb->createNamedParameter(new \DateTime(), 'datetime'))
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($id)))
 			->andWhere($qb->expr()->isNull('used_at'));
-		$qb->executeStatement();
+		return $qb->executeStatement() === 1;
 	}
 }

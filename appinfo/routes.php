@@ -151,6 +151,7 @@ return [
 
 		// Claim links (attendee account linking)
 		['name' => 'claim#show',         'url' => '/pub/claim/{token}',            'verb' => 'GET'],
+		['name' => 'claim#accept',       'url' => '/pub/claim/{token}',            'verb' => 'POST'],
 
 		// Public reviews
 		['name' => 'pubReview#store',    'url' => '/pub/api/reviews',              'verb' => 'POST'],
