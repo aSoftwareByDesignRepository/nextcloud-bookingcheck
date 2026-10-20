@@ -11,7 +11,16 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
-/** Composite-PK join row: (promo_id, offering_id). No surrogate id. */
+/**
+ * Entity for the `bc_promo_scope` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getPromoId()
+ * @method void setPromoId(int $promoId)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ */
 class PromoScope extends Entity
 {
 	protected $promoId;

@@ -50,7 +50,7 @@ class EmailQueueJob extends TimedJob
 				$message = $this->mailer->createMessage();
 				$message->setTo([$mail->getToEmail() => '']);
 				$message->setSubject($subject);
-				$message->setBody($body, 'text/plain');
+				$message->setPlainBody($body);
 				$this->mailer->send($message);
 				$this->outbox->markSent($id, $epoch);
 			} catch (\Throwable $e) {

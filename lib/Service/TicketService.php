@@ -105,20 +105,30 @@ class TicketService
 		if ($ticket->getCheckedInAt() !== null) {
 			return ['ok' => true, 'already' => true, 'revoked' => false, 'ticket' => $ticket];
 		}
-		// CAS: only mark when still unchecked — two doors scanning the same
-		// ticket concurrently get exactly one winner.
+		// CAS: only mark when still unchecked AND live — two doors scanning
+		// the same ticket get exactly one winner, and a refund/revoke that
+		// lands between the read and this update can never admit a dead QR.
 		$qb = $this->db->getQueryBuilder();
 		$qb->update('bc_ticket')
 			->set('checked_in_at', $qb->createNamedParameter(new \DateTime(), 'datetime'))
 			->set('checked_in_by', $qb->createNamedParameter($actor))
 			->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$ticket->getId())))
-			->andWhere($qb->expr()->isNull('checked_in_at'));
+			->andWhere($qb->expr()->isNull('checked_in_at'))
+			->andWhere($qb->expr()->isNull('revoked_at'));
 		$won = $qb->executeStatement() === 1;
 		if ($won) {
 			$ticket->setCheckedInAt(new \DateTimeImmutable());
 			$ticket->setCheckedInBy($actor);
+			return ['ok' => true, 'already' => false, 'revoked' => false, 'ticket' => $ticket];
 		}
-		return ['ok' => true, 'already' => !$won, 'revoked' => false, 'ticket' => $ticket];
+		// lost the CAS — re-read to say WHICH guard fired (refreshes the
+		// door's answer honestly instead of guessing 'already')
+		$fresh = $this->tickets->find((int)$ticket->getId());
+		if ($fresh !== null && $fresh->getRevokedAt() !== null) {
+			return ['ok' => false, 'already' => false, 'revoked' => true, 'ticket' => $fresh];
+		}
+		return ['ok' => true, 'already' => true, 'revoked' => false,
+			'ticket' => $fresh ?? $ticket];
 	}
 
 	public function undoCheckIn(int $ticketId): void
@@ -160,14 +170,31 @@ class TicketService
 
 	/**
 	 * Live tickets of an order — door lookup by the printed order ref.
-	 * @return list<array{id:int,seat_no:?int,attendee_name:string,checked_in_at:?string}>
+	 * `offering_id` resolves via each line's TARGET (cart orders span
+	 * offerings); `qr` is the re-postable check-in payload. Both are
+	 * internal keys — callers must not echo them to the client.
+	 * @return list<array{id:int,seat_no:?int,attendee_name:string,checked_in_at:?string,offering_id:?int,qr:?string}>
 	 */
 	public function liveTicketsForOrder(int $orderId): array
 	{
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('t.id', 't.seat_no', 't.attendee_name', 't.checked_in_at', 't.qr_token_enc')
+		// offering_id comes from the line's TARGET — cart orders span
+		// offerings, so door-scope filtering needs the per-line offering
+		$qb->select('t.id', 't.seat_no', 't.attendee_name', 't.checked_in_at',
+				't.qr_token_enc')
+			->selectAlias($qb->createFunction(
+				'COALESCE(ev.offering_id, sr.offering_id, sl.offering_id)'), 'offering_id')
 			->from('bc_ticket', 't')
 			->innerJoin('t', 'bc_order_line', 'ol', $qb->expr()->eq('ol.id', 't.line_id'))
+			->leftJoin('ol', 'bc_event', 'ev', $qb->expr()->andX(
+				$qb->expr()->eq('ev.id', 'ol.target_id'),
+				$qb->expr()->eq('ol.target_type', $qb->createNamedParameter('event'))))
+			->leftJoin('ol', 'bc_series', 'sr', $qb->expr()->andX(
+				$qb->expr()->eq('sr.id', 'ol.target_id'),
+				$qb->expr()->eq('ol.target_type', $qb->createNamedParameter('series'))))
+			->leftJoin('ol', 'bc_slot', 'sl', $qb->expr()->andX(
+				$qb->expr()->eq('sl.id', 'ol.target_id'),
+				$qb->expr()->eq('ol.target_type', $qb->createNamedParameter('slot'))))
 			->where($qb->expr()->eq('ol.order_id', $qb->createNamedParameter($orderId)))
 			->andWhere($qb->expr()->isNull('t.revoked_at'))
 			->orderBy('ol.id', 'ASC')->addOrderBy('t.seat_no', 'ASC');
@@ -179,21 +206,34 @@ class TicketService
 			$r['qr'] = $enc !== ''
 				? 'BCK1:' . (int)$r['id'] . ':' . $this->crypto->decrypt($enc)
 				: null;
+			$r['offering_id'] = $r['offering_id'] === null ? null : (int)$r['offering_id'];
 			unset($r['qr_token_enc']);
 		}
+		unset($r);
+		/** @var list<array{id:int,seat_no:?int,attendee_name:string,checked_in_at:?string,offering_id:?int,qr:?string}> $rows */
 		return $rows;
 	}
 
-	/** Offering a ticket belongs to — for companion-token scope checks. */
+	/** Offering a ticket belongs to — for companion-token scope checks.
+	 *  Resolved via the line's TARGET: in a multi-offering cart the order
+	 *  row's offering_id is only the lead offering and would scope lines
+	 *  of the other offerings wrong (both directions: false deny AND
+	 *  cross-offering admit). */
 	public function offeringIdForTicket(Ticket $ticket): ?int
 	{
 		$line = $this->lines->find((int)$ticket->getLineId());
 		if ($line === null) {
 			return null;
 		}
+		$table = ['event' => 'bc_event', 'series' => 'bc_series',
+			'slot' => 'bc_slot'][$line->getTargetType()] ?? null;
+		if ($table === null) {
+			return null;
+		}
 		$qb = $this->db->getQueryBuilder();
-		$v = $qb->select('offering_id')->from('bc_order')
-			->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$line->getOrderId())))
+		$v = $qb->select('offering_id')->from($table)
+			->where($qb->expr()->eq('id',
+				$qb->createNamedParameter((int)$line->getTargetId())))
 			->executeQuery()->fetchOne();
 		return $v === false ? null : (int)$v;
 	}

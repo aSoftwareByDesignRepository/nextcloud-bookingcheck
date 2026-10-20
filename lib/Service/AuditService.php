@@ -62,7 +62,7 @@ class AuditService
 		$e->setAction(mb_substr($action, 0, 48));
 		$e->setFromState($fromState);
 		$e->setToState($toState);
-		$e->setMeta($meta === [] ? null : json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+		$e->setMeta($meta === [] ? null : (json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: null));
 		$e->setPrevHash($prev);
 		$e->setCreatedAt($now);
 		$e->setRowHash($this->rowHash($prev, $orderId, $offeringId, $actor, $action, $fromState, $toState, $meta, $now));
@@ -112,6 +112,7 @@ class AuditService
 	}
 
 	/** Replace PII field values with a change marker; keep non-PII values. */
+	/** @param array<string,mixed> $meta @return array<string,mixed> */
 	private function sanitizeMeta(array $meta): array
 	{
 		$out = [];
@@ -133,6 +134,7 @@ class AuditService
 		return $this->lastHash;
 	}
 
+	/** @param array<string,mixed> $meta */
 	private function rowHash(
 		string $prev, ?int $orderId, ?int $offeringId, string $actor, string $action,
 		?string $from, ?string $to, array $meta, \DateTimeInterface $at,

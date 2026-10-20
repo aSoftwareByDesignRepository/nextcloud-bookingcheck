@@ -11,6 +11,32 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_audit` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int|null getOrderId()
+ * @method void setOrderId(?int $orderId)
+ * @method int|null getOfferingId()
+ * @method void setOfferingId(?int $offeringId)
+ * @method string getActor()
+ * @method void setActor(string $actor)
+ * @method string getAction()
+ * @method void setAction(string $action)
+ * @method string|null getFromState()
+ * @method void setFromState(?string $fromState)
+ * @method string|null getToState()
+ * @method void setToState(?string $toState)
+ * @method string|null getMeta()
+ * @method void setMeta(?string $meta)
+ * @method string getPrevHash()
+ * @method void setPrevHash(string $prevHash)
+ * @method string getRowHash()
+ * @method void setRowHash(string $rowHash)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ */
 class AuditEntry extends Entity
 {
 	protected $orderId;

@@ -11,6 +11,30 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_event` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method \DateTimeImmutable getStartsAt()
+ * @method void setStartsAt(\DateTimeImmutable $startsAt)
+ * @method \DateTimeImmutable getEndsAt()
+ * @method void setEndsAt(\DateTimeImmutable $endsAt)
+ * @method int getCapacity()
+ * @method void setCapacity(int $capacity)
+ * @method int getSold()
+ * @method void setSold(int $sold)
+ * @method int|null getPriceCents()
+ * @method void setPriceCents(?int $priceCents)
+ * @method int getHeld()
+ * @method void setHeld(int $held)
+ * @method string getStatus()
+ * @method void setStatus(string $status)
+ * @method int|null getSeriesId()
+ * @method void setSeriesId(?int $seriesId)
+ */
 class Event extends Entity
 {
 	protected $offeringId;

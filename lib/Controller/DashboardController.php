@@ -35,7 +35,7 @@ class DashboardController extends Controller
 	{
 		return new TemplateResponse($this->appName, 'admin/overview', [
 			'navId' => 'overview',
-			'stats' => $this->stats()->getData()['data'] ?? [],
+			'stats' => $this->statsData(),
 			'recentOrders' => $this->recentOrders(),
 		]);
 	}
@@ -56,6 +56,12 @@ class DashboardController extends Controller
 	#[NoAdminRequired]
 	public function stats(): JSONResponse
 	{
+		return $this->ok($this->statsData());
+	}
+
+	/** @return array<string,mixed> */
+	private function statsData(): array
+	{
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('status', $qb->func()->count('id', 'n'))
 			->from('bc_order')
@@ -74,10 +80,10 @@ class DashboardController extends Controller
 			->where($qb->expr()->eq('status', $qb->createNamedParameter('paid')))
 			->andWhere($qb->expr()->eq('is_test', $qb->createNamedParameter(0)));
 		$revenue = (int)$qb->executeQuery()->fetchOne();
-		return $this->ok([
+		return [
 			'orders_by_status' => $byStatus,
 			'published_offerings' => $published,
 			'revenue_cents' => $revenue,
-		]);
+		];
 	}
 }

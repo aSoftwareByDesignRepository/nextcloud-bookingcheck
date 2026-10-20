@@ -701,7 +701,7 @@
 	padding: var(--bck-space-2) var(--bck-space-3);
 	border: 1px solid var(--bck-form-border);
 	border-radius: var(--bck-radius-sm);
-	background: var(--bck-bg-card);
+	background-color: var(--bck-bg-card);
 	color: inherit;
 	font: inherit;
 }

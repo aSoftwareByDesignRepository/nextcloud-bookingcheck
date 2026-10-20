@@ -25,7 +25,7 @@ Teilnehmer-Portal per E-Mail-Code.
 
 Souveränes Ticketing ohne Ticketprovision — Kundendaten bleiben auf Ihrem Server.
 	]]></description>
-	<version>0.10.0</version>
+	<version>0.10.4</version>
 	<licence>agpl</licence>
 	<author>Alexander Mäule</author>
 	<namespace>BookingCheck</namespace>

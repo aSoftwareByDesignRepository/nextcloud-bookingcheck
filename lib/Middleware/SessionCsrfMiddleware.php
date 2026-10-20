@@ -43,7 +43,7 @@ class SessionCsrfMiddleware extends Middleware
 		if (!str_starts_with(get_class($controller), 'OCA\\BookingCheck\\')) {
 			return;
 		}
-		$rest = $this->restPath($this->request->getPathInfo());
+		$rest = $this->restPath(($this->request->getPathInfo() ?: ''));
 		if ($rest === null) {
 			return;
 		}

@@ -32,6 +32,7 @@ class DownloadLogMapper extends QBMapper
 	}
 
 	/** @return array<int,int> material_id ⇒ download count */
+	/** @param list<int> $materialIds */
 	public function countsForOffering(array $materialIds): array
 	{
 		if ($materialIds === []) {

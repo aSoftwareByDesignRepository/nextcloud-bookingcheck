@@ -45,7 +45,7 @@ final class DoorSessionService
 			return false;
 		}
 		$row = $this->tokens->findByTokenHash($this->tokenService->hash($token));
-		if (!$this->deviceUsable($row)) {
+		if ($row === null || !$this->deviceUsable($row)) {
 			return false;
 		}
 		$this->tokens->touch((int)$row->getId());
@@ -62,7 +62,7 @@ final class DoorSessionService
 			return null;
 		}
 		$row = $this->tokens->find((int)$id);
-		if (!$this->deviceUsable($row)) {
+		if ($row === null || !$this->deviceUsable($row)) {
 			$this->close();
 			return null;
 		}

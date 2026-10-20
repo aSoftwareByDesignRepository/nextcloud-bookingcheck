@@ -55,7 +55,7 @@ class UploadController extends Controller
 
 	/** GET /api/uploads/{id}/file — stream for moderation. */
 	#[NoAdminRequired]
-	public function file(int $id)
+	public function file(int $id): \OCP\AppFramework\Http\Response
 	{
 		$u = $this->uploads->find($id);
 		if ($u === null) {

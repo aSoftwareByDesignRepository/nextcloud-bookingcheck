@@ -46,7 +46,7 @@ class EmailService
 		$e->setKind($kind);
 		$e->setToEmail($to);
 		$e->setLocale($locale);
-		$e->setPayloadJson(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+		$e->setPayloadJson(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}');
 		$e->setCreatedAt(new \DateTimeImmutable());
 		$this->outbox->insert($e);
 		return true;

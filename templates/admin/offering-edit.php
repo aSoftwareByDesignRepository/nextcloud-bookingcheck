@@ -40,7 +40,7 @@ $action = $isNew
 					<label for="bck-price" class="bck-label"><?php p($l->t('Price per seat')); ?></label>
 					<input id="bck-price" name="price" type="number" min="0" step="0.01" inputmode="decimal" required
 						data-field="price_cents"
-						value="<?php p(number_format(((int)($o['price_cents'] ?? 0)) / 100, 2, '.', '')); ?>">
+						value="<?php p(number_format(((int)($o['priceCents'] ?? 0)) / 100, 2, '.', '')); ?>">
 					<p class="bck-field__hint"><?php p($l->t('0.00 makes it a free booking.')); ?></p>
 				</div>
 				<div class="bck-field">
@@ -60,23 +60,23 @@ $action = $isNew
 			<legend class="bck-fieldset__legend"><?php p($l->t('Options')); ?></legend>
 			<label class="bck-check">
 				<input type="hidden" name="approval_required" value="0">
-				<input type="checkbox" name="approval_required" value="1" <?php if ((int)($o['approval_required'] ?? 0) === 1) { p('checked'); } ?>>
+				<input type="checkbox" name="approval_required" value="1" <?php if ((int)($o['approvalRequired'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Bookings need my approval first')); ?></span>
 			</label>
 			<label class="bck-check">
 				<input type="hidden" name="book_series" value="0">
-				<input type="checkbox" name="book_series" value="1" <?php if ((int)($o['book_series'] ?? 0) === 1) { p('checked'); } ?>>
+				<input type="checkbox" name="book_series" value="1" <?php if ((int)($o['bookSeries'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Buyers can book the whole series at once (courses)')); ?></span>
 			</label>
 			<label class="bck-check">
 				<input type="hidden" name="list_in_directory" value="0">
-				<input type="checkbox" name="list_in_directory" value="1" <?php if ((int)($o['list_in_directory'] ?? 1) === 1) { p('checked'); } ?>>
+				<input type="checkbox" name="list_in_directory" value="1" <?php if ((int)($o['listInDirectory'] ?? 1) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Show in the public directory feed')); ?></span>
 			</label>
 			<div class="bck-field">
 				<label for="bck-tos" class="bck-label"><?php p($l->t('Booking terms')); ?>
 					<span class="bck-label__opt">(<?php p($l->t('optional')); ?>)</span></label>
-				<textarea id="bck-tos" name="tos_text" rows="3" maxlength="5000"><?php p((string)($o['tos_text'] ?? '')); ?></textarea>
+				<textarea id="bck-tos" name="tos_text" rows="3" maxlength="5000"><?php p((string)($o['tosText'] ?? '')); ?></textarea>
 				<p class="bck-field__hint"><?php p($l->t('Shown as a required checkbox at checkout. The exact wording is stored on every order.')); ?></p>
 			</div>
 			<div class="bck-field">

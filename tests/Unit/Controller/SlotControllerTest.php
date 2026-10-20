@@ -83,13 +83,35 @@ final class SlotControllerTest extends TestCase
 		);
 	}
 
+	/** Stub find + findForUpdate together — update()/destroy() re-read
+	 *  the row under a lock before deciding. */
+	private function slotExists(?Slot $s): void
+	{
+		$this->slotExists($s);
+		$this->slots->method('findForUpdate')->willReturn($s);
+	}
+
+	private function eventExists(?\OCA\BookingCheck\Db\Event $e): void
+	{
+		$this->eventExists($e);
+		$this->events->method('findForUpdate')->willReturn($e);
+	}
+
+	private function poolRow(int $sold, int $held): \OCA\BookingCheck\Db\SlotResource
+	{
+		$sr = new \OCA\BookingCheck\Db\SlotResource();
+		$sr->setSold($sold);
+		$sr->setHeld($held);
+		return $sr;
+	}
+
 	public function testBookedSlotCannotBeDeleted(): void
 	{
 		$s = new Slot();
 		$s->setId(9);
 		$s->setSold(2);
 		$s->setHeld(0);
-		$this->slots->method('find')->willReturn($s);
+		$this->slotExists($s);
 		$this->slots->expects(self::never())->method('delete');
 		$this->expectException(ValidationException::class);
 		$this->ctrl->destroy(9);
@@ -101,7 +123,7 @@ final class SlotControllerTest extends TestCase
 		$s->setId(9);
 		$s->setSold(0);
 		$s->setHeld(1);
-		$this->slots->method('find')->willReturn($s);
+		$this->slotExists($s);
 		$this->slots->expects(self::never())->method('delete');
 		$this->expectException(ValidationException::class);
 		$this->ctrl->destroy(9);
@@ -113,8 +135,8 @@ final class SlotControllerTest extends TestCase
 		$s->setId(9);
 		$s->setSold(0);
 		$s->setHeld(0);
-		$this->slots->method('find')->willReturn($s);
-		$this->slotRes->method('hasBookings')->with(9)->willReturn(false);
+		$this->slotExists($s);
+		$this->slotRes->method('lockRowsForSlot')->with(9)->willReturn([$this->poolRow(0, 0)]);
 		$this->slots->expects(self::once())->method('delete')->with($s);
 		$r = $this->ctrl->destroy(9);
 		self::assertTrue($r->getData()['data']['deleted'] ?? false);
@@ -128,8 +150,8 @@ final class SlotControllerTest extends TestCase
 		$s->setId(9);
 		$s->setSold(0);
 		$s->setHeld(0);
-		$this->slots->method('find')->willReturn($s);
-		$this->slotRes->method('hasBookings')->with(9)->willReturn(true);
+		$this->slotExists($s);
+		$this->slotRes->method('lockRowsForSlot')->with(9)->willReturn([$this->poolRow(1, 0)]);
 		$this->slots->expects(self::never())->method('delete');
 		$this->expectException(ValidationException::class);
 		$this->ctrl->destroy(9);
@@ -162,7 +184,7 @@ final class SlotControllerTest extends TestCase
 	{
 		$this->validParams();
 		$s = $this->slotFixture(0, 0);
-		$this->slots->method('find')->willReturn($s);
+		$this->slotExists($s);
 		$this->slotRes->method('hasRows')->willReturn(false);
 		$this->slots->expects(self::once())->method('update')->with($s);
 		$r = $this->ctrl->update(9);
@@ -176,7 +198,7 @@ final class SlotControllerTest extends TestCase
 	{
 		$this->validParams();
 		$s = $this->slotFixture(3, 0);
-		$this->slots->method('find')->willReturn($s);
+		$this->slotExists($s);
 		$this->slotRes->method('hasRows')->willReturn(true);
 		$this->queryRows = [['id' => 5, 'ref' => 'BCK-2026-AAAAAA',
 			'buyer_email' => 'buyer@x.test', 'buyer_locale' => 'en', 'offering_id' => 1]];
@@ -192,7 +214,7 @@ final class SlotControllerTest extends TestCase
 		$this->params['starts_at'] = '2026-11-01T10:00';
 		$this->params['ends_at'] = '2026-11-01T12:00';
 		$s = $this->slotFixture(3, 0);
-		$this->slots->method('find')->willReturn($s);
+		$this->slotExists($s);
 		$this->slotRes->method('hasRows')->willReturn(false);
 		// a paid buyer exists — if notify ran anyway, mail would go out
 		$this->queryRows = [['id' => 5, 'ref' => 'BCK-2026-AAAAAA',
@@ -206,7 +228,7 @@ final class SlotControllerTest extends TestCase
 	{
 		$this->validParams(5);
 		$s = $this->slotFixture(6, 2);
-		$this->slots->method('find')->willReturn($s);
+		$this->slotExists($s);
 		$this->slotRes->method('hasRows')->willReturn(false);
 		$this->slots->expects(self::never())->method('update');
 		$this->expectException(ValidationException::class);
@@ -219,7 +241,7 @@ final class SlotControllerTest extends TestCase
 	{
 		$this->validParams(99);
 		$s = $this->slotFixture(0, 0, 40);
-		$this->slots->method('find')->willReturn($s);
+		$this->slotExists($s);
 		$this->slotRes->method('hasRows')->willReturn(true);
 		$this->slots->expects(self::never())->method('update');
 		$this->expectException(ValidationException::class);
@@ -230,7 +252,7 @@ final class SlotControllerTest extends TestCase
 	{
 		$this->validParams(40);
 		$s = $this->slotFixture(0, 0, 40);
-		$this->slots->method('find')->willReturn($s);
+		$this->slotExists($s);
 		$this->slotRes->method('hasRows')->willReturn(true);
 		$this->slots->expects(self::once())->method('update');
 		$this->ctrl->update(9);
@@ -239,7 +261,7 @@ final class SlotControllerTest extends TestCase
 	public function testUpdateEventPath(): void
 	{
 		$this->validParams();
-		$this->slots->method('find')->willReturn(null);
+		$this->slotExists(null);
 		$e = new \OCA\BookingCheck\Db\Event();
 		$e->setId(9);
 		$e->setSold(0);
@@ -247,7 +269,7 @@ final class SlotControllerTest extends TestCase
 		$e->setCapacity(20);
 		$e->setStartsAt(new \DateTimeImmutable('2026-11-01 10:00:00'));
 		$e->setEndsAt(new \DateTimeImmutable('2026-11-01 12:00:00'));
-		$this->events->method('find')->willReturn($e);
+		$this->eventExists($e);
 		$this->events->expects(self::once())->method('update')->with($e);
 		$this->ctrl->update(9);
 	}
@@ -255,8 +277,8 @@ final class SlotControllerTest extends TestCase
 	public function testUpdateUnknownId404(): void
 	{
 		$this->validParams();
-		$this->slots->method('find')->willReturn(null);
-		$this->events->method('find')->willReturn(null);
+		$this->slotExists(null);
+		$this->eventExists(null);
 		$this->expectException(\OCA\BookingCheck\Exception\NotFoundException::class);
 		$this->ctrl->update(9);
 	}

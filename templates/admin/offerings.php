@@ -38,7 +38,7 @@ $typeLabel = ['event' => $l->t('Event'), 'series' => $l->t('Series'), 'slots' =>
 						<?php p((string)$o['status']); ?></span>
 				</div>
 				<div class="bck-card__body">
-					<p><?php p((string)$o['currency'] . ' ' . number_format(((int)$o['price_cents']) / 100, 2, ',', '.')); ?></p>
+					<p><?php p((string)$o['currency'] . ' ' . number_format(((int)$o['priceCents']) / 100, 2, ',', '.')); ?></p>
 				</div>
 			</article>
 			<?php endforeach; ?>

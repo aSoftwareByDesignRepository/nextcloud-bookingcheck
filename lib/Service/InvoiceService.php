@@ -66,6 +66,7 @@ class InvoiceService
 		return $this->computeVatForAmount($order, (int)$order->getAmountCents());
 	}
 
+	/** @return array{0:int,1:int} [net, vat] in cents */
 	private function computeVatForAmount(Order $order, int $amountCents): array
 	{
 		// §19 Kleinunternehmer and reverse charge both zero the VAT line.

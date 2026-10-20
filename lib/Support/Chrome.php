@@ -27,13 +27,18 @@ final class Chrome
 	{
 	}
 
+	/** @param non-empty-string $route */
+	private static function route(string $route): string
+	{
+		return Server::get(IURLGenerator::class)->linkToRoute($route);
+	}
+
 	/**
 	 * @param array<string,mixed> $_ template params (mutated in place)
 	 */
 	public static function apply(array &$_, string $navId): void
 	{
-		$url = Server::get(IURLGenerator::class);
-		$r = static fn (string $route): string => $url->linkToRoute($route);
+		$r = self::route(...);
 
 		$_['pageId'] = (string)($_['pageId'] ?? $navId);
 		$_['pageTitle'] = (string)($_['pageTitle'] ?? 'BookingCheck');

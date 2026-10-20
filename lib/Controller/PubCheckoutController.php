@@ -53,6 +53,7 @@ class PubCheckoutController extends Controller
 		private readonly LoggerInterface $logger,
 		private readonly \OCA\BookingCheck\Service\ViesService $vies,
 		private readonly \OCA\BookingCheck\Service\LicenseService $license,
+		private readonly \OCA\BookingCheck\Service\PricingService $pricing,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -67,8 +68,16 @@ class PubCheckoutController extends Controller
 			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
 		}
 		$isPass = $o->getType() === 'pass';
+		// Curated whitelist — jsonSerialize() leaks internal refs
+		// (talkRoom token, deckBoardId) to anonymous checkout visitors.
 		return new PublicTemplateResponse($this->appName, 'public/checkout', [
-			'offering' => $o->jsonSerialize(),
+			'offering' => [
+				'id' => (int)$o->getId(),
+				'title' => $o->getTitle(),
+				'priceCents' => (int)$o->getPriceCents(),
+				'currency' => $o->getCurrency(),
+				'tosText' => $o->getTosText(),
+			],
 			// a pass sells memberships — no occurrence picker at all
 			'occurrences' => $isPass ? [] : $this->catalog->occurrenceList($o),
 			'priceCats' => $isPass ? [] : $this->catalog->priceCatsFor($o),
@@ -333,7 +342,7 @@ class PubCheckoutController extends Controller
 		if ($code === '' || mb_strlen($code) > 32) {
 			return $this->ok(['valid' => false]);
 		}
-		$promo = \OCP\Server::get(\OCA\BookingCheck\Service\PricingService::class)
+		$promo = $this->pricing
 			->usablePromo($code, $this->strictId($this->request->getParam('offering_id')));
 		// existence is deliberately part of the response — promo codes are
 		// published marketing material, not secrets. Still rate-limited.
@@ -361,7 +370,7 @@ class PubCheckoutController extends Controller
 		return $v === '' || $v === null ? null : $v;
 	}
 
-	/** @return list<array> validated structural line picks (no prices!) */
+	/** @return list<array{target_type:string,target_id:int,seats:int,price_cat_id:?int,resource_id:?int}> validated structural line picks (no prices!) */
 	private function parseLines(mixed $raw): array
 	{
 		$out = [];
@@ -393,6 +402,7 @@ class PubCheckoutController extends Controller
 		return $out;
 	}
 
+	/** @return list<array{addon_id:int,qty:int}> */
 	private function parseAddons(mixed $raw): array
 	{
 		$decoded = is_string($raw) ? json_decode($raw, true) : $raw;
@@ -410,6 +420,8 @@ class PubCheckoutController extends Controller
 		return $out;
 	}
 
+	/** @param array<string,mixed> $in
+	 * @return array{company:string|null,country:string|null,vat_id:string|null,vies_status:string,reverse_charge:bool}|null */
 	private function parseBilling(array $in): ?array
 	{
 		$company = $this->strOrNull($in['buyer_company'] ?? null);

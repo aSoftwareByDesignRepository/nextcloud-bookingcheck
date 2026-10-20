@@ -123,6 +123,7 @@ class BookingsWidget implements IAPIWidgetV2, IButtonWidget, IIconWidget, IReloa
 			$this->l10n->t('Open BookingCheck'))];
 	}
 
+	/** @param non-empty-string $route */
 	private function absolute(string $route): string
 	{
 		return $this->url->getAbsoluteURL($this->url->linkToRoute($route));

@@ -126,6 +126,57 @@ class PaymentMapper extends QBMapper
 		$qb->executeStatement();
 	}
 
+	/**
+	 * CAS-claim the right to call the PSP refund endpoint. The marker
+	 * 'pending:<rand>' keeps the existing "refund_ref set → already
+	 * refunded" convention truthy for retries, while a second concurrent
+	 * caller loses the UPDATE and can never reach the PSP twice.
+	 *
+	 * A marker older than $ttlMinutes is reclaimable — the claimant died
+	 * between the claim and the PSP call (network timeout / fatal), which
+	 * is exactly the window where a retry MUST be able to try again.
+	 *
+	 * @return bool true = this caller owns the refund; false = another
+	 *   refund already completed (refund_ref is a real PSP ref) or is in
+	 *   flight (fresh pending marker).
+	 */
+	public function claimRefund(int $id, string $claimMarker, int $ttlMinutes = 10): bool
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('refund_ref', $qb->createNamedParameter($claimMarker))
+			->set('refund_claimed_at', $qb->createNamedParameter(new \DateTime(), 'datetime'))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id)))
+			->andWhere($qb->expr()->orX(
+				$qb->expr()->isNull('refund_ref'),
+				$qb->expr()->eq('refund_ref', $qb->createNamedParameter('')),
+				$qb->expr()->andX(
+					$qb->expr()->like('refund_ref', $qb->createNamedParameter('pending:%')),
+					$qb->expr()->orX(
+						$qb->expr()->isNull('refund_claimed_at'),
+						$qb->expr()->lt('refund_claimed_at', $qb->createNamedParameter(
+							new \DateTime('-' . $ttlMinutes . ' minutes'), 'datetime'))
+					)
+				)
+			));
+		return $qb->executeStatement() === 1;
+	}
+
+	/**
+	 * Release our own claim after a failed PSP call — guarded by the
+	 * marker so a concurrent re-claim is never clobbered.
+	 */
+	public function releaseRefundClaim(int $id, string $claimMarker): void
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('refund_ref', $qb->createNamedParameter(null))
+			->set('refund_claimed_at', $qb->createNamedParameter(null))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id)))
+			->andWhere($qb->expr()->eq('refund_ref', $qb->createNamedParameter($claimMarker)));
+		$qb->executeStatement();
+	}
+
 	public function markDisputed(int $id): void
 	{
 		$qb = $this->db->getQueryBuilder();

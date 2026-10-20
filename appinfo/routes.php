@@ -135,6 +135,9 @@ return [
 
 		// Settings JSON endpoints
 		['name' => 'settings#setNotifyPaid','url' => '/api/settings/notify-paid',  'verb' => 'POST'],
+		['name' => 'settings#mailTplList',  'url' => '/api/settings/mailtpl/list',   'verb' => 'GET'],
+		['name' => 'settings#mailTplPut',   'url' => '/api/settings/mailtpl',        'verb' => 'PUT'],
+		['name' => 'settings#mailTplDelete','url' => '/api/settings/mailtpl/{id}',   'verb' => 'DELETE', 'requirements' => ['id' => '\\d+']],
 		['name' => 'settings#get',      'url' => '/api/settings/{section}',        'verb' => 'GET'],
 		['name' => 'settings#devices',  'url' => '/api/settings/devices/list',     'verb' => 'GET'],
 		['name' => 'settings#issueDevice','url' => '/api/settings/devices',        'verb' => 'POST'],
@@ -167,6 +170,7 @@ return [
 		['name' => 'manage#uploadThumb','url' => '/pub/m/{token}/uploads/{id}/thumb', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
 		['name' => 'manage#reportAbuse','url' => '/pub/m/{token}/uploads/{id}/report', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'manage#ticket',      'url' => '/pub/m/{token}/tickets/{ticketId}', 'verb' => 'GET','requirements' => ['ticketId' => '\d+']],
+		['name' => 'manage#appleWallet', 'url' => '/pub/m/{token}/tickets/{ticketId}/wallet.apple', 'verb' => 'GET','requirements' => ['ticketId' => '\d+']],
 		['name' => 'manage#pay',         'url' => '/pub/m/{token}/pay',            'verb' => 'POST'],
 		['name' => 'manage#recover',     'url' => '/pub/m/recover',                'verb' => 'POST'],
 

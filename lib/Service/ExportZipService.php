@@ -81,7 +81,7 @@ class ExportZipService
 			$manifest['uploads'][] = ['id' => (int)$u['id'], 'name' => $u['display_name'], 'file' => $name];
 		}
 
-		$zip->addFromString('manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+		$zip->addFromString('manifest.json', json_encode($manifest, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) ?: '{}');
 		$zip->close();
 		return $tmp;
 	}
@@ -93,7 +93,10 @@ class ExportZipService
 			if (!$dir->fileExists($ref)) {
 				return null;
 			}
-			$fh = $dir->getFile($ref)->fopen('rb');
+			$fh = $dir->getFile($ref)->read();
+			if ($fh === false) {
+				return null;
+			}
 			$out = stream_get_contents($fh);
 			fclose($fh);
 			return $out === false ? null : $out;

@@ -11,7 +11,34 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
-/** NH-28 recurring-validity pass — bearer token BCK1P-… admitted at the door. */
+/**
+ * Entity for the `bc_pass` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method int getOrderId()
+ * @method void setOrderId(int $orderId)
+ * @method string getTokenHash()
+ * @method void setTokenHash(string $tokenHash)
+ * @method string getHolderName()
+ * @method void setHolderName(string $holderName)
+ * @method string getHolderEmail()
+ * @method void setHolderEmail(string $holderEmail)
+ * @method \DateTimeImmutable getValidFrom()
+ * @method void setValidFrom(\DateTimeImmutable $validFrom)
+ * @method \DateTimeImmutable getValidUntil()
+ * @method void setValidUntil(\DateTimeImmutable $validUntil)
+ * @method int|null getUsesMax()
+ * @method void setUsesMax(?int $usesMax)
+ * @method int getUses()
+ * @method void setUses(int $uses)
+ * @method string getStatus()
+ * @method void setStatus(string $status)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ */
 class Pass extends Entity
 {
 	protected $offeringId;

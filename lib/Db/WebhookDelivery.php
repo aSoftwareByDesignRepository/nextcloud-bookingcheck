@@ -11,6 +11,28 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_webhook_dlvr` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getWebhookId()
+ * @method void setWebhookId(int $webhookId)
+ * @method string getEvent()
+ * @method void setEvent(string $event)
+ * @method string getPayloadJson()
+ * @method void setPayloadJson(string $payloadJson)
+ * @method string getStatus()
+ * @method void setStatus(string $status)
+ * @method int getAttempts()
+ * @method void setAttempts(int $attempts)
+ * @method \DateTimeImmutable|null getNextRetryAt()
+ * @method void setNextRetryAt(?\DateTimeImmutable $nextRetryAt)
+ * @method \DateTimeImmutable|null getDeliveredAt()
+ * @method void setDeliveredAt(?\DateTimeImmutable $deliveredAt)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ */
 class WebhookDelivery extends Entity
 {
 	protected $webhookId;

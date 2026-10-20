@@ -82,6 +82,9 @@ class OrderService
 	// ---------------------------------------------------------------
 
 	/**
+	 * @param list<array{target_type:string,target_id:int,seats:int,price_cat_id?:int|null,resource_id?:int|null}> $seatLines
+	 * @param list<array{addon_id:int,qty:int}> $addonLines
+	 * @param array{company:string|null,country:string|null,vat_id:string|null,vies_status:string,reverse_charge:bool}|null $billing
 	 * @return array{order:Order, manageToken:string, action:string}
 	 *   action: 'pay' (create PSP session), 'approve' (await seller), 'done' (zero-total)
 	 */
@@ -329,7 +332,9 @@ class OrderService
 	 *  - voucher ⇒ applied once to the combined charge basis (NN-26 CAS)
 	 *  - promos ⇒ per-offering map, scoped+windowed as usual
 	 *
-	 * @param list<array{offering_id:int,lines:list<array>,addons:list<array>}> $groups
+	 * @param list<array{offering_id:int,lines:list<array{target_type:string,target_id:int,seats:int,price_cat_id?:int|null,resource_id?:int|null}>,addons:list<array{addon_id:int,qty:int}>}> $groups
+	 * @param array<int,string|null> $promosByOffering promo code per offering_id
+	 * @param array{company:string|null,country:string|null,vat_id:string|null,vies_status:string,reverse_charge:bool}|null $billing
 	 */
 	public function createCartOrder(
 		array $groups,
@@ -370,13 +375,31 @@ class OrderService
 			$currency = null;
 			$offeringIds = [];
 
+			// canonical lock order (offering → inventory → waitlist): all
+			// offerings locked in id order BEFORE the business pass —
+			// concurrent carts {A,B} and {B,A} would otherwise deadlock on
+			// FOR UPDATE. Processing still runs in cart order so the lead
+			// offering keeps its meaning.
+			$lockIds = [];
+			foreach ($groups as $g) {
+				$lockIds[(int)($g['offering_id'] ?? 0)] = true;
+			}
+			$lockIds = array_map('intval', array_keys($lockIds));
+			sort($lockIds);
+			$locked = [];
+			foreach ($lockIds as $lid) {
+				// invalid ids stay unmapped — the group pass below converts
+				// them into the same ValidationException/404 contract as before
+				$locked[$lid] = $lid > 0 ? $this->offerings->findForUpdate($lid) : null;
+			}
+
 			foreach ($groups as $g) {
 				$offeringId = (int)($g['offering_id'] ?? 0);
 				if ($offeringId <= 0 || in_array($offeringId, $offeringIds, true)) {
 					throw new ValidationException(['cart' => 'Invalid cart group.']);
 				}
 				$offeringIds[] = $offeringId;
-				$offering = $this->offerings->findForUpdate($offeringId);
+				$offering = $locked[$offeringId] ?? null;
 				if ($offering === null || $offering->getStatus() !== 'published') {
 					throw new NotFoundException();
 				}
@@ -612,6 +635,7 @@ class OrderService
 	 * no holds, no approval. Paid mints N bearer passes in
 	 * completePaidLocked. Same money rails as seats (promo/voucher/
 	 * deposit/invoice) — the only thing missing is inventory.
+	 * @param array{company:string|null,country:string|null,vat_id:string|null,vies_status:string,reverse_charge:bool}|null $billing
 	 */
 	public function createPassOrder(
 		int $offeringId,
@@ -885,6 +909,14 @@ class OrderService
 			return ['order' => $order, 'manageToken' => '', 'action' => 'done'];
 		} catch (\Throwable $e) {
 			$this->db->rollBack();
+			if ($e instanceof DbException && $e->getReason() === DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				// idem_token race: the concurrent request won — replay its
+				// sale instead of reporting failure for a committed order
+				$winner = $this->orders->findByIdemToken($idemToken);
+				if ($winner !== null) {
+					return ['order' => $winner, 'manageToken' => '', 'action' => 'idempotent-replay'];
+				}
+			}
 			throw $e;
 		}
 	}
@@ -902,6 +934,9 @@ class OrderService
 		int $durationMin,
 		string $actor,
 	): array {
+		if ($this->events === null) {
+			throw new StateConflictException('Quick-offering writes unavailable', 'UNSUPPORTED');
+		}
 		$this->db->beginTransaction();
 		try {
 			$slug = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '-', $title), '-'));
@@ -1125,7 +1160,7 @@ class OrderService
 	/** NH-18/19: seller marks an open receivable (invoice/deposit) as received. */
 	public function markRemainderReceived(int $orderId, string $actor, ?int $cents = null): Order
 	{
-		return $this->withLock($orderId, function (Order $order) use ($actor, $cents) {
+		return $this->withLock($orderId, function (Order $order) use ($orderId, $actor, $cents) {
 			if ($order->getStatus() !== self::ST_PAID) {
 				throw new StateConflictException('Order is not paid', 'ILLEGAL_TRANSITION');
 			}
@@ -1180,6 +1215,7 @@ class OrderService
 	 *   serializes while a transaction is open, so the credit must live
 	 *   here, never in an autocommit controller call.
 	 */
+	/** @param array<string,mixed> $meta */
 	public function transitionToRefunded(int $orderId, string $actor, array $meta = [], ?int $creditAmountCents = null): Order
 	{
 		return $this->withLock($orderId, function (Order $o) use ($actor, $meta, $creditAmountCents) {
@@ -1255,7 +1291,8 @@ class OrderService
 	}
 
 	/** CAS status write: fails when the row's status is not in $from. */
-	private function setStatusLocked(Order $order, array $from, string $to, ?\DateTimeInterface $expiresAt = null): void
+	/** @param list<string> $from */
+	private function setStatusLocked(Order $order, array $from, string $to, ?\DateTimeImmutable $expiresAt = null): void
 	{
 		$qb = $this->db->getQueryBuilder();
 		$qb->update('bc_order')
@@ -1382,6 +1419,7 @@ class OrderService
 	}
 
 	/** Deterministic lock order: target_type ASC, then target_id ASC. */
+	/** @param list<array{target_type:string,target_id:int,resource_id?:int|null,seats:int}> $seatLines */
 	private function sortedSeatHolds(array $seatLines): array
 	{
 		$agg = [];
@@ -1400,7 +1438,7 @@ class OrderService
 		return array_values($agg);
 	}
 
-	private function assertSalesWindowOpen($offering): void
+	private function assertSalesWindowOpen(\OCA\BookingCheck\Db\Offering $offering): void
 	{
 		$now = new \DateTimeImmutable();
 		if ($offering->getSalesFrom() !== null && $offering->getSalesFrom() > $now) {
@@ -1411,7 +1449,8 @@ class OrderService
 		}
 	}
 
-	private function assertApprovalCap($offering, array $seatLines): void
+	/** @param list<array{seats:int}> $seatLines */
+	private function assertApprovalCap(\OCA\BookingCheck\Db\Offering $offering, array $seatLines): void
 	{
 		$cap = $offering->getApprovalHoldCap();
 		if ($cap === null) {

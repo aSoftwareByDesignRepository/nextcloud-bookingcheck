@@ -11,6 +11,34 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_material` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method string|null getTargetType()
+ * @method void setTargetType(?string $targetType)
+ * @method int|null getTargetId()
+ * @method void setTargetId(?int $targetId)
+ * @method int|null getLibraryId()
+ * @method void setLibraryId(?int $libraryId)
+ * @method string getKind()
+ * @method void setKind(string $kind)
+ * @method string getTitle()
+ * @method void setTitle(string $title)
+ * @method int getSort()
+ * @method void setSort(int $sort)
+ * @method string|null getFileRef()
+ * @method void setFileRef(?string $fileRef)
+ * @method string|null getPageMd()
+ * @method void setPageMd(?string $pageMd)
+ * @method \DateTimeImmutable|null getAvailFrom()
+ * @method void setAvailFrom(?\DateTimeImmutable $availFrom)
+ * @method \DateTimeImmutable|null getAvailTo()
+ * @method void setAvailTo(?\DateTimeImmutable $availTo)
+ */
 class Material extends Entity
 {
 	protected $offeringId;

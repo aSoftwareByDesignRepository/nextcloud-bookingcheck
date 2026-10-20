@@ -301,44 +301,68 @@ class SlotController extends Controller
 			throw new ValidationException(['ends_at' => 'End must be after start.']);
 		}
 
-		$s = $this->slots->find($id);
-		if ($s !== null) {
-			$booked = (int)$s->getSold() + (int)$s->getHeld();
-			if ($this->slotRes->hasRows($id)) {
-				// pooled slot: bc_slot_res rows own the counters — a row-level
-				// cap edit would silently desync from pool capacity
-				if ($cap !== (int)$s->getCapacity()) {
-					throw new ValidationException(['capacity' => 'Capacity is managed on the resource pools for this slot.']);
+		// Row lock before the capacity check — without it a racing hold()
+		// could land between the read and the write and oversell the new
+		// cap. The held lock also makes the concurrent hold's conditional
+		// UPDATE re-evaluate against the committed capacity.
+		if ($this->slots->find($id) !== null) {
+			$this->db->beginTransaction();
+			try {
+				$s = $this->slots->findForUpdate($id);
+				if ($s === null) {
+					throw new NotFoundException();
 				}
-			} elseif ($cap < $booked) {
-				throw new ValidationException(['capacity' => 'Below sold+held (' . $booked . ').']);
+				$booked = (int)$s->getSold() + (int)$s->getHeld();
+				if ($this->slotRes->hasRows($id)) {
+					// pooled slot: bc_slot_res rows own the counters — a row-level
+					// cap edit would silently desync from pool capacity
+					if ($cap !== (int)$s->getCapacity()) {
+						throw new ValidationException(['capacity' => 'Capacity is managed on the resource pools for this slot.']);
+					}
+				} elseif ($cap < $booked) {
+					throw new ValidationException(['capacity' => 'Below sold+held (' . $booked . ').']);
+				}
+				$moved = $s->getStartsAt() != $start || $s->getEndsAt() != $end;
+				$s->setStartsAt($start);
+				$s->setEndsAt($end);
+				$s->setCapacity($cap);
+				$this->slots->update($s);
+				$this->db->commit();
+				if ($moved) {
+					$this->notifyRescheduled('slot', $id, $start, $end);
+				}
+				return $this->ok(['id' => $id]);
+			} catch (\Throwable $ex) {
+				$this->db->rollBack();
+				throw $ex;
 			}
-			$moved = $s->getStartsAt() != $start || $s->getEndsAt() != $end;
-			$s->setStartsAt($start);
-			$s->setEndsAt($end);
-			$s->setCapacity($cap);
-			$this->slots->update($s);
-			if ($moved) {
-				$this->notifyRescheduled('slot', $id, $start, $end);
-			}
-			return $this->ok(['id' => $id]);
 		}
 
-		$e = $this->events->find($id);
-		if ($e !== null) {
-			$booked = (int)$e->getSold() + (int)$e->getHeld();
-			if ($cap < $booked) {
-				throw new ValidationException(['capacity' => 'Below sold+held (' . $booked . ').']);
+		if ($this->events->find($id) !== null) {
+			$this->db->beginTransaction();
+			try {
+				$e = $this->events->findForUpdate($id);
+				if ($e === null) {
+					throw new NotFoundException();
+				}
+				$booked = (int)$e->getSold() + (int)$e->getHeld();
+				if ($cap < $booked) {
+					throw new ValidationException(['capacity' => 'Below sold+held (' . $booked . ').']);
+				}
+				$moved = $e->getStartsAt() != $start || $e->getEndsAt() != $end;
+				$e->setStartsAt($start);
+				$e->setEndsAt($end);
+				$e->setCapacity($cap);
+				$this->events->update($e);
+				$this->db->commit();
+				if ($moved) {
+					$this->notifyRescheduled('event', $id, $start, $end);
+				}
+				return $this->ok(['id' => $id]);
+			} catch (\Throwable $ex) {
+				$this->db->rollBack();
+				throw $ex;
 			}
-			$moved = $e->getStartsAt() != $start || $e->getEndsAt() != $end;
-			$e->setStartsAt($start);
-			$e->setEndsAt($end);
-			$e->setCapacity($cap);
-			$this->events->update($e);
-			if ($moved) {
-				$this->notifyRescheduled('event', $id, $start, $end);
-			}
-			return $this->ok(['id' => $id]);
 		}
 		throw new NotFoundException();
 	}
@@ -379,19 +403,32 @@ class SlotController extends Controller
 	#[NoAdminRequired]
 	public function destroy(int $id): JSONResponse
 	{
-		// routes call /api/slots/{id} — the id is a slot OR event; try both
-		$s = $this->slots->find($id);
-		if ($s !== null) {
-			// bc_slot has no cancelled state — a booked slot must never
-			// vanish: order lines would point at a ghost target and the
-			// capacity counters could never reconcile.
-			// Bookings can live on EITHER the slot row or its resource
-			// pools — a row at zero can still carry live pool bookings.
-			if ((int)$s->getSold() > 0 || (int)$s->getHeld() > 0 || $this->slotRes->hasBookings($id)) {
-				throw new ValidationException(['id' => 'Booked slots cannot be deleted.']);
-			}
+		// routes call /api/slots/{id} — the id is a slot OR event; try both.
+		// The booking check runs UNDER row locks: without them a racing
+		// hold() can book between the read and the delete, leaving an
+		// order line pointed at a ghost target.
+		if ($this->slots->find($id) !== null) {
 			$this->db->beginTransaction();
 			try {
+				$s = $this->slots->findForUpdate($id);
+				if ($s === null) {
+					throw new NotFoundException();
+				}
+				// pooled bookings live on bc_slot_res — those rows take the
+				// hold() lock, so they must be locked + re-read here too.
+				$poolBooked = false;
+				foreach ($this->slotRes->lockRowsForSlot($id) as $sr) {
+					if ((int)$sr->getSold() > 0 || (int)$sr->getHeld() > 0) {
+						$poolBooked = true;
+						break;
+					}
+				}
+				// bc_slot has no cancelled state — a booked slot must never
+				// vanish: order lines would point at a ghost target and the
+				// capacity counters could never reconcile.
+				if ((int)$s->getSold() > 0 || (int)$s->getHeld() > 0 || $poolBooked) {
+					throw new ValidationException(['id' => 'Booked slots cannot be deleted.']);
+				}
 				$this->deleteTargetGhosts('slot', $id);
 				$this->slots->delete($s);
 				$this->db->commit();
@@ -401,21 +438,24 @@ class SlotController extends Controller
 			}
 			return $this->ok(['deleted' => true]);
 		}
-		$e = $this->events->find($id);
-		if ($e !== null) {
-			if ((int)$e->getSold() > 0 || (int)$e->getHeld() > 0) {
-				$e->setStatus('cancelled'); // booked occurrences cancel, never delete
-				$this->events->update($e);
-			} else {
-				$this->db->beginTransaction();
-				try {
+		if ($this->events->find($id) !== null) {
+			$this->db->beginTransaction();
+			try {
+				$e = $this->events->findForUpdate($id);
+				if ($e === null) {
+					throw new NotFoundException();
+				}
+				if ((int)$e->getSold() > 0 || (int)$e->getHeld() > 0) {
+					$e->setStatus('cancelled'); // booked occurrences cancel, never delete
+					$this->events->update($e);
+				} else {
 					$this->deleteTargetGhosts('event', $id);
 					$this->events->delete($e);
-					$this->db->commit();
-				} catch (\Throwable $ex) {
-					$this->db->rollBack();
-					throw $ex;
 				}
+				$this->db->commit();
+			} catch (\Throwable $ex) {
+				$this->db->rollBack();
+				throw $ex;
 			}
 			return $this->ok(['deleted' => true]);
 		}

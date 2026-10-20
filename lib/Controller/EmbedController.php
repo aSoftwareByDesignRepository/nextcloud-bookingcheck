@@ -34,7 +34,7 @@ class EmbedController extends Controller
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function offering(string $slug)
+	public function offering(string $slug): PublicTemplateResponse
 	{
 		$o = $this->offerings->findBySlug($slug);
 		$domains = $o !== null ? json_decode((string)$o->getEmbedDomains(), true) : null;
@@ -44,7 +44,15 @@ class EmbedController extends Controller
 			return $resp;
 		}
 		$resp = new PublicTemplateResponse($this->appName, 'public/embed', [
-			'offering' => $o->jsonSerialize(),
+			// whitelist — never jsonSerialize: talkRoom/deckBoardId are
+			// internal refs, and embed.php reads 'price_cents' (the full
+			// serialize has no such key — the badge silently showed 0)
+			'offering' => [
+				'slug' => $o->getSlug(),
+				'title' => $o->getTitle(),
+				'price_cents' => (int)$o->getPriceCents(),
+				'currency' => $o->getCurrency(),
+			],
 		]);
 		// CSP frame-ancestors is the enforceable boundary
 		$resp->addHeader('Content-Security-Policy',

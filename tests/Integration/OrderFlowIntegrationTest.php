@@ -84,6 +84,33 @@ final class OrderFlowIntegrationTest extends TestCase
 			$qb->delete('bc_waitlist')->where($qb->expr()->eq('email',
 				$qb->createNamedParameter($email)))->executeStatement();
 		}
+		// Child tables a test may spawn without registering ids — sweep by
+		// their offering/order link so no run leaks rows into the next.
+		// Deliberately NOT swept: bc_invoice_seq (singleton counter owned by
+		// InvoiceService — deleting it would renumber real invoices),
+		// bc_material_lib + bc_webhook + bc_webhook_dlvr + bc_webhook_evt
+		// (instance-scoped fixtures not seeded by this suite), and
+		// bc_cc_sync (dropped by migration 1010 — nothing to sweep).
+		$intArr = \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY;
+		if ($this->created['offering'] !== []) {
+			foreach (['bc_addon', 'bc_material', 'bc_price_cat', 'bc_promo_scope'] as $t) {
+				$qb = $this->db->getQueryBuilder();
+				$qb->delete($t)->where($qb->expr()->in('offering_id',
+					$qb->createNamedParameter($this->created['offering'], $intArr)))
+					->executeStatement();
+			}
+		}
+		if ($this->created['order'] !== []) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_download')->where($qb->expr()->in('order_id',
+				$qb->createNamedParameter($this->created['order'], $intArr)))
+				->executeStatement();
+		}
+		// NH-37 mail-template overrides a test may leave behind on failure
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_mail_tpl')->where($qb->expr()->eq('kind',
+			$qb->createNamedParameter('order_confirmed')))->executeStatement();
+
 		// upload rows + their appdata blobs for seeded offerings
 		if ($this->created['offering'] !== []) {
 			$qb = $this->db->getQueryBuilder();
@@ -398,6 +425,94 @@ final class OrderFlowIntegrationTest extends TestCase
 		self::assertTrue($second['ok'] && $second['already'], 'replay must be idempotent');
 		$bad = $this->tickets->checkInByToken('forged-token-zzz', 'door');
 		self::assertFalse($bad['ok']);
+	}
+
+	/**
+	 * Door-scope resolution runs REAL SQL — the unit suite mocks the
+	 * QB chain, so a column typo (bc_order_line has no offering_id;
+	 * the offering is resolved via the line's target) would only blow
+	 * up at the door. This test walks the whole path: companion token
+	 * → session → controller → doorScopeOk → check-in.
+	 */
+	public function testDoorScopeCheckInResolvesViaTarget(): void
+	{
+		$f = $this->seedOffering(5);
+		$r = $this->create($f['offering'], $f['event'], 1, $this->idem('door'));
+		$this->created['order'][] = (int)$r['order']->getId();
+		$this->orders->markPaid((int)$r['order']->getId(), 'itest');
+
+		$tm = \OC::$server->get(TicketMapper::class);
+		$qb = $this->db->getQueryBuilder();
+		$lineId = (int)$qb->select('id')->from('bc_order_line')
+			->where($qb->expr()->eq('order_id',
+				$qb->createNamedParameter((int)$r['order']->getId())))
+			->executeQuery()->fetchOne();
+		$ticket = $tm->findByLine($lineId)[0];
+		$payload = $this->tickets->qrPayload($ticket);
+
+		// mint a door device scoped to THIS offering — via QB insert to
+		// keep the plaintext token knowable
+		$tokenSvc = \OC::$server->get(\OCA\BookingCheck\Service\TokenService::class);
+		$plain = 'itest-device-' . bin2hex(random_bytes(8));
+		$qb = $this->db->getQueryBuilder();
+		$qb->insert('bc_companion')->values([
+			'token_hash' => $qb->createNamedParameter($tokenSvc->hash($plain)),
+			'label' => $qb->createNamedParameter('itest door'),
+			'role' => $qb->createNamedParameter('door'),
+			'offering_ids' => $qb->createNamedParameter(json_encode([$f['offering']])),
+			'created_by' => $qb->createNamedParameter('itest'),
+			'created_at' => $qb->createNamedParameter(new \DateTime(), 'datetime'),
+		])->executeStatement();
+		$devId = (int)$this->db->lastInsertId('oc_bc_companion');
+
+		$doors = new \OCA\BookingCheck\Service\DoorSessionService(
+			\OC::$server->get(\OCP\ISession::class),
+			\OC::$server->get(\OCA\BookingCheck\Db\CompanionTokenMapper::class),
+			$tokenSvc);
+		$ctrl = function (array $params) use ($doors, $tokenSvc) {
+			$req = $this->createMock(\OCP\IRequest::class);
+			$req->method('getParam')->willReturnCallback(
+				fn (string $k, $d = null) => $params[$k] ?? $d);
+			return new \OCA\BookingCheck\Controller\ScanController(
+				'bookingcheck', $req,
+			$this->tickets,
+			\OC::$server->get(\OCA\BookingCheck\Db\OrderMapper::class),
+			\OC::$server->get(\OCP\IUserSession::class),
+			\OC::$server->get(\OCP\IGroupManager::class),
+				$doors, $this->db, $tokenSvc,
+				\OC::$server->get(\OCA\BookingCheck\Service\WaitlistService::class));
+		};
+
+		try {
+			self::assertTrue($doors->open($plain));
+
+			// in-scope: the join resolves ticket → line → event → offering
+			$res = $ctrl(['code' => $payload])->checkIn();
+			self::assertSame(200, $res->getStatus());
+			self::assertTrue($res->getData()['data']['checked_in']);
+
+			// order-ref lookup: liveTicketsForOrder resolves per-line
+			// offering via LEFT JOINs — must work on real SQL too
+			$res = $ctrl(['code' => $r['order']->getRef()])->lookup();
+			self::assertSame(200, $res->getStatus());
+			self::assertNotEmpty($res->getData()['data']['tickets']);
+
+			// rescope the device to a foreign offering — same ticket must
+			// become a uniform 404, not a scope error
+			$qb2 = $this->db->getQueryBuilder();
+			$qb2->update('bc_companion')
+				->set('offering_ids', $qb2->createNamedParameter(json_encode([$f['offering'] + 9999])))
+				->where($qb2->expr()->eq('id', $qb2->createNamedParameter($devId)))
+				->executeStatement();
+			$res = $ctrl(['code' => $payload])->lookup();
+			self::assertSame(404, $res->getStatus());
+			self::assertSame('NOT_FOUND', $res->getData()['error']);
+		} finally {
+			$doors->close();
+			$qb3 = $this->db->getQueryBuilder();
+			$qb3->delete('bc_companion')->where($qb3->expr()->eq('id',
+				$qb3->createNamedParameter($devId)))->executeStatement();
+		}
 	}
 
 	public function testCapiStatsExcludesRevokedTickets(): void
@@ -1183,12 +1298,18 @@ final class OrderFlowIntegrationTest extends TestCase
 		// ~900KB file ok — then the 1MB offering quota is spent
 		$near = $this->tmpUpload('ok.pdf', "%PDF" . str_repeat('x', 900 * 1024));
 		$svc->store($a, $offering, $this->seatLineId((int)$a->getId()), 'A', $near);
+		$appData = \OCP\Server::get(\OCP\Files\AppData\IAppDataFactory::class)->get('bookingcheck');
+		$dir = $appData->getFolder('uploads');
+		$before = $dir->getDirectoryListing();
 		try {
 			$svc->store($a, $offering, $this->seatLineId((int)$a->getId()), 'A', $near);
 			self::fail('second upload must trip the quota');
 		} catch (\OCA\BookingCheck\Exception\ValidationException $e) {
 			self::assertArrayHasKey('file', $e->getFields());
 		}
+		// rolled-back insert must purge the orphan refs — no unclaimed bytes
+		self::assertCount(count($before), $dir->getDirectoryListing(),
+			'quota-rolled-back upload left orphan files in appdata');
 
 		// foreign line_id must never attach — uniform miss
 		$b = $this->paidOrder($f['offering'], $f['event'], 'qb@x.test');
@@ -1457,6 +1578,7 @@ final class OrderFlowIntegrationTest extends TestCase
 			\OC::$server->get(\OCA\BookingCheck\Service\SellerNotifyService::class),
 			\OC::$server->get(\OCA\BookingCheck\Service\LicenseService::class),
 			\OC::$server->get(\OCA\BookingCheck\Db\OfferingMapper::class),
+			\OC::$server->get(\OCA\BookingCheck\Db\MailTplMapper::class),
 		);
 		$res = $sc->issueDevice();
 		self::assertSame(201, $res->getStatus());
@@ -1486,6 +1608,98 @@ final class OrderFlowIntegrationTest extends TestCase
 		$qb = $this->db->getQueryBuilder();
 		$qb->delete('bc_companion')->where($qb->expr()->eq('id',
 			$qb->createNamedParameter($devId)))->executeStatement();
+	}
+
+	public function testCapiEventsListsAllDoorTargetKinds(): void
+	{
+		$ev = $this->seedOffering(5);                       // standalone event
+		$f2 = $this->seedOffering(5);
+		$seriesId = $this->seedSeries($f2['offering'], 5);  // series w/ members
+		$sl = $this->seedPooledSlot(4);                     // timeslot
+
+		$capi = new \OCA\BookingCheck\Controller\CapiController('bookingcheck',
+			$this->createMock(\OCP\IRequest::class),
+			\OC::$server->get(\OCA\BookingCheck\Service\TicketService::class), $this->db);
+		// no companionDevice → unrestricted door (deviceScope null)
+		$rows = $capi->events()->getData()['data']['events'];
+
+		$byType = [];
+		foreach ($rows as $r) {
+			$byType[(string)$r['type']][] = (int)$r['id'];
+		}
+		self::assertContains($ev['event'], $byType['event'] ?? [],
+			'standalone event must be listed');
+		self::assertContains($sl['slot'], $byType['slot'] ?? [],
+			'timeslot must be listed — slot offerings need a door target');
+		self::assertContains($seriesId, $byType['series'] ?? [],
+			'series with upcoming members must be listed');
+
+		// series member events must NOT appear as individual door targets —
+		// the door checks in on the series once, not once per occurrence
+		$memberIds = [];
+		$qb = $this->db->getQueryBuilder();
+		$memberIds = array_map('intval', $qb->select('id')->from('bc_event')
+			->where($qb->expr()->eq('series_id',
+				$qb->createNamedParameter($seriesId)))
+			->executeQuery()->fetchAll(\PDO::FETCH_COLUMN));
+		foreach ($memberIds as $mid) {
+			self::assertNotContains($mid, $byType['event'] ?? [],
+				'series member events stay off the door list');
+		}
+
+		// the series row carries its earliest upcoming member's window
+		$seriesRow = null;
+		foreach ($rows as $r) {
+			if ((string)$r['type'] === 'series' && (int)$r['id'] === $seriesId) {
+				$seriesRow = $r;
+			}
+		}
+		self::assertNotNull($seriesRow);
+		$earliest = (new \DateTimeImmutable('+30 days'))->format('Y-m-d H:i:s');
+		self::assertSame($earliest, (string)$seriesRow['starts_at']);
+
+		// scope still filters every kind — a device scoped to the slot
+		// offering sees its slot AND its standalone event (both in scope),
+		// never the foreign event or series
+		$device = new \OCA\BookingCheck\Db\CompanionToken();
+		$device->setOfferingIds(json_encode([$sl['offering']]));
+		$capi->companionDevice = $device;
+		$scoped = $capi->events()->getData()['data']['events'];
+		self::assertNotEmpty($scoped);
+		foreach ($scoped as $r) {
+			self::assertSame($sl['offering'], (int)$r['offering_id'],
+				'scoped device must only see in-scope offerings');
+		}
+		$scopedByType = [];
+		foreach ($scoped as $r) {
+			$scopedByType[(string)$r['type']][] = (int)$r['id'];
+		}
+		self::assertContains($sl['slot'], $scopedByType['slot'] ?? [],
+			'in-scope slot must remain visible');
+		self::assertNotContains($seriesId, $scopedByType['series'] ?? [],
+			'foreign series must stay hidden');
+		self::assertNotContains($ev['event'], $scopedByType['event'] ?? [],
+			'foreign event must stay hidden');
+
+		// manager stats mirror the same target kinds — but keep series
+		// member events as individual per-date rows
+		$device->setRole('manager');
+		$device->setOfferingIds(null);
+		$stats = $capi->stats()->getData()['data']['stats'];
+		$statTypes = [];
+		foreach ($stats as $r) {
+			$statTypes[(string)$r['type']][] = (int)$r['id'];
+		}
+		self::assertContains($ev['event'], $statTypes['event'] ?? [],
+			'stats must include standalone events');
+		self::assertContains($sl['slot'], $statTypes['slot'] ?? [],
+			'stats must include slots');
+		self::assertContains($seriesId, $statTypes['series'] ?? [],
+			'stats must include the series row');
+		foreach ($memberIds as $mid) {
+			self::assertContains($mid, $statTypes['event'] ?? [],
+				'stats keep per-occurrence member rows');
+		}
 	}
 
 	public function testQueueClaimIsExclusiveAndFenced(): void
@@ -1583,6 +1797,7 @@ final class OrderFlowIntegrationTest extends TestCase
 			\OC::$server->get(\Psr\Log\LoggerInterface::class),
 			$vies ?? \OC::$server->get(\OCA\BookingCheck\Service\ViesService::class),
 			\OC::$server->get(\OCA\BookingCheck\Service\LicenseService::class),
+			\OC::$server->get(\OCA\BookingCheck\Service\PricingService::class),
 		);
 	}
 
@@ -1602,8 +1817,12 @@ final class OrderFlowIntegrationTest extends TestCase
 		$settings = \OC::$server->get(\OCA\BookingCheck\Service\SettingsService::class);
 		$origVat = $settings->get('seller_vat_id');
 		$origCountry = $settings->get('seller_country');
+		$origPsp = $settings->get('psp_provider');
 		$settings->set('seller_vat_id', 'DE123456789');
 		$settings->set('seller_country', 'DE');
+		// The decision-matrix orders are €21/€25 gross — a PSP must resolve or
+		// checkout aborts before the billing branch under test runs.
+		$settings->set('psp_provider', 'test');
 		$f = $this->seedOffering(5);
 		$orderMapper = \OC::$server->get(\OCA\BookingCheck\Db\OrderMapper::class);
 		$mk = fn (string $idem, array $billing) => [
@@ -1683,6 +1902,7 @@ final class OrderFlowIntegrationTest extends TestCase
 		} finally {
 			$settings->set('seller_vat_id', $origVat);
 			$settings->set('seller_country', $origCountry);
+			$settings->set('psp_provider', $origPsp);
 		}
 	}
 
@@ -1725,6 +1945,88 @@ final class OrderFlowIntegrationTest extends TestCase
 				'(SELECT id FROM *PREFIX*bc_order_line WHERE order_id = ' . $orderId . ')')))
 			->executeQuery()->fetchOne();
 		self::assertSame(1, $dead, 'buyer cancel of a paid order must revoke its tickets');
+	}
+
+	/**
+	 * Release-path regression: a waitlist offer on a deactivated pool must
+	 * not trap the release. The old code re-ran hold() after offerSeat —
+	 * hold() re-checks slot_res.active=1, so an admin deactivating a pool
+	 * while an offer was pending made every subsequent refund/cancel roll
+	 * back with CapacityException. transferToOfferHold() moves the counter
+	 * without re-validating: the seat was validated when it was sold.
+	 */
+	public function testRefundOnDeactivatedPoolStillOffersSeat(): void
+	{
+		$f = $this->seedPooledSlot(4);
+		$this->db->getQueryBuilder()->insert('bc_waitlist')->values([
+			'target_type' => "'slot'", 'target_id' => (string)$f['slot'],
+			'email' => "'wl-poolrel@x.test'", 'state' => "'waiting'",
+			'created_at' => "'" . (new \DateTimeImmutable())->format('Y-m-d H:i:s') . "'",
+		])->executeStatement();
+		$this->created['waitlist'][] = 'wl-poolrel@x.test';
+		$r = $this->orders->createOrder($f['offering'], 'Test Buyer', 'pool-rel@x.test', 'en',
+			[['target_type' => 'slot', 'target_id' => $f['slot'], 'seats' => 1,
+				'resource_id' => $f['resource']]],
+			[], null, null, $this->idem('pool-rel'), null, true, 'itest', false);
+		$orderId = (int)$r['order']->getId();
+		$this->created['order'][] = $orderId;
+		$this->orders->markPaid($orderId, 'psp:test');
+		// admin deactivates the pool while the order is still refundable
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_slot_res')->set('active', $qb->createNamedParameter(0))
+			->where($qb->expr()->eq('slot_id', $qb->createNamedParameter($f['slot'])))
+			->executeStatement();
+		$this->orders->transitionToRefunded($orderId, 'admin', [], 2500);
+		$qb = $this->db->getQueryBuilder();
+		$w = $qb->select('state')->from('bc_waitlist')
+			->where($qb->expr()->eq('email', $qb->createNamedParameter('wl-poolrel@x.test')))
+			->executeQuery()->fetchOne();
+		self::assertSame('offered', $w,
+			'freed seat must reach the waitlist even on a deactivated pool');
+		$qb = $this->db->getQueryBuilder();
+		$row = $qb->select('sold', 'held')->from('bc_slot_res')
+			->where($qb->expr()->eq('slot_id', $qb->createNamedParameter($f['slot'])))
+			->executeQuery()->fetch();
+		self::assertSame(['sold' => 0, 'held' => 1],
+			['sold' => (int)$row['sold'], 'held' => (int)$row['held']],
+			'sold-1 must convert into held+1 — the offer hold');
+	}
+
+	/** Same trap on the held-seat path: pending_payment → markFailed. */
+	public function testFailOnDeactivatedPoolStillOffersSeat(): void
+	{
+		$f = $this->seedPooledSlot(4);
+		$this->db->getQueryBuilder()->insert('bc_waitlist')->values([
+			'target_type' => "'slot'", 'target_id' => (string)$f['slot'],
+			'email' => "'wl-poolfail@x.test'", 'state' => "'waiting'",
+			'created_at' => "'" . (new \DateTimeImmutable())->format('Y-m-d H:i:s') . "'",
+		])->executeStatement();
+		$this->created['waitlist'][] = 'wl-poolfail@x.test';
+		$r = $this->orders->createOrder($f['offering'], 'Test Buyer', 'pool-fail@x.test', 'en',
+			[['target_type' => 'slot', 'target_id' => $f['slot'], 'seats' => 1,
+				'resource_id' => $f['resource']]],
+			[], null, null, $this->idem('pool-fail'), null, true, 'itest', false);
+		$orderId = (int)$r['order']->getId();
+		$this->created['order'][] = $orderId;
+		// pending_payment — the seat is HELD, not sold
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_slot_res')->set('active', $qb->createNamedParameter(0))
+			->where($qb->expr()->eq('slot_id', $qb->createNamedParameter($f['slot'])))
+			->executeStatement();
+		$this->orders->markFailed($orderId, 'psp:test');
+		$qb = $this->db->getQueryBuilder();
+		$w = $qb->select('state')->from('bc_waitlist')
+			->where($qb->expr()->eq('email', $qb->createNamedParameter('wl-poolfail@x.test')))
+			->executeQuery()->fetchOne();
+		self::assertSame('offered', $w,
+			'freed held seat must reach the waitlist even on a deactivated pool');
+		$qb = $this->db->getQueryBuilder();
+		$row = $qb->select('sold', 'held')->from('bc_slot_res')
+			->where($qb->expr()->eq('slot_id', $qb->createNamedParameter($f['slot'])))
+			->executeQuery()->fetch();
+		self::assertSame(['sold' => 0, 'held' => 1],
+			['sold' => (int)$row['sold'], 'held' => (int)$row['held']],
+			'held seat cycles: order hold released, offer hold placed');
 	}
 
 	public function testInvoiceNumbersAreUniqueAndMonotonic(): void
@@ -1890,6 +2192,11 @@ final class OrderFlowIntegrationTest extends TestCase
 			\OC::$server->get(\OCA\BookingCheck\Db\UploadMapper::class),
 			\OC::$server->get(\OCA\BookingCheck\Db\InvoiceMapper::class),
 			\OC::$server->get(\OCA\BookingCheck\Service\SettingsService::class),
+			\OC::$server->get(\OCA\BookingCheck\Service\WalletPassService::class),
+			\OC::$server->get(\OCA\BookingCheck\Service\IcsService::class),
+			\OC::$server->get(\OCA\BookingCheck\Service\EInvoiceService::class),
+			\OC::$server->get(\OCA\BookingCheck\Db\AbuseReportMapper::class),
+			\OC::$server->get(\OCA\BookingCheck\Service\PushService::class),
 		);
 	}
 
@@ -2011,6 +2318,149 @@ final class OrderFlowIntegrationTest extends TestCase
 		self::assertSame(2, (int)$qb->select('held')->from('bc_slot')
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($slotId)))
 			->executeQuery()->fetchOne());
+	}
+
+	public function testSlotUniqueIndexRejectsConcurrentTwin(): void
+	{
+		// bc_slot_tpl_uq is the race backstop behind the materializer's
+		// read-then-insert dedupe: two overlapping sweeps cannot mint
+		// twin slots that would each sell their own capacity counter.
+		$f = $this->seedOffering(5, ['type' => 'timeslot']);
+		$qb = $this->db->getQueryBuilder();
+		$qb->insert('bc_slot_tpl')->values([
+			'offering_id' => (string)$f['offering'], 'duration_min' => '60',
+			'cap_per_slot' => '8', 'buffer_min' => '0', 'lead_min' => '0',
+			'horizon_days' => '14', 'weekly_rrule' => "'MO 10:00'",
+		])->executeStatement();
+		$tplId = (int)$this->db->lastInsertId('oc_bc_slot_tpl');
+		$this->created['slot_tpl'][] = $tplId;
+
+		$start = (new \DateTimeImmutable('+10 days'))->modify('next monday')
+			->setTime(10, 0)->format('Y-m-d H:i:s');
+		$end = (new \DateTimeImmutable('+10 days'))->modify('next monday')
+			->setTime(11, 0)->format('Y-m-d H:i:s');
+		$ins = function () use ($tplId, $f, $start, $end): int {
+			$this->db->getQueryBuilder()->insert('bc_slot')->values([
+				'tpl_id' => (string)$tplId, 'offering_id' => (string)$f['offering'],
+				'starts_at' => "'$start'", 'ends_at' => "'$end'",
+				'capacity' => '8', 'sold' => '0', 'held' => '0',
+			])->executeStatement();
+			return (int)$this->db->lastInsertId('oc_bc_slot');
+		};
+		$first = $ins();
+		$this->created['slot'][] = $first;
+		try {
+			$dup = $ins();
+			$this->created['slot'][] = $dup; // keep teardown sane if the index is gone
+			self::fail('twin (tpl_id, starts_at) must violate the unique index');
+		} catch (\OCP\DB\Exception $e) {
+			self::assertSame(\OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION,
+				$e->getReason());
+		}
+	}
+
+	public function testCartOrderLocksInIdOrderButKeepsLeadOffering(): void
+	{
+		// regression for the ABBA deadlock: createCartOrder must lock all
+		// offerings in id order (findForUpdate), yet process groups in cart
+		// order so the FIRST cart group stays the lead offering
+		// (order.offering_id, deposit basis).
+		$low = $this->seedOffering(5, ['price_cents' => 1000]);
+		$high = $this->seedOffering(5, ['price_cents' => 4000]);
+		self::assertGreaterThan($low['offering'], $high['offering'],
+			'test needs high-id group first in the cart');
+
+		$r = $this->orders->createCartOrder(
+			[// deliberately reversed: high id first
+				['offering_id' => $high['offering'],
+				 'lines' => [['target_type' => 'event', 'target_id' => $high['event'], 'seats' => 1]],
+				 'addons' => []],
+				['offering_id' => $low['offering'],
+				 'lines' => [['target_type' => 'event', 'target_id' => $low['event'], 'seats' => 1]],
+				 'addons' => []],
+			],
+			'Cart Buyer', 'cart-' . $this->idem('c1') . '@x.test', 'en',
+			[], null, $this->idem('cart-a'), null, 'itest', true);
+		$order = $r['order'];
+		$this->created['order'][] = (int)$order->getId();
+
+		// lead = first cart group, NOT the lowest id
+		self::assertSame($high['offering'], (int)$order->getOfferingId());
+		// combined pricing across both offerings
+		self::assertSame(5000, (int)$order->getAmountCents());
+		// seats held on BOTH targets
+		$held = function (int $eid): int {
+			$q = $this->db->getQueryBuilder();
+			return (int)$q->select('held')->from('bc_event')
+				->where($q->expr()->eq('id', $q->createNamedParameter($eid)))
+				->executeQuery()->fetchOne();
+		};
+		self::assertSame(1, $held($high['event']));
+		self::assertSame(1, $held($low['event']));
+		// both lines exist, each pointing at its own offering's event
+		$lq = $this->db->getQueryBuilder();
+		$lines = array_map('intval', $lq->select('target_id')->from('bc_order_line')
+			->where($lq->expr()->eq('order_id',
+				$lq->createNamedParameter((int)$order->getId())))
+			->executeQuery()->fetchAll(\PDO::FETCH_COLUMN));
+		self::assertCount(2, $lines);
+		self::assertContainsEquals($high['event'], $lines);
+		self::assertContainsEquals($low['event'], $lines);
+	}
+
+	public function testCartOrderRejectsDuplicateOfferingGroup(): void
+	{
+		$f = $this->seedOffering(5);
+		try {
+			$this->orders->createCartOrder(
+				[
+					['offering_id' => $f['offering'],
+					 'lines' => [['target_type' => 'event', 'target_id' => $f['event'], 'seats' => 1]],
+					 'addons' => []],
+					['offering_id' => $f['offering'],
+					 'lines' => [['target_type' => 'event', 'target_id' => $f['event'], 'seats' => 1]],
+					 'addons' => []],
+				],
+				'Cart Buyer', 'cart-' . $this->idem('c2') . '@x.test', 'en',
+				[], null, $this->idem('cart-dup'), null, 'itest', true);
+			self::fail('duplicate offering groups must be rejected');
+		} catch (\OCA\BookingCheck\Exception\ValidationException $e) {
+			self::assertArrayHasKey('cart', $e->getFields());
+		}
+	}
+
+	public function testAbuseReportTwinViolatesUniqueIndex(): void
+	{
+		// bc_abuse(upload_id, reporter) UNIQUE — concurrent reportAbuse calls
+		// pass the listForUpload pre-check together; the index decides, and
+		// the loser's insert must be a unique violation (controllers map it
+		// to duplicate:true), not a silent second row.
+		$ins = function (string $reporter): int {
+			$this->db->getQueryBuilder()->insert('bc_abuse')->values([
+				'upload_id' => '424242', 'reporter' => "'$reporter'",
+				'reason' => "'test'", 'status' => "'open'",
+				'created_at' => "'2026-10-28 00:00:00'",
+			])->executeStatement();
+			return (int)$this->db->lastInsertId('oc_bc_abuse');
+		};
+		$ids = [$ins('racer@example.org')];
+		try {
+			$ids[] = $ins('racer@example.org');
+			self::fail('twin (upload_id, reporter) must violate the unique index');
+		} catch (\OCP\DB\Exception $e) {
+			self::assertSame(\OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION,
+				$e->getReason());
+		} finally {
+			$del = $this->db->getQueryBuilder();
+			$del->delete('bc_abuse')->where($del->expr()->in('id',
+				$del->createNamedParameter($ids, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))
+				->executeStatement();
+		}
+		// a different reporter on the same upload is NOT a twin
+		$other = $ins('other@example.org');
+		$del = $this->db->getQueryBuilder();
+		$del->delete('bc_abuse')->where($del->expr()->eq('id',
+			$del->createNamedParameter($other)))->executeStatement();
 	}
 
 	public function testMaterializerRruleValidation(): void
@@ -2182,6 +2632,296 @@ final class OrderFlowIntegrationTest extends TestCase
 			$ent->viewerOrderIdForOffering((string)$upOrder->getBuyerEmail(), $f['offering']));
 		// a stranger gets nothing
 		self::assertNull($ent->viewerOrderIdForOffering('nobody@x.test', $f['offering']));
+	}
+
+	public function testReminderClaimDedupesAndReleaseRestores(): void
+	{
+		$reminders = \OCP\Server::get(\OCA\BookingCheck\Db\ReminderMapper::class);
+		$orderId = 900001; // no FK on bc_reminder — the dedupe key is what matters
+		self::assertTrue($reminders->claim($orderId, 'event', 11));
+		self::assertFalse($reminders->claim($orderId, 'event', 11),
+			'second claim on the same target must lose to the unique index');
+		self::assertTrue($reminders->claim($orderId, 'slot', 11),
+			'a different target type is a different reminder');
+		$reminders->release($orderId, 'slot', 11);
+		$reminders->release($orderId, 'event', 11);
+		self::assertTrue($reminders->claim($orderId, 'event', 11),
+			'release must reopen the slot so a failed send retries');
+		$reminders->release($orderId, 'event', 11);
+	}
+
+	public function testMailTplOverrideAppliesThenDeleteRestores(): void
+	{
+		$tpls = \OCP\Server::get(\OCA\BookingCheck\Db\MailTplMapper::class);
+		$renderer = \OCP\Server::get(\OCA\BookingCheck\Service\MailRenderer::class);
+		// force_language/force_locale legitimately pin every l10n lookup on a
+		// production instance — the assertions below probe the 'en'/'de'
+		// fallback order, so the pin must be lifted for the test's duration.
+		$config = \OCP\Server::get(\OCP\IConfig::class);
+		$origForceLang = $config->getSystemValue('force_language', false);
+		$origForceLocale = $config->getSystemValue('force_locale', false);
+		$config->deleteSystemValue('force_language');
+		$config->deleteSystemValue('force_locale');
+		try {
+			$tpls->upsert('order_confirmed', '', 'Haus-Shop sagt hallo', 'Extra %s bleibt Text.');
+			[$s1, $b1] = $renderer->render('order_confirmed',
+				['order_ref' => 'BCK-1', 'manage_url' => 'https://x'], 'en');
+			self::assertSame('Haus-Shop sagt hallo', $s1);
+			self::assertStringContainsString('Extra %s bleibt Text.', $b1);
+			// the all-languages row also applies to 'de'
+			[$s2] = $renderer->render('order_confirmed', ['order_ref' => 'B'], 'de');
+			self::assertSame('Haus-Shop sagt hallo', $s2);
+			// a locale-specific row beats the catch-all
+			$tpls->upsert('order_confirmed', 'de', 'Nur Deutsch', null);
+			[$s3] = $renderer->render('order_confirmed', ['order_ref' => 'B'], 'de');
+			self::assertSame('Nur Deutsch', $s3);
+			[$s4] = $renderer->render('order_confirmed', ['order_ref' => 'B'], 'en');
+			self::assertSame('Haus-Shop sagt hallo', $s4);
+			foreach (['', 'de'] as $loc) {
+				$t = $tpls->findFor('order_confirmed', $loc);
+				if ($t !== null) { $tpls->delete($t); }
+			}
+			[$s5] = $renderer->render('order_confirmed', ['order_ref' => 'B'], 'en');
+			self::assertStringContainsString('Booking confirmed', $s5);
+		} finally {
+			foreach (['', 'de'] as $loc) {
+				$t = $tpls->findFor('order_confirmed', $loc);
+				if ($t !== null) { $tpls->delete($t); }
+			}
+			if ($origForceLang !== false) { $config->setSystemValue('force_language', $origForceLang); }
+			if ($origForceLocale !== false) { $config->setSystemValue('force_locale', $origForceLocale); }
+		}
+	}
+
+	public function testManageShowEmitsWalletLinksOnlyWhenConfigured(): void
+	{
+		$settings = \OCP\Server::get(\OCA\BookingCheck\Service\SettingsService::class);
+		$origIssuer = $settings->get('wallet_google_issuer');
+		$origSecret = $settings->getSecret('wallet_google_secret');
+		// price 0 → completePaidLocked runs at create: tickets minted AND the
+		// returned manageToken is the final (rotated) bearer — markPaid would
+		// rotate it again and stale our copy.
+		$f = $this->seedOffering(5, ['price_cents' => 0]);
+		$r = $this->create($f['offering'], $f['event'], 1, $this->idem('wallet'), true);
+		$this->created['order'][] = (int)$r['order']->getId();
+		$token = (string)($r['manageToken'] ?? '');
+		self::assertNotSame('', $token, 'paid free order must mint a manage token');
+		$ctrl = $this->manageCtrl([]);
+		try {
+			// unconfigured → no wallet keys at all (CTA stays hidden)
+			$params = $ctrl->show($token)->getParams();
+			$row = array_values($params['ticketsByLine'])[0][0];
+			self::assertArrayNotHasKey('wallet_google', $row);
+			self::assertArrayNotHasKey('wallet_apple', $row);
+
+			$settings->set('wallet_google_issuer', '338800001234');
+			$settings->setSecret('wallet_google_secret', 'shh-itest');
+			$params = $ctrl->show($token)->getParams();
+			$row = array_values($params['ticketsByLine'])[0][0];
+			self::assertArrayHasKey('wallet_google', $row);
+			self::assertStringContainsString('pay.google.com/gp/v/save/', $row['wallet_google']);
+			self::assertTrue($row['wallet_apple'] === false || !isset($row['wallet_apple']),
+				'apple CTA must stay hidden without a cert');
+		} finally {
+			$settings->set('wallet_google_issuer', (string)$origIssuer);
+			$origSecret !== '' ? $settings->setSecret('wallet_google_secret', (string)$origSecret)
+				: $settings->setSecret('wallet_google_secret', '');
+		}
+	}
+
+	public function testPublicOfferingPayloadIsWhitelisted(): void
+	{
+		// Public templates must never receive the full serialize — it
+		// carries internal refs (talkRoom, deckBoardId) that let guests
+		// reach seller-only objects. And the price key must be the one
+		// offering.php reads ('price_cents') or the badge renders 0.
+		$f = $this->seedOffering(5, ['price_cents' => 1234]);
+		$this->db->executeStatement(
+			'UPDATE *PREFIX*bc_offering SET talk_room = ?, deck_board_id = ? WHERE id = ?',
+			['secrettalkroom', 42, (int)$f['offering']]);
+		$slug = $this->db->executeQuery(
+			'SELECT slug FROM *PREFIX*bc_offering WHERE id = ?', [(int)$f['offering']])->fetchOne();
+		$ctrl = \OCP\Server::get(\OCA\BookingCheck\Controller\PubCatalogController::class);
+		$off = $ctrl->offering((string)$slug)->getParams()['offering'];
+		foreach (['talkRoom', 'deckBoardId', 'approvalRequired', 'shareTalk', 'shareDeck', 'createdBy'] as $internal) {
+			self::assertArrayNotHasKey($internal, $off, 'internal key leaked: ' . $internal);
+		}
+		self::assertSame(1234, $off['price_cents'], 'template reads price_cents — mismatch renders 0');
+	}
+
+	public function testEmbedOfferingPayloadIsWhitelisted(): void
+	{
+		$f = $this->seedOffering(5, ['price_cents' => 777]);
+		$this->db->executeStatement(
+			'UPDATE *PREFIX*bc_offering SET embed_domains = ?, talk_room = ? WHERE id = ?',
+			['["https://example.com"]', 'secrettalkroom', (int)$f['offering']]);
+		$slug = $this->db->executeQuery(
+			'SELECT slug FROM *PREFIX*bc_offering WHERE id = ?', [(int)$f['offering']])->fetchOne();
+		$ctrl = \OCP\Server::get(\OCA\BookingCheck\Controller\EmbedController::class);
+		$resp = $ctrl->offering((string)$slug);
+		$off = $resp->getParams()['offering'];
+		self::assertArrayNotHasKey('talkRoom', $off);
+		self::assertArrayNotHasKey('deckBoardId', $off);
+		self::assertSame(777, $off['price_cents']);
+		// CSP must carry the allowed origin — frame boundary is enforced
+		self::assertStringContainsString('frame-ancestors',
+			(string)$resp->getHeaders()['Content-Security-Policy']);
+	}
+
+	public function testAppleWalletRoute404sWhenUnconfigured(): void
+	{
+		$f = $this->seedOffering(5, ['price_cents' => 0]);
+		$r = $this->create($f['offering'], $f['event'], 1, $this->idem('wallet404'), true);
+		$this->created['order'][] = (int)$r['order']->getId();
+		$line = \OCP\Server::get(\OCA\BookingCheck\Db\OrderLineMapper::class)
+			->findByOrder((int)$r['order']->getId())[0];
+		$ticket = \OCP\Server::get(\OCA\BookingCheck\Db\TicketMapper::class)
+			->findByLine((int)$line->getId())[0];
+		try {
+			$this->manageCtrl([])->appleWallet((string)$r['manageToken'], (int)$ticket->getId());
+			self::fail('unconfigured wallet must not serve a pass');
+		} catch (\OCA\BookingCheck\Exception\NotFoundException) {
+			self::assertTrue(true);
+		}
+	}
+
+	public function testRefundClaimCasAllowsExactlyOneOwner(): void
+	{
+		// insert a real payment row so the CAS exercises the live table
+		$f = $this->seedOffering(5, ['price_cents' => 0]);
+		$r = $this->create($f['offering'], $f['event'], 1, $this->idem('refundcas'), true);
+		$this->created['order'][] = (int)$r['order']->getId();
+		$pm = \OCP\Server::get(\OCA\BookingCheck\Db\PaymentMapper::class);
+		$pay = new \OCA\BookingCheck\Db\Payment();
+		$pay->setOrderId((int)$r['order']->getId());
+		$pay->setProvider('test');
+		$pay->setPspRef('itest_refund_' . bin2hex(random_bytes(4)));
+		$pay->setStatus('paid');
+		$pay->setAmountCents(0);
+		$pay->setCreatedAt(new \DateTimeImmutable());
+		$pm->insert($pay);
+		$pid = (int)$pay->getId();
+
+		// first claim wins; second loses while the marker is fresh
+		self::assertTrue($pm->claimRefund($pid, 'pending:aaa'));
+		self::assertFalse($pm->claimRefund($pid, 'pending:bbb'),
+			'concurrent refund must lose the CAS and never reach the PSP');
+
+		// a stale pending marker is reclaimable — the claimant died
+		// between claim and PSP call
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_payment')
+			->set('refund_claimed_at', $qb->createNamedParameter(
+				new \DateTime('-30 minutes'), 'datetime'))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($pid)))
+			->executeStatement();
+		self::assertTrue($pm->claimRefund($pid, 'pending:ccc'),
+			'stale pending claim must be reclaimable');
+
+		// a real refund_ref is terminal — never re-claimable even when old
+		$pay->setRefundRef('re_realref');
+		$pm->update($pay);
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_payment')
+			->set('refund_claimed_at', $qb->createNamedParameter(
+				new \DateTime('-30 minutes'), 'datetime'))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($pid)))
+			->executeStatement();
+		self::assertFalse($pm->claimRefund($pid, 'pending:ddd'),
+			'completed refund must stay claimed forever');
+
+		// release clears only OUR marker
+		$pay2 = new \OCA\BookingCheck\Db\Payment();
+		$pay2->setOrderId((int)$r['order']->getId());
+		$pay2->setProvider('test');
+		$pay2->setPspRef('itest_refund2_' . bin2hex(random_bytes(4)));
+		$pay2->setStatus('paid');
+		$pay2->setAmountCents(0);
+		$pay2->setCreatedAt(new \DateTimeImmutable());
+		$pm->insert($pay2);
+		$pm->claimRefund((int)$pay2->getId(), 'pending:mine');
+		$pm->releaseRefundClaim((int)$pay2->getId(), 'pending:someoneelses');
+		$cur = $pm->find((int)$pay2->getId());
+		self::assertSame('pending:mine', (string)$cur->getRefundRef(),
+			'foreign release must not clear our claim');
+		$pm->releaseRefundClaim((int)$pay2->getId(), 'pending:mine');
+		$cur = $pm->find((int)$pay2->getId());
+		self::assertSame('', (string)$cur->getRefundRef(),
+			'our release must clear the marker for a clean retry');
+	}
+
+	public function testWebhookEventClaimReapsStaleUnprocessedClaims(): void
+	{
+		$mapper = \OCP\Server::get(\OCA\BookingCheck\Db\WebhookEventMapper::class);
+		$ev = 'itest_' . bin2hex(random_bytes(6));
+		try {
+			// fresh claim → true; immediate replay → false (live claim)
+			self::assertTrue($mapper->claim('test', $ev));
+			self::assertFalse($mapper->claim('test', $ev), 'live duplicate must report replay');
+
+			// backdate received_at past the stale window, unprocessed →
+			// a crashed worker's claim must be reclaimable by the PSP retry
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('bc_webhook_evt')
+				->set('received_at', $qb->createNamedParameter(
+					new \DateTime('-2 hours'), 'datetime'))
+				->where($qb->expr()->eq('provider', $qb->createNamedParameter('test')))
+				->andWhere($qb->expr()->eq('event_id', $qb->createNamedParameter($ev)))
+				->executeStatement();
+			self::assertTrue($mapper->claim('test', $ev),
+				'stale unprocessed claim must be reclaimed');
+			// the reclaim refreshed received_at → immediate next replay is live
+			self::assertFalse($mapper->claim('test', $ev));
+
+			// a processed event is never reclaimable, however old it is —
+			// re-processing a paid webhook would double-apply money state
+			$mapper->markProcessed('test', $ev);
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('bc_webhook_evt')
+				->set('received_at', $qb->createNamedParameter(
+					new \DateTime('-2 hours'), 'datetime'))
+				->where($qb->expr()->eq('provider', $qb->createNamedParameter('test')))
+				->andWhere($qb->expr()->eq('event_id', $qb->createNamedParameter($ev)))
+				->executeStatement();
+			self::assertFalse($mapper->claim('test', $ev),
+				'processed event must stay deduped forever');
+		} finally {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_webhook_evt')
+				->where($qb->expr()->eq('provider', $qb->createNamedParameter('test')))
+				->andWhere($qb->expr()->eq('event_id', $qb->createNamedParameter($ev)))
+				->executeStatement();
+		}
+	}
+
+	public function testPassScopeRestrictsAdmissionToListedOfferings(): void
+	{
+		$svc = \OCP\Server::get(\OCA\BookingCheck\Service\PassService::class);
+		$passOffering = $this->seedOffering(6, ['type' => 'pass', 'price_cents' => 0]);
+		$other = $this->seedOffering(7);
+		// scope: only the OTHER offering admitted, not the pass offering itself
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_offering')
+			->set('pass_scope', $qb->createNamedParameter(json_encode([$other['offering']])))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($passOffering['offering'])))
+			->executeStatement();
+
+		$r = $this->orders->createPassOrder($passOffering['offering'], 'S Buyer', 's@x.test',
+			'en', 1, null, null, $this->idem('passscope'), null, 'itest');
+		$this->created['order'][] = (int)$r['order']->getId();
+		$token = 'BCK1P-' . bin2hex(random_bytes(24));
+		$uq = $this->db->getQueryBuilder();
+		$uq->update('bc_pass')
+			->set('token_hash', $uq->createNamedParameter(hash('sha256', $token)))
+			->where($uq->expr()->eq('order_id',
+				$uq->createNamedParameter((int)$r['order']->getId())))
+			->executeStatement();
+
+		$ok = $svc->admit($token, 'event', $other['event'], $other['offering'], 'device:t');
+		self::assertTrue($ok['ok'], 'scoped pass must admit on the listed offering');
+		$no = $svc->admit($token, 'event', $passOffering['event'], $passOffering['offering'], 'device:t');
+		self::assertFalse($no['ok']);
+		self::assertSame('out_of_scope', $no['reason']);
 	}
 
 }

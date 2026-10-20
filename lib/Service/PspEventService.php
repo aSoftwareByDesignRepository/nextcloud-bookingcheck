@@ -89,7 +89,7 @@ class PspEventService
 		};
 	}
 
-	private function applyPaid($order, $payment, VerifiedEvent $event): void
+	private function applyPaid(\OCA\BookingCheck\Db\Order $order, \OCA\BookingCheck\Db\Payment $payment, VerifiedEvent $event): void
 	{
 		// amount/currency sanity: a paid event quoting a different amount
 		// than THIS payment session charged is an alert, not an
@@ -143,7 +143,7 @@ class PspEventService
 		}
 	}
 
-	private function applyFailed($order, $payment, string $provider, VerifiedEvent $event): void
+	private function applyFailed(\OCA\BookingCheck\Db\Order $order, \OCA\BookingCheck\Db\Payment $payment, string $provider, VerifiedEvent $event): void
 	{
 		$this->payments->updateStatus((int)$payment->getId(), 'failed', $event->rawStatus, $event->eventId);
 		// the event belongs to THIS session — the order only fails when no
@@ -158,7 +158,7 @@ class PspEventService
 		$this->orderService->markFailed((int)$order->getId(), 'webhook:' . $provider);
 	}
 
-	private function applyRefunded($order, $payment, VerifiedEvent $event): void
+	private function applyRefunded(\OCA\BookingCheck\Db\Order $order, \OCA\BookingCheck\Db\Payment $payment, VerifiedEvent $event): void
 	{
 		$this->payments->updateStatus((int)$payment->getId(), 'refunded', $event->rawStatus, $event->eventId);
 		// credit note inside the refund txn — GoBD requires the negative
@@ -172,7 +172,7 @@ class PspEventService
 			['amount' => $amount], (int)$order->getAmountCents());
 	}
 
-	private function applyDispute($order, $payment, VerifiedEvent $event): void
+	private function applyDispute(\OCA\BookingCheck\Db\Order $order, \OCA\BookingCheck\Db\Payment $payment, VerifiedEvent $event): void
 	{
 		// chargeback: money is gone — reflect it (§9.14 dispute mapping)
 		$this->payments->markDisputed((int)$payment->getId());

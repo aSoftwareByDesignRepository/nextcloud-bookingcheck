@@ -11,7 +11,22 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
-/** Append-only NH-10 download analytics row. No PII beyond order linkage. */
+/**
+ * Entity for the `bc_download` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getMaterialId()
+ * @method void setMaterialId(int $materialId)
+ * @method int|null getOrderId()
+ * @method void setOrderId(?int $orderId)
+ * @method int|null getTicketId()
+ * @method void setTicketId(?int $ticketId)
+ * @method string getActor()
+ * @method void setActor(string $actor)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ */
 class DownloadLog extends Entity
 {
 	protected $materialId;

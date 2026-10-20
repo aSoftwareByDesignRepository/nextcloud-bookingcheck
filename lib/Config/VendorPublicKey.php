@@ -30,7 +30,7 @@ final class VendorPublicKey
 		return self::DEFAULT_PUBLIC_KEY_B64;
 	}
 
-	/** @return string raw 32-byte key */
+	/** @return non-empty-string raw 32-byte key */
 	public static function bytes(): string
 	{
 		$bytes = self::base64urlDecode(self::publicKeyB64());

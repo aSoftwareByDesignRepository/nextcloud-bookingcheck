@@ -11,6 +11,20 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_webhook_evt` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getProvider()
+ * @method void setProvider(string $provider)
+ * @method string getEventId()
+ * @method void setEventId(string $eventId)
+ * @method \DateTimeImmutable getReceivedAt()
+ * @method void setReceivedAt(\DateTimeImmutable $receivedAt)
+ * @method \DateTimeImmutable|null getProcessedAt()
+ * @method void setProcessedAt(?\DateTimeImmutable $processedAt)
+ */
 class WebhookEvent extends Entity
 {
 	protected $provider;

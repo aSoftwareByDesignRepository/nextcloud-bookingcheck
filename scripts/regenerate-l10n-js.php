@@ -10,7 +10,11 @@ declare(strict_types=1);
  */
 
 $base = __DIR__ . '/../l10n';
-$locales = ['en', 'de'];
+$locales = [];
+foreach (glob($base . '/*.json') ?: [] as $jsonFile) {
+	$locales[] = basename($jsonFile, '.json');
+}
+sort($locales);
 
 foreach ($locales as $lang) {
 	$jsonPath = $base . '/' . $lang . '.json';
@@ -23,7 +27,7 @@ foreach ($locales as $lang) {
 	$translations = $cat['translations'] ?? [];
 	$pluralForm = $cat['pluralForm'] ?? null;
 
-	$lines = ["OC.L10N.register(\n", "\t\"dutycheck\",\n", "\t{\n"];
+	$lines = ["OC.L10N.register(\n", "\t\"bookingcheck\",\n", "\t{\n"];
 	$first = true;
 	foreach ($translations as $key => $val) {
 		$first = false;

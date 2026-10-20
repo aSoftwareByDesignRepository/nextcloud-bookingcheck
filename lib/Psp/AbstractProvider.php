@@ -22,6 +22,8 @@ abstract class AbstractProvider implements PaymentProviderInterface
 	}
 
 	/** JSON POST with auth header; throws PspException on transport/HTTP errors. */
+	/** @param array<string,string> $headers
+	 * @param array<string,mixed> $body */
 	protected function post(string $url, array $headers, array $body): array
 	{
 		try {
@@ -31,20 +33,39 @@ abstract class AbstractProvider implements PaymentProviderInterface
 				'body' => json_encode($body),
 				'timeout' => self::TIMEOUT,
 			]);
-			return json_decode($res->getBody(), true) ?? [];
+			return self::bodyJson($res);
 		} catch (\Throwable $e) {
 			throw new PspException('PSP request failed: ' . $e->getMessage(), 0, $e);
 		}
 	}
 
+	/** @param array<string,string> $headers */
 	protected function get(string $url, array $headers): array
 	{
 		try {
 			$client = $this->clientService->newClient();
 			$res = $client->get($url, ['headers' => $headers, 'timeout' => self::TIMEOUT]);
-			return json_decode($res->getBody(), true) ?? [];
+			return self::bodyJson($res);
 		} catch (\Throwable $e) {
 			throw new PspException('PSP request failed: ' . $e->getMessage(), 0, $e);
 		}
+	}
+
+	/**
+	 * getBody() is declared string|resource — a streamed body must be read
+	 * to string before json_decode or it fatals on a TypeError.
+	 * @return array<mixed>
+	 */
+	protected static function bodyJson(\OCP\Http\Client\IResponse $res): array
+	{
+		$body = $res->getBody();
+		if (is_resource($body)) {
+			$body = stream_get_contents($body);
+		}
+		if (!is_string($body)) {
+			return [];
+		}
+		$decoded = json_decode($body, true);
+		return is_array($decoded) ? $decoded : [];
 	}
 }

@@ -73,7 +73,7 @@ class EInvoiceService
 
 		// ---- exchanged document -------------------------------------
 		$w->startElementNs('rsm', 'ExchangedDocument', null);
-		$w->writeElementNs('ram', 'ID', null, $this->x($invoice->getNumber()));
+		$w->writeElementNs('ram', 'ID', null, $this->x($this->invoiceNumber($invoice)));
 		$w->writeElementNs('ram', 'TypeCode', null, $docType);
 		$w->startElementNs('ram', 'IssueDateTime', null);
 		$w->startElementNs('udt', 'DateTimeString', null);
@@ -83,6 +83,10 @@ class EInvoiceService
 		$w->endElement(); // DateTimeString
 		$w->endElement(); // IssueDateTime
 		$w->endElement(); // ExchangedDocument
+
+		// VAT rate lives on the offering — Order carries no vatBp attribute.
+		$offering = $this->offerings->find((int)$order->getOfferingId());
+		$vatBp = $offering !== null ? (int)$offering->getVatBp() : 0;
 
 		// ---- supply chain trade transaction -------------------------
 		$w->startElementNs('rsm', 'SupplyChainTradeTransaction', null);
@@ -111,7 +115,7 @@ class EInvoiceService
 			$w->writeElementNs('ram', 'TypeCode', null, 'VAT');
 			$w->writeElementNs('ram', 'CategoryCode', null, $reverseCharge ? 'AE' : 'S');
 			$w->writeElementNs('ram', 'RateApplicablePercent', null,
-				$reverseCharge ? '0' : $this->bp((int)$order->getVatBp()));
+				$reverseCharge ? '0' : $this->bp($vatBp));
 			$w->endElement();
 			$w->startElementNs('ram', 'SpecifiedTradeSettlementLineMonetarySummation', null);
 			$w->writeElementNs('ram', 'LineTotalAmount', null, $this->amt((int)$line->getLineCents()));
@@ -138,7 +142,7 @@ class EInvoiceService
 			$orig = $this->invoices->find((int)$invoice->getCreditsInvoiceId());
 			if ($orig !== null) {
 				$w->startElementNs('ram', 'InvoiceReferencedDocument', null);
-				$w->writeElementNs('ram', 'IssuerAssignedID', null, $this->x($orig->getNumber()));
+				$w->writeElementNs('ram', 'IssuerAssignedID', null, $this->x($this->invoiceNumber($orig)));
 				$w->endElement();
 			}
 		}
@@ -162,7 +166,7 @@ class EInvoiceService
 			$w->writeElementNs('ram', 'ExemptionReason', null, 'Reverse charge');
 		}
 		$w->writeElementNs('ram', 'RateApplicablePercent', null,
-			$reverseCharge ? '0' : $this->bp((int)$order->getVatBp()));
+			$reverseCharge ? '0' : $this->bp($vatBp));
 		$w->endElement();
 		$w->startElementNs('ram', 'SpecifiedTradeSettlementHeaderMonetarySummation', null);
 		$w->writeElementNs('ram', 'LineTotalAmount', null, $this->amt($netCents));
@@ -221,7 +225,7 @@ class EInvoiceService
 		$w->endElement();
 	}
 
-	private function lineName($line): string
+	private function lineName(\OCA\BookingCheck\Db\OrderLine $line): string
 	{
 		$cat = $line->getCatName();
 		$kind = $line->getLineKind();
@@ -239,6 +243,12 @@ class EInvoiceService
 	private function bp(int $bp): string
 	{
 		return rtrim(rtrim(number_format($bp / 100, 2, '.', ''), '0'), '.') ?: '0';
+	}
+
+	/** Canonical document number — same shape the UI renders (PREFIX-YEAR-NNNN). */
+	private function invoiceNumber(Invoice $i): string
+	{
+		return sprintf('%s-%d-%04d', (string)$i->getPrefix(), (int)$i->getYear(), (int)$i->getNumber());
 	}
 
 	/** XML text — element content escaping only, no header surface */

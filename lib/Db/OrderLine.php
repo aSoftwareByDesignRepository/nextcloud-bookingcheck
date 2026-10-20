@@ -11,6 +11,32 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_order_line` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOrderId()
+ * @method void setOrderId(int $orderId)
+ * @method string getTargetType()
+ * @method void setTargetType(string $targetType)
+ * @method int getTargetId()
+ * @method void setTargetId(int $targetId)
+ * @method string getLineKind()
+ * @method void setLineKind(string $lineKind)
+ * @method int|null getResourceId()
+ * @method void setResourceId(?int $resourceId)
+ * @method int|null getPriceCatId()
+ * @method void setPriceCatId(?int $priceCatId)
+ * @method string|null getCatName()
+ * @method void setCatName(?string $catName)
+ * @method int getSeats()
+ * @method void setSeats(int $seats)
+ * @method int getUnitCents()
+ * @method void setUnitCents(int $unitCents)
+ * @method int getLineCents()
+ * @method void setLineCents(int $lineCents)
+ */
 class OrderLine extends Entity
 {
 	protected $orderId;

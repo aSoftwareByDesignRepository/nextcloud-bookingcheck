@@ -42,6 +42,7 @@ class UploadGateService
 	/**
 	 * Inspect an uploaded file. Returns ['name' => safe basename] or throws.
 	 */
+	/** @param array<string,mixed> $file */
 	public function inspect(array $file): array
 	{
 		if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {

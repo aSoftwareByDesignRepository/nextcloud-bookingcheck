@@ -46,7 +46,7 @@ class PubCatalogController extends Controller
 				'descr' => $o->getDescr(),
 				'price_cents' => (int)$o->getPriceCents(),
 				'currency' => $o->getCurrency(),
-				'next' => $this->catalog->nextOccurrence($o),
+				'next_start' => $this->catalog->nextOccurrence($o),
 			];
 		}
 		return new PublicTemplateResponse($this->appName, 'public/catalog', [
@@ -63,8 +63,19 @@ class PubCatalogController extends Controller
 		if ($o === null || $o->getStatus() !== 'published') {
 			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
 		}
+		// Curated whitelist — jsonSerialize() leaks internal refs
+		// (talkRoom token, deckBoardId, logoFileRef) to anonymous visitors,
+		// and the template reads snake_case keys the full serialize doesn't
+		// even have ('price_cents' — the badge silently rendered €0.00).
 		return new PublicTemplateResponse($this->appName, 'public/offering', [
-			'offering' => $o->jsonSerialize(),
+			'offering' => [
+				'slug' => $o->getSlug(),
+				'type' => $o->getType(),
+				'title' => $o->getTitle(),
+				'descr' => $o->getDescr(),
+				'price_cents' => (int)$o->getPriceCents(),
+				'currency' => $o->getCurrency(),
+			],
 			'occurrences' => $this->catalog->occurrenceList($o),
 			'priceCats' => $this->catalog->priceCatsFor($o),
 			'addons' => $this->catalog->addonsFor($o),

@@ -11,6 +11,36 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_ticket` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getLineId()
+ * @method void setLineId(int $lineId)
+ * @method int|null getSeatNo()
+ * @method void setSeatNo(?int $seatNo)
+ * @method string|null getAttendeeName()
+ * @method void setAttendeeName(?string $attendeeName)
+ * @method string|null getAttendeeEmail()
+ * @method void setAttendeeEmail(?string $attendeeEmail)
+ * @method string|null getResourceName()
+ * @method void setResourceName(?string $resourceName)
+ * @method string getQrTokenHash()
+ * @method void setQrTokenHash(string $qrTokenHash)
+ * @method string|null getQrTokenEnc()
+ * @method void setQrTokenEnc(?string $qrTokenEnc)
+ * @method \DateTimeImmutable|null getCheckedInAt()
+ * @method void setCheckedInAt(?\DateTimeImmutable $checkedInAt)
+ * @method string|null getCheckedInBy()
+ * @method void setCheckedInBy(?string $checkedInBy)
+ * @method \DateTimeImmutable|null getRevokedAt()
+ * @method void setRevokedAt(?\DateTimeImmutable $revokedAt)
+ * @method string|null getPassAppleRef()
+ * @method void setPassAppleRef(?string $passAppleRef)
+ * @method string|null getPassGoogleRef()
+ * @method void setPassGoogleRef(?string $passGoogleRef)
+ */
 class Ticket extends Entity
 {
 	protected $lineId;

@@ -11,6 +11,28 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_price_cat` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method string getName()
+ * @method void setName(string $name)
+ * @method int getPriceCents()
+ * @method void setPriceCents(int $priceCents)
+ * @method int getSort()
+ * @method void setSort(int $sort)
+ * @method int|null getMaxPerOrder()
+ * @method void setMaxPerOrder(?int $maxPerOrder)
+ * @method int getActive()
+ * @method void setActive(int $active)
+ * @method \DateTimeImmutable|null getSaleFrom()
+ * @method void setSaleFrom(?\DateTimeImmutable $saleFrom)
+ * @method \DateTimeImmutable|null getSaleTo()
+ * @method void setSaleTo(?\DateTimeImmutable $saleTo)
+ */
 class PriceCat extends Entity
 {
 	protected $offeringId;

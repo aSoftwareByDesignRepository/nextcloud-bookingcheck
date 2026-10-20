@@ -144,8 +144,8 @@ $canMarkPaid = $status === 'paid' && $remainder > 0;
 			<div class="bck-card__body">
 				<dl class="bck-kv">
 					<dt><?php p($l->t('Provider')); ?></dt><dd><?php p((string)$payment['provider']); ?></dd>
-					<dt><?php p($l->t('PSP id')); ?></dt><dd><code><?php p((string)$payment['psp_id']); ?></code></dd>
-					<dt><?php p($l->t('State')); ?></dt><dd><?php p((string)$payment['state']); ?></dd>
+					<dt><?php p($l->t('PSP ref')); ?></dt><dd><code><?php p((string)$payment['pspRef']); ?></code></dd>
+					<dt><?php p($l->t('State')); ?></dt><dd><?php p((string)$payment['status']); ?></dd>
 				</dl>
 			</div>
 		</section>

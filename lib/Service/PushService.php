@@ -80,6 +80,7 @@ class PushService
 		return array_map('strval', array_column($qb->executeQuery()->fetchAll(), 'push_token'));
 	}
 
+	/** @param list<array<string,mixed>> $messages */
 	private function send(array $messages): void
 	{
 		try {

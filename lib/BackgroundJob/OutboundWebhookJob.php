@@ -70,6 +70,7 @@ class OutboundWebhookJob extends TimedJob
 		}
 	}
 
+	/** @param list<string> $lines */
 	private function headerArray(array $lines): array
 	{
 		$out = [];

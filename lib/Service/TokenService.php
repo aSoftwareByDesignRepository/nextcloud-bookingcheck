@@ -21,7 +21,7 @@ class TokenService
 	/** @return array{0:string,1:string} [plaintext token, sha256 hash] */
 	public function mint(int $bytes = 32): array
 	{
-		$token = rtrim(strtr(base64_encode(random_bytes($bytes)), '+/', '-_'), '=');
+		$token = rtrim(strtr(base64_encode(random_bytes(max(1, $bytes))), '+/', '-_'), '=');
 		return [$token, $this->hash($token)];
 	}
 

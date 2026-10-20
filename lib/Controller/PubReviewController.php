@@ -77,7 +77,12 @@ class PubReviewController extends Controller
 		$r->setCreatedAt(new \DateTimeImmutable());
 		try {
 			$this->reviews->insert($r);
-		} catch (\Throwable) {
+		} catch (\OCP\DB\Exception $e) {
+			// only the line_id unique index may claim a duplicate — a
+			// transient DB error lying "already reviewed" hides the fault
+			if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
 			return $this->fail(409, 'CONFLICT', 'You already reviewed this booking.');
 		}
 		return $this->ok(['status' => 'pending'], 201);

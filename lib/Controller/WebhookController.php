@@ -69,7 +69,7 @@ class WebhookController extends Controller
 		$w = new Webhook();
 		$w->setUrl($url);
 		$w->setSecretEnc($this->service->encryptSecret(bin2hex(random_bytes(24))));
-		$w->setEventsJson(json_encode(array_values(array_map('strval', $events))));
+		$w->setEventsJson(json_encode(array_values(array_map('strval', $events))) ?: '[]');
 		$w->setActive(1);
 		$w->setCreatedBy($this->userSession->getUser()?->getUID() ?? 'admin');
 		$w->setCreatedAt(new \DateTimeImmutable());

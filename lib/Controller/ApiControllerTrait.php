@@ -21,6 +21,7 @@ trait ApiControllerTrait
 			[], JSON_INVALID_UTF8_SUBSTITUTE);
 	}
 
+	/** @param array<string,string> $fields field-level errors for inline display */
 	private function fail(int $status, string $code, string $message, array $fields = []): JSONResponse
 	{
 		return new JSONResponse([

@@ -42,7 +42,7 @@ class AppAccessMiddleware extends Middleware
 		if (!str_starts_with(get_class($controller), 'OCA\\BookingCheck\\')) {
 			return;
 		}
-		$path = $this->request->getPathInfo();
+		$path = ($this->request->getPathInfo() ?: '');
 		$appPrefix = null;
 		foreach (['/index.php/apps/' . Application::APP_ID, '/apps/' . Application::APP_ID] as $p) {
 			if (str_starts_with($path, $p)) {

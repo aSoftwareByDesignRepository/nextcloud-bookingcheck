@@ -11,6 +11,7 @@ namespace OCA\BookingCheck\Service;
 
 use OCA\BookingCheck\Db\WaitlistEntry;
 use OCA\BookingCheck\Db\WaitlistEntryMapper;
+use OCP\DB\Exception as DbException;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
 use OCA\BookingCheck\Exception\NotFoundException;
@@ -114,8 +115,13 @@ class WaitlistService
 		try {
 			$this->waitlist->insert($e);
 			return true;
-		} catch (\Throwable) {
-			return false; // unique dedup — already listed
+		} catch (DbException $ex) {
+			// only the unique index means "already listed" — a transient DB
+			// error must surface, not tell the buyer they are waitlisted
+			if ($ex->getReason() !== DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $ex;
+			}
+			return false;
 		}
 	}
 
@@ -228,7 +234,9 @@ class WaitlistService
 			if ($wasOffered) {
 				$this->inventory->releaseHold($row->getTargetType(), (int)$row->getTargetId(), 1, $rid);
 				if ($this->offerSeat($row->getTargetType(), (int)$row->getTargetId(), $rid)) {
-					$this->inventory->hold($row->getTargetType(), (int)$row->getTargetId(), 1, $rid);
+					// counter transfer, not hold() — a deactivated pool must
+					// not trap the decline (see ReservationService)
+					$this->inventory->transferToOfferHold($row->getTargetType(), (int)$row->getTargetId(), $rid);
 				}
 			}
 			$this->db->commit();
@@ -290,7 +298,9 @@ class WaitlistService
 				$rid = $locked->getResourceId() !== null ? (int)$locked->getResourceId() : null;
 				$this->inventory->releaseHold($locked->getTargetType(), (int)$locked->getTargetId(), 1, $rid);
 				if ($this->offerSeat($locked->getTargetType(), (int)$locked->getTargetId(), $rid)) {
-					$this->inventory->hold($locked->getTargetType(), (int)$locked->getTargetId(), 1, $rid);
+					// counter transfer, not hold() — a deactivated pool must
+					// not trap the expiry cascade (see ReservationService)
+					$this->inventory->transferToOfferHold($locked->getTargetType(), (int)$locked->getTargetId(), $rid);
 				}
 				$this->db->commit();
 				$n++;

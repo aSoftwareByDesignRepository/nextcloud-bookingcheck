@@ -50,6 +50,65 @@ final class TicketServiceTest extends TestCase
 		self::assertSame(7, (int)$r['ticket']->getId());
 	}
 
+	public function testRevokeLandingMidScanReportsRevokedNotAlready(): void
+	{
+		// ticket was live when read, revoked before the CAS landed —
+		// the CAS must lose and the door must hear 'revoked', not 'already'
+		$t = new Ticket();
+		$t->setId(7);
+		$this->tickets->method('findByQrHash')->willReturn($t);
+		$revoked = new Ticket();
+		$revoked->setId(7);
+		$revoked->setRevokedAt(new \DateTimeImmutable());
+		$this->tickets->method('find')->with(7)->willReturn($revoked);
+
+		$qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+		$expr = $this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class);
+		$qb->method('update')->willReturnSelf();
+		$qb->method('set')->willReturnSelf();
+		$qb->method('where')->willReturnSelf();
+		$qb->method('andWhere')->willReturnSelf();
+		$qb->method('expr')->willReturn($expr);
+		$qb->method('createNamedParameter')->willReturn('p');
+		$qb->method('createFunction')->willReturn('f');
+		$qb->method('executeStatement')->willReturn(0); // CAS lost
+		$this->db->method('getQueryBuilder')->willReturn($qb);
+
+		$r = $this->svc->checkInByToken('sometoken', 'door:1');
+		self::assertFalse($r['ok']);
+		self::assertTrue($r['revoked']);
+		self::assertFalse($r['already']);
+	}
+
+	public function testConcurrentCheckInLoserReportsAlready(): void
+	{
+		// CAS loses to a concurrent check-in — re-read shows live+checked
+		$t = new Ticket();
+		$t->setId(7);
+		$this->tickets->method('findByQrHash')->willReturn($t);
+		$checked = new Ticket();
+		$checked->setId(7);
+		$checked->setCheckedInAt(new \DateTimeImmutable());
+		$this->tickets->method('find')->with(7)->willReturn($checked);
+
+		$qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+		$expr = $this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class);
+		$qb->method('update')->willReturnSelf();
+		$qb->method('set')->willReturnSelf();
+		$qb->method('where')->willReturnSelf();
+		$qb->method('andWhere')->willReturnSelf();
+		$qb->method('expr')->willReturn($expr);
+		$qb->method('createNamedParameter')->willReturn('p');
+		$qb->method('createFunction')->willReturn('f');
+		$qb->method('executeStatement')->willReturn(0);
+		$this->db->method('getQueryBuilder')->willReturn($qb);
+
+		$r = $this->svc->checkInByToken('sometoken', 'door:1');
+		self::assertTrue($r['ok']);
+		self::assertTrue($r['already']);
+		self::assertFalse($r['revoked']);
+	}
+
 	public function testUnknownTokenIsPlainNotFound(): void
 	{
 		$this->tickets->method('findByQrHash')->willReturn(null);

@@ -39,7 +39,7 @@ class ClaimController extends Controller
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function show(string $token)
+	public function show(string $token): PublicTemplateResponse
 	{
 		if ($token === '' || strlen($token) > 128) {
 			return new PublicTemplateResponse($this->appName, 'public/not-found', []);

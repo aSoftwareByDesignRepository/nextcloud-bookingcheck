@@ -11,6 +11,28 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_webhook` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getUrl()
+ * @method void setUrl(string $url)
+ * @method string getSecretEnc()
+ * @method void setSecretEnc(string $secretEnc)
+ * @method string|null getSecretPrevEnc()
+ * @method void setSecretPrevEnc(?string $secretPrevEnc)
+ * @method \DateTimeImmutable|null getSecretRotatedAt()
+ * @method void setSecretRotatedAt(?\DateTimeImmutable $secretRotatedAt)
+ * @method string getEventsJson()
+ * @method void setEventsJson(string $eventsJson)
+ * @method int getActive()
+ * @method void setActive(int $active)
+ * @method string getCreatedBy()
+ * @method void setCreatedBy(string $createdBy)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ */
 class Webhook extends Entity
 {
 	protected $url;

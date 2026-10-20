@@ -11,6 +11,28 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_portal_sess` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getTokenHash()
+ * @method void setTokenHash(string $tokenHash)
+ * @method string getEmail()
+ * @method void setEmail(string $email)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ * @method \DateTimeImmutable getExpiresAt()
+ * @method void setExpiresAt(\DateTimeImmutable $expiresAt)
+ * @method \DateTimeImmutable getAbsExpiresAt()
+ * @method void setAbsExpiresAt(\DateTimeImmutable $absExpiresAt)
+ * @method \DateTimeImmutable|null getLastSeenAt()
+ * @method void setLastSeenAt(?\DateTimeImmutable $lastSeenAt)
+ * @method string|null getUaShort()
+ * @method void setUaShort(?string $uaShort)
+ * @method \DateTimeImmutable|null getRevokedAt()
+ * @method void setRevokedAt(?\DateTimeImmutable $revokedAt)
+ */
 class PortalSession extends Entity
 {
 	protected $tokenHash;

@@ -37,6 +37,8 @@ class UploadService
 		private readonly LicenseService $license,
 		private readonly IAppData $appData,
 		private readonly AvScanService $av,
+		private readonly \OCP\IDBConnection $db,
+		private readonly \OCA\BookingCheck\Db\OfferingMapper $offerings,
 	) {
 	}
 
@@ -72,10 +74,6 @@ class UploadService
 		if ($size > (int)$o->getUploadMaxMb() * 1024 * 1024) {
 			throw new ValidationException(['file' => 'File exceeds the per-file limit.']);
 		}
-		$live = $this->uploads->liveBytesForOffering((int)$o->getId());
-		if ($live + $size > (int)$o->getUploadQuotaMb() * 1024 * 1024) {
-			throw new ValidationException(['file' => 'The upload quota for this offering is full.']);
-		}
 		$info = $this->gate->inspect($file); // magic bytes + macro sweep
 		$tmp = (string)$file['tmp_name'];
 		// NH-13/NN-21: when AV is enabled the scan is fail-CLOSED —
@@ -85,6 +83,9 @@ class UploadService
 		if ($avState === 'infected' || $avState === 'unscanned') {
 			throw new ValidationException(['file' => 'The file could not be accepted.']);
 		}
+		// Content work BEFORE the lock: file bytes are content-addressed
+		// and orphan-safe (a rolled-back row just leaves an unreferenced
+		// ref — janitor-class, same as purge's best-effort delete).
 		$ref = bin2hex(random_bytes(16));
 		$thumbRef = $this->makeThumb($tmp, $mime);
 		$dir = $this->dir();
@@ -99,19 +100,51 @@ class UploadService
 				fclose($stream);
 			}
 		}
-		$u = new Upload();
-		$u->setOfferingId((int)$o->getId());
-		$u->setOccurrenceId($lineId);
-		$u->setUploaderEmail((string)$order->getBuyerEmail());
-		$u->setDisplayName($displayName);
-		$u->setFileRef($ref);
-		$u->setSizeBytes($size);
-		$u->setSha256((string)hash_file('sha256', $tmp));
-		$u->setMime($mime);
-		$u->setThumbRef($thumbRef);
-		$u->setAvState($avState);
-		$u->setCreatedAt(new \DateTimeImmutable());
-		return $this->uploads->insert($u);
+		// Quota check + insert under the offering row lock: the offering
+		// is the canonical first lock in this codebase's lock order, and
+		// serialising on it makes concurrent uploads' SUMs see each
+		// other — without it two racing uploads both pass the check and
+		// overshoot the quota by up to N x per-file limit (TOCTOU).
+		$this->db->beginTransaction();
+		try {
+			$locked = $this->offerings->findForUpdate((int)$o->getId());
+			if ($locked === null) {
+				throw new NotFoundException();
+			}
+			$live = $this->uploads->liveBytesForOffering((int)$o->getId());
+			if ($live + $size > (int)$locked->getUploadQuotaMb() * 1024 * 1024) {
+				throw new ValidationException(['file' => 'The upload quota for this offering is full.']);
+			}
+			$u = new Upload();
+			$u->setOfferingId((int)$o->getId());
+			$u->setOccurrenceId($lineId);
+			$u->setUploaderEmail((string)$order->getBuyerEmail());
+			$u->setDisplayName($displayName);
+			$u->setFileRef($ref);
+			$u->setSizeBytes($size);
+			$u->setSha256((string)hash_file('sha256', $tmp));
+			$u->setMime($mime);
+			$u->setThumbRef($thumbRef);
+			$u->setAvState($avState);
+			$u->setCreatedAt(new \DateTimeImmutable());
+			$u = $this->uploads->insert($u);
+			$this->db->commit();
+			return $u;
+		} catch (\Throwable $e) {
+			if ($this->db->inTransaction()) {
+				$this->db->rollBack();
+			}
+			// row never landed — purge the orphan refs best-effort
+			foreach (array_filter([$ref, $thumbRef]) as $orphan) {
+				try {
+					if ($dir->fileExists($orphan)) {
+						$dir->getFile($orphan)->delete();
+					}
+				} catch (\Throwable) {
+				}
+			}
+			throw $e;
+		}
 	}
 
 	/**
@@ -140,7 +173,7 @@ class UploadService
 	}
 
 	/** Streaming entitlement: uploader, scoped attendee, or admin (checked upstream). */
-	public function streamFor(Upload $u, ?Order $viewerOrder = null, Offering $o = null): StreamResponse
+	public function streamFor(Upload $u, ?Order $viewerOrder = null, ?Offering $o = null): StreamResponse
 	{
 		$this->assertViewable($u, $viewerOrder, $o);
 		$dir = $this->dir();
@@ -148,7 +181,11 @@ class UploadService
 		if (!$dir->fileExists($ref)) {
 			throw new NotFoundException();
 		}
-		$resp = new StreamResponse($dir->getFile($ref)->fopen('rb'));
+		$stream = $dir->getFile($ref)->read();
+		if ($stream === false) {
+			throw new NotFoundException();
+		}
+		$resp = new StreamResponse($stream);
 		$resp->addHeader('Content-Type', 'application/octet-stream');
 		$resp->addHeader('X-Content-Type-Options', 'nosniff');
 		$resp->addHeader('Content-Disposition', MaterialService::contentDisposition('upload-' . (int)$u->getId()));
@@ -223,7 +260,7 @@ class UploadService
 	}
 
 	/** NH-15 thumb stream — same entitlement funnel as streamFor(). */
-	public function thumbFor(Upload $u, ?Order $viewerOrder = null, Offering $o = null): StreamResponse
+	public function thumbFor(Upload $u, ?Order $viewerOrder = null, ?Offering $o = null): StreamResponse
 	{
 		if ($u->getThumbRef() === null) {
 			throw new NotFoundException();
@@ -236,7 +273,11 @@ class UploadService
 		if (!$dir->fileExists($ref)) {
 			throw new NotFoundException();
 		}
-		$resp = new StreamResponse($dir->getFile($ref)->fopen('rb'));
+		$stream = $dir->getFile($ref)->read();
+		if ($stream === false) {
+			throw new NotFoundException();
+		}
+		$resp = new StreamResponse($stream);
 		$resp->addHeader('Content-Type', 'image/jpeg');
 		$resp->addHeader('X-Content-Type-Options', 'nosniff');
 		$resp->addHeader('Cache-Control', 'private, max-age=3600');
@@ -244,7 +285,7 @@ class UploadService
 	}
 
 	/** Shared entitlement assertion — stream, thumb, and abuse-report gate. */
-	public function assertViewable(Upload $u, ?Order $viewerOrder = null, Offering $o = null): void
+	public function assertViewable(Upload $u, ?Order $viewerOrder = null, ?Offering $o = null): void
 	{
 		if ($u->getDeletedAt() !== null) {
 			throw new NotFoundException();

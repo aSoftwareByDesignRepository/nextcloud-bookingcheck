@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\QBMapper;
+use OCP\DB\Exception as DbException;
 use OCP\IDBConnection;
 
 /** @template-extends QBMapper<PassUse> */
@@ -31,8 +32,13 @@ class PassUseMapper extends QBMapper
 		try {
 			$this->insert($e);
 			return true;
-		} catch (\Throwable) {
-			return false; // unique (pass,target) — already admitted there
+		} catch (DbException $e) {
+			// only the unique (pass,target) dedupe is "already admitted" —
+			// a deadlock/timeout must abort loudly, not lie to door staff
+			if ($e->getReason() !== DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			return false;
 		}
 	}
 

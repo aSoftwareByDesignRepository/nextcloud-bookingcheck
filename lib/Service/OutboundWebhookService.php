@@ -69,7 +69,7 @@ class OutboundWebhookService
 			$d->setPayloadJson(json_encode([
 				'v' => 1, 'event' => $event, 'at' => date(\DateTimeInterface::ATOM),
 				'data' => $payload,
-			], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+			], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}');
 			$d->setStatus('pending');
 			$d->setAttempts(0);
 			$d->setNextRetryAt(new \DateTimeImmutable());

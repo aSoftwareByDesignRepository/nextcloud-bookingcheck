@@ -36,7 +36,8 @@ class AvScanService
 	}
 
 	/**
-	 * @return 'clean'|'infected'|'unscanned'
+	 * @return 'none'|'clean'|'infected'|'unscanned'
+	 *   'none' = AV not configured (fail-open, upload allowed);
 	 *   'unscanned' is returned ONLY when AV is enabled but the engine
 	 *   errored — callers must treat it as refuse, never as clean.
 	 */
@@ -68,10 +69,13 @@ class AvScanService
 		if (!preg_match('/^[A-Za-z0-9.\-]+:(\d{1,5})$/', $raw, $m)) {
 			return null;
 		}
-		return [$raw === '' ? '127.0.0.1' : strstr($raw, ':', true), min(65535, (int)$m[1])];
+		return [explode(':', $raw, 2)[0], min(65535, (int)$m[1])];
 	}
 
-	/** Minimal ICAP RESPMOD — sends the file, verdict from response line. */
+	/**
+	 * Minimal ICAP RESPMOD — sends the file, verdict from response line.
+	 * @return 'clean'|'infected'|'unscanned'
+	 */
 	private function icapScan(string $host, int $port, string $path): string
 	{
 		$data = @file_get_contents($path);

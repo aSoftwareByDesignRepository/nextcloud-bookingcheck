@@ -11,7 +11,20 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
-/** NH-37 seller mail-template override — subject + appended text, never logic. */
+/**
+ * Entity for the `bc_mail_tpl` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getKind()
+ * @method void setKind(string $kind)
+ * @method string getLocale()
+ * @method void setLocale(string $locale)
+ * @method string|null getSubject()
+ * @method void setSubject(?string $subject)
+ * @method string|null getExtraText()
+ * @method void setExtraText(?string $extraText)
+ */
 class MailTpl extends Entity
 {
 	protected $kind;

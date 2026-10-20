@@ -34,6 +34,37 @@ class MailTplMapper extends QBMapper
 		}
 	}
 
+	/**
+	 * Exact kind+locale first, then the '' (all-languages) row — sellers who
+	 * write one template without picking a language expect it to apply.
+	 */
+	public function findApplicable(string $kind, string $locale): ?MailTpl
+	{
+		return $this->findFor($kind, $locale) ?? $this->findFor($kind, '');
+	}
+
+	public function upsert(string $kind, string $locale, ?string $subject, ?string $extraText): MailTpl
+	{
+		$tpl = $this->findFor($kind, $locale) ?? new MailTpl();
+		$tpl->setKind($kind);
+		$tpl->setLocale($locale);
+		$tpl->setSubject($subject === null || $subject === '' ? null : $subject);
+		$tpl->setExtraText($extraText === null || $extraText === '' ? null : $extraText);
+		return $tpl->getId() === null ? $this->insert($tpl) : $this->update($tpl);
+	}
+
+	public function find(int $id): ?MailTpl
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($id)));
+		try {
+			return $this->findEntity($qb);
+		} catch (DoesNotExistException) {
+			return null;
+		}
+	}
+
 	/** @return list<MailTpl> */
 	public function listAll(): array
 	{

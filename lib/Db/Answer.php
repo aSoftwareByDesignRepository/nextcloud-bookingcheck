@@ -11,6 +11,22 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_answer` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getTicketId()
+ * @method void setTicketId(int $ticketId)
+ * @method int getQuestionId()
+ * @method void setQuestionId(int $questionId)
+ * @method string|null getValue()
+ * @method void setValue(?string $value)
+ * @method \DateTimeImmutable getAnsweredAt()
+ * @method void setAnsweredAt(\DateTimeImmutable $answeredAt)
+ * @method int getWordingRev()
+ * @method void setWordingRev(int $wordingRev)
+ */
 class Answer extends Entity
 {
 	protected $ticketId;

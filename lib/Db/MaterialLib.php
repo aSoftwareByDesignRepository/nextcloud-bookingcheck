@@ -11,6 +11,24 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_material_lib` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getTitle()
+ * @method void setTitle(string $title)
+ * @method string getKind()
+ * @method void setKind(string $kind)
+ * @method string|null getFileRef()
+ * @method void setFileRef(?string $fileRef)
+ * @method string|null getPageMd()
+ * @method void setPageMd(?string $pageMd)
+ * @method int getAutoAttach()
+ * @method void setAutoAttach(int $autoAttach)
+ * @method \DateTimeImmutable getUpdatedAt()
+ * @method void setUpdatedAt(\DateTimeImmutable $updatedAt)
+ */
 class MaterialLib extends Entity
 {
 	protected $title;

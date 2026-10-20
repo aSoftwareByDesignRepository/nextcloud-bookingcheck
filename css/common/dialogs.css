@@ -600,7 +600,7 @@ body[data-theme-dark-highcontrast] .form-input.form-select option {
   justify-content: center;
   margin: 0 auto var(--space-6) auto;
   font-size: 2rem;
-  color: var(--bookingcheck-color-primary-element);
+  color: var(--bck-accent-ink, var(--bookingcheck-color-primary-element));
 }
 
 .empty-state__title {

@@ -167,7 +167,7 @@
 }
 
 .breadcrumb a {
-  color: var(--bookingcheck-color-primary);
+  color: var(--bck-accent-ink, var(--bookingcheck-color-primary));
   text-decoration: none;
   padding: var(--space-1) 0;
   border-radius: var(--radius-base);

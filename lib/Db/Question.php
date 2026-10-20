@@ -11,6 +11,30 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_question` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method string getLabel()
+ * @method void setLabel(string $label)
+ * @method string getKind()
+ * @method void setKind(string $kind)
+ * @method string|null getOptionsJson()
+ * @method void setOptionsJson(?string $optionsJson)
+ * @method int getRequired()
+ * @method void setRequired(int $required)
+ * @method int getSort()
+ * @method void setSort(int $sort)
+ * @method string getVisibleTo()
+ * @method void setVisibleTo(string $visibleTo)
+ * @method int getWordingRev()
+ * @method void setWordingRev(int $wordingRev)
+ * @method int getActive()
+ * @method void setActive(int $active)
+ */
 class Question extends Entity
 {
 	protected $offeringId;

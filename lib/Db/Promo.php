@@ -11,6 +11,34 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_promo` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getCode()
+ * @method void setCode(string $code)
+ * @method string getKind()
+ * @method void setKind(string $kind)
+ * @method int|null getPercentBps()
+ * @method void setPercentBps(?int $percentBps)
+ * @method int|null getAmountCents()
+ * @method void setAmountCents(?int $amountCents)
+ * @method string getScope()
+ * @method void setScope(string $scope)
+ * @method string|null getCurrency()
+ * @method void setCurrency(?string $currency)
+ * @method \DateTimeImmutable|null getValidFrom()
+ * @method void setValidFrom(?\DateTimeImmutable $validFrom)
+ * @method \DateTimeImmutable|null getValidUntil()
+ * @method void setValidUntil(?\DateTimeImmutable $validUntil)
+ * @method int|null getMaxUses()
+ * @method void setMaxUses(?int $maxUses)
+ * @method int getUses()
+ * @method void setUses(int $uses)
+ * @method int getActive()
+ * @method void setActive(int $active)
+ */
 class Promo extends Entity
 {
 	protected $code;

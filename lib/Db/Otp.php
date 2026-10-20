@@ -11,6 +11,28 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_otp` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getEmail()
+ * @method void setEmail(string $email)
+ * @method string getCodeHash()
+ * @method void setCodeHash(string $codeHash)
+ * @method string|null getMagicTokenHash()
+ * @method void setMagicTokenHash(?string $magicTokenHash)
+ * @method int getAttempts()
+ * @method void setAttempts(int $attempts)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ * @method \DateTimeImmutable getExpiresAt()
+ * @method void setExpiresAt(\DateTimeImmutable $expiresAt)
+ * @method \DateTimeImmutable|null getUsedAt()
+ * @method void setUsedAt(?\DateTimeImmutable $usedAt)
+ * @method string|null getIpHash()
+ * @method void setIpHash(?string $ipHash)
+ */
 class Otp extends Entity
 {
 	protected $email;

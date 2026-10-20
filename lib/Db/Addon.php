@@ -11,6 +11,22 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_addon` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method string getName()
+ * @method void setName(string $name)
+ * @method int getPriceCents()
+ * @method void setPriceCents(int $priceCents)
+ * @method int|null getMaxPerOrder()
+ * @method void setMaxPerOrder(?int $maxPerOrder)
+ * @method int getActive()
+ * @method void setActive(int $active)
+ */
 class Addon extends Entity
 {
 	protected $offeringId;

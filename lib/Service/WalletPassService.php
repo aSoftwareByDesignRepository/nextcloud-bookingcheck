@@ -114,10 +114,16 @@ class WalletPassService
 			]],
 		];
 		$passJson = json_encode($pass, JSON_UNESCAPED_SLASHES);
+		if ($passJson === false) {
+			return null;
+		}
 		$manifest = ['pass.json' => sha1($passJson)];
 
 		// detached signature over manifest.json with seller cert
 		$manifestJson = json_encode($manifest, JSON_UNESCAPED_SLASHES);
+		if ($manifestJson === false) {
+			return null;
+		}
 		$certPem = $this->settings->getSecret('wallet_apple_cert_pem');
 		$keyPem = $this->settings->getSecret('wallet_apple_key_pem');
 		$sig = null;
@@ -128,9 +134,17 @@ class WalletPassService
 		if ($cert !== false && $key !== false
 			&& openssl_pkcs7_sign($tmpIn, $tmpOut, $cert, $key, [], PKCS7_BINARY | PKCS7_DETACHED)) {
 			$raw = file_get_contents($tmpOut);
-			// strip the PEM armor — .pkpass wants the DER block
-			if (is_string($raw) && preg_match('/-----BEGIN PKCS7-----(.+)-----END PKCS7-----/s', $raw, $m)) {
-				$sig = base64_decode(str_replace(["\r", "\n"], '', $m[1]));
+			// openssl_pkcs7_sign emits a multipart S/MIME message — the
+			// .pkpass signature is the base64 body of the smime.p7s part,
+			// DER-decoded. A "-----BEGIN PKCS7-----" armor never exists.
+			if (is_string($raw)) {
+				$body = preg_replace('/\A.*?Content-Disposition:[^\n]*smime\.p7s[^\n]*\n\n/s', '', $raw);
+				$body = $body === null ? '' : preg_replace('/-{4,}[^\n]*\n?$/', '', $body);
+				$body = $body === null ? '' : $body;
+				$der = base64_decode(preg_replace('/\s+/', '', $body) ?? '', true);
+				if ($der !== false && $der !== '') {
+					$sig = $der;
+				}
 			}
 		}
 		@unlink($tmpIn); @unlink($tmpOut);
@@ -141,6 +155,7 @@ class WalletPassService
 		$tmpZip = tempnam(sys_get_temp_dir(), 'bckp');
 		$zip = new \ZipArchive();
 		if ($zip->open($tmpZip, \ZipArchive::OVERWRITE) !== true) {
+			@unlink($tmpZip);
 			return null;
 		}
 		$zip->addFromString('pass.json', $passJson);

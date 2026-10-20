@@ -99,9 +99,12 @@ class AttendeeReminderJob extends TimedJob
 		if ($table === 'bc_event') {
 			$qb->andWhere($qb->expr()->eq('t.status', $qb->createNamedParameter('scheduled')));
 		}
-		return $qb->executeQuery()->fetchAll();
+		/** @var list<array{id:int,starts_at:mixed}> $rows */
+		$rows = $qb->executeQuery()->fetchAll();
+		return $rows;
 	}
 
+	/** @param array{id:int,starts_at:mixed} $target */
 	private function remindTarget(string $type, array $target): void
 	{
 		$qb = $this->db->getQueryBuilder();
@@ -128,12 +131,21 @@ class AttendeeReminderJob extends TimedJob
 			$starts = $target['starts_at'] instanceof \DateTimeInterface
 				? $target['starts_at']->format('Y-m-d H:i')
 				: (string)$target['starts_at'];
-			$this->email->queue('reminder', (string)$row['buyer_email'],
-				(string)$row['buyer_locale'], [
-					'order_ref' => (string)$row['ref'],
-					'title' => (string)$row['offering_title'],
-					'starts_at' => $starts,
-				]);
+			try {
+				$queued = $this->email->queue('reminder', (string)$row['buyer_email'],
+					(string)$row['buyer_locale'], [
+						'order_ref' => (string)$row['ref'],
+						'title' => (string)$row['offering_title'],
+						'starts_at' => $starts,
+					]);
+			} catch (\Throwable) {
+				$queued = false;
+			}
+			if (!$queued) {
+				// release the dedupe claim — at-least-once delivery beats
+				// silently losing the reminder to a transient queue failure
+				$this->reminders->release($orderId, $type, (int)$target['id']);
+			}
 		}
 	}
 }

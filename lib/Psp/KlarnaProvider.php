@@ -82,7 +82,7 @@ class KlarnaProvider extends AbstractProvider
 	public function verifyWebhook(IRequest $request): VerifiedEvent
 	{
 		// Klarna pushes a plain JSON {order_id} — refetch is the trust anchor
-		$payload = json_decode((string)$request->getContent(), true);
+		$payload = json_decode((string)file_get_contents('php://input'), true);
 		$id = is_array($payload) ? ($payload['order_id'] ?? $request->getParam('klarna_order_id')) : $request->getParam('klarna_order_id');
 		if (!is_string($id) || $id === '') {
 			throw new PspException('Klarna: malformed webhook payload');

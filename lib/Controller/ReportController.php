@@ -9,7 +9,10 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Controller;
 
+use OCA\BookingCheck\Db\AbuseReportMapper;
+use OCA\BookingCheck\Db\OfferingMapper;
 use OCA\BookingCheck\Service\CsvExportService;
+use OCA\BookingCheck\Service\ExportZipService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -25,6 +28,12 @@ class ReportController extends Controller
 		string $appName,
 		IRequest $request,
 		private readonly CsvExportService $csv,
+		private readonly OfferingMapper $offerings,
+		private readonly AbuseReportMapper $abuseReports,
+		private readonly ExportZipService $exportZip,
+		private readonly \OCA\BookingCheck\Service\DatevExportService $datev,
+		private readonly \OCP\IDBConnection $db,
+		private readonly \OCA\BookingCheck\Db\DownloadLogMapper $downloadLog,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -37,16 +46,16 @@ class ReportController extends Controller
 			'navId' => 'reports',
 			'offerings' => array_map(
 				static fn ($o) => $o->jsonSerialize(),
-				\OCP\Server::get(\OCA\BookingCheck\Db\OfferingMapper::class)->findAll()),
+				$this->offerings->findAll()),
 			'abuseReports' => array_map(
 				static fn ($r) => $r->jsonSerialize(),
-				\OCP\Server::get(\OCA\BookingCheck\Db\AbuseReportMapper::class)->listOpen()),
+				$this->abuseReports->listOpen()),
 		]);
 	}
 
 	/** Orders export — formula-injection-safe via CsvExportService. */
 	#[NoAdminRequired]
-	public function export()
+	public function export(): DataDownloadResponse
 	{
 		// only one export exists — a forged kind must not alias the
 		// download under a misleading filename
@@ -63,7 +72,7 @@ class ReportController extends Controller
 	 * default = last complete month (the accountant's rhythm).
 	 */
 	#[NoAdminRequired]
-	public function datev()
+	public function datev(): DataDownloadResponse
 	{
 		$from = \DateTimeImmutable::createFromFormat('Y-m-d',
 			(string)$this->request->getParam('from', ''));
@@ -78,8 +87,7 @@ class ReportController extends Controller
 			throw new \OCA\BookingCheck\Exception\ValidationException(
 				['range' => 'from must be before to (max 5 years).']);
 		}
-		$svc = \OCP\Server::get(\OCA\BookingCheck\Service\DatevExportService::class);
-		$out = $svc->export($from, $to);
+		$out = $this->datev->export($from, $to);
 		return new DataDownloadResponse($out['csv'], $out['filename'], 'text/csv');
 	}
 
@@ -88,22 +96,26 @@ class ReportController extends Controller
 	 * Temp file streams, then unlinks — nothing lingers in /tmp.
 	 */
 	#[NoAdminRequired]
-	public function exportZip(int $offeringId)
+	public function exportZip(int $offeringId): \OCP\AppFramework\Http\Response
 	{
-		$offering = \OCP\Server::get(\OCA\BookingCheck\Db\OfferingMapper::class)
-			->find($offeringId);
+		$offering = $this->offerings->find($offeringId);
 		if ($offering === null) {
 			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
-		$tmp = \OCP\Server::get(\OCA\BookingCheck\Service\ExportZipService::class)
-			->build($offering);
-		$resp = new \OCP\AppFramework\Http\StreamResponse(fopen($tmp, 'rb'));
-		$resp->addHeader('Content-Type', 'application/zip');
-		$resp->addHeader('Content-Disposition',
-			'attachment; filename="bookingcheck-export-' . (int)$offering->getId() . '.zip"');
+		$tmp = $this->exportZip->build($offering);
+		// unlink registration BEFORE any throwable call below — a failed
+		// fopen/StreamResponse must not orphan the zip in /tmp
 		register_shutdown_function(static function () use ($tmp): void {
 			@unlink($tmp);
 		});
+		$fh = fopen($tmp, 'rb');
+		if ($fh === false) {
+			return $this->fail(500, 'EXPORT_FAILED', 'Export stream failed.');
+		}
+		$resp = new \OCP\AppFramework\Http\StreamResponse($fh);
+		$resp->addHeader('Content-Type', 'application/zip');
+		$resp->addHeader('Content-Disposition',
+			'attachment; filename="bookingcheck-export-' . (int)$offering->getId() . '.zip"');
 		return $resp;
 	}
 
@@ -111,15 +123,14 @@ class ReportController extends Controller
 	#[NoAdminRequired]
 	public function downloadStats(int $offeringId): \OCP\AppFramework\Http\JSONResponse
 	{
-		$db = \OCP\Server::get(\OCP\IDBConnection::class);
-		$qb = $db->getQueryBuilder();
+		$qb = $this->db->getQueryBuilder();
 		$qb->select('id', 'title')->from('bc_material')
 			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)));
 		$mats = $qb->executeQuery()->fetchAll();
 		if ($mats === []) {
 			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
-		$counts = \OCP\Server::get(\OCA\BookingCheck\Db\DownloadLogMapper::class)
+		$counts = $this->downloadLog
 			->countsForOffering(array_map(static fn ($m) => (int)$m['id'], $mats));
 		$out = [];
 		foreach ($mats as $m) {

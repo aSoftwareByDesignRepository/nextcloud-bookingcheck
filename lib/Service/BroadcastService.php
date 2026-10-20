@@ -47,8 +47,23 @@ class BroadcastService
 		if ($bodyMd === '' || mb_strlen($bodyMd) > 8000) {
 			$fields['body'] = 'Message must be 1–8000 characters.';
 		}
-		if ($occurrence !== null && !in_array($occurrence[0] ?? '', ['event', 'slot', 'series'], true)) {
-			$fields['occurrence'] = 'Unknown occurrence type.';
+		if ($occurrence !== null) {
+			if (!in_array($occurrence[0] ?? '', ['event', 'slot', 'series'], true)) {
+				$fields['occurrence'] = 'Unknown occurrence type.';
+			} else {
+				// the occurrence must belong to THIS offering — a foreign
+				// target id would silently fan out to zero recipients
+				// while the audit row claims a send happened
+				$table = ['event' => 'bc_event', 'slot' => 'bc_slot', 'series' => 'bc_series'][$occurrence[0]];
+				$oq = $this->db->getQueryBuilder();
+				$owner = $oq->select('offering_id')->from($table)
+					->where($oq->expr()->eq('id',
+						$oq->createNamedParameter((int)$occurrence[1])))
+					->executeQuery()->fetchOne();
+				if ($owner === false || (int)$owner !== $offeringId) {
+					$fields['occurrence'] = 'That occurrence does not belong to this offering.';
+				}
+			}
 		}
 		if ($fields !== []) {
 			throw new ValidationException($fields);

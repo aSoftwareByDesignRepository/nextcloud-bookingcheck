@@ -328,7 +328,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--bck-space-3);
-	background: transparent;
+	background-color: transparent;
 }
 
 #app-content.bck-app .bck-filter-panel__form .bck-fieldset > .bck-fieldset__legend {
@@ -517,6 +517,17 @@
 		width: 100%;
 		min-width: max-content;
 	}
+}
+
+/* Legacy alias tables keep NC core's td { white-space: nowrap } — give
+   their cells an explicit wrap path so long values never clip at the
+   screen edge (WCAG 1.4.10 reflow; the farm's table_actions_fit gate). */
+#app-content.bck-app .grid-table td,
+#app-content.bck-app .bck-table td,
+#app-content.bck-app .bookingcheck-table td,
+#app-content.bck-app .report-table td,
+.bck-pub .bck-table td {
+	white-space: normal;
 }
 
 #app-content.bck-app .table thead th,

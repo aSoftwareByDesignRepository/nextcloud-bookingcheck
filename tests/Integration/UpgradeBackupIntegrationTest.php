@@ -23,11 +23,11 @@ final class UpgradeBackupIntegrationTest extends TestCase
 
 	public function testCreateListAndRestoreRoundTrip(): void
 	{
-		if (!$this->db->tableExists('bc_addon')) {
+		if (!$this->db->tableExists('bc_abuse')) {
 			self::markTestSkipped('BookingCheck tables not present in this instance.');
 		}
 
-		$before = $this->countRows('bc_addon');
+		$before = $this->countRows('bc_abuse');
 
 		$result = $this->backupService->createSnapshot('integration-test');
 		$snapshotId = $result['id'];
@@ -40,12 +40,12 @@ final class UpgradeBackupIntegrationTest extends TestCase
 		self::assertContains($snapshotId, $ids, 'listSnapshots must find the snapshot just created');
 
 		$this->db->getQueryBuilder()
-			->delete('bc_addon')
+			->delete('bc_abuse')
 			->executeStatement();
-		self::assertSame(0, $this->countRows('bc_addon'));
+		self::assertSame(0, $this->countRows('bc_abuse'));
 
 		$this->backupService->restoreSnapshot($snapshotId, false);
-		self::assertSame($before, $this->countRows('bc_addon'));
+		self::assertSame($before, $this->countRows('bc_abuse'));
 	}
 
 	public function testRestoreRejectsInvalidSnapshotId(): void

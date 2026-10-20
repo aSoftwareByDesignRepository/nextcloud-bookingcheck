@@ -55,7 +55,7 @@ class PublicErrorMiddleware extends Middleware
 			return $this->envelope(409, $exception->getCodeName(), $exception->getMessage());
 		}
 		if ($exception instanceof UnauthorizedException) {
-			$path = $this->request->getPathInfo();
+			$path = ($this->request->getPathInfo() ?: '');
 			// a dead/expired portal session on a PAGE request is a human
 			// navigation — land them on the request form, not a JSON blob
 			if ($this->request->getMethod() === 'GET'
@@ -70,7 +70,7 @@ class PublicErrorMiddleware extends Middleware
 			return $this->envelope(429, 'RATE_LIMITED', 'Too many requests — please try again shortly.');
 		}
 		if ($exception instanceof ProRequiredException) {
-			$path = $this->request->getPathInfo();
+			$path = ($this->request->getPathInfo() ?: '');
 			if (str_contains($path, '/api/') || str_contains($path, '/capi/')) {
 				return $this->envelope(403, 'PRO_REQUIRED', $exception->getMessage());
 			}
@@ -91,6 +91,7 @@ class PublicErrorMiddleware extends Middleware
 		throw $exception; // unknown → framework 500 (logged upstream)
 	}
 
+	/** @param array<string,string> $fields */
 	private function envelope(int $status, string $code, string $message, array $fields = []): JSONResponse
 	{
 		return new JSONResponse([

@@ -111,7 +111,16 @@ class SlotMaterializer
 				$s->setStartsAt($start);
 				$s->setEndsAt($start->modify('+' . $duration . ' minutes'));
 				$s->setCapacity(max(1, (int)$tpl->getCapPerSlot()));
-				$this->slots->insert($s);
+				try {
+					$this->slots->insert($s);
+				} catch (\OCP\DB\Exception $e) {
+					// bc_slot_tpl_uq: a concurrent materialize run already
+					// made this slot — the loser skips, never crashes the sweep
+					if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+						throw $e;
+					}
+					continue;
+				}
 				// resource-bound templates sell the resource's pool per slot —
 				// the link row is what holdSlot()'s counter lives on
 				if ($tpl->getResourceId() !== null && $this->slotRes !== null) {

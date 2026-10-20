@@ -55,7 +55,15 @@ class WebhookEventMapper extends QBMapper
 		return $this->findEntities($qb);
 	}
 
-	/** Claim an event id: true = this caller owns processing, false = replay. */
+	/**
+	 * Claim an event id: true = this caller owns processing, false = replay.
+	 * A duplicate whose claim went stale (received long ago, never marked
+	 * processed — i.e. the worker died mid-apply between claim and
+	 * markProcessed) is reclaimed here so a PSP retry re-enters instead of
+	 * being acked 'duplicate' forever while the payment stays unapplied.
+	 */
+	private const STALE_CLAIM_MINUTES = 30;
+
 	public function claim(string $provider, string $eventId): bool
 	{
 		$qb = $this->db->getQueryBuilder();
@@ -67,11 +75,23 @@ class WebhookEventMapper extends QBMapper
 			$qb->executeStatement();
 			return true;
 		} catch (\OCP\DB\Exception $e) {
-			if ($e->getReason() === \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
-				return false;
+			if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
 			}
-			throw $e;
 		}
+		// unique hit — try to take over a dead claim. processed_at IS NULL
+		// + old received_at = abandoned; a fresh duplicate loses the CAS
+		// and correctly reports replay.
+		$staleBefore = new \DateTime('-' . self::STALE_CLAIM_MINUTES . ' minutes');
+		$qb = $this->db->getQueryBuilder();
+		$qb->update($this->getTableName())
+			->set('received_at', $qb->createNamedParameter(new \DateTime(), 'datetime'))
+			->where($qb->expr()->eq('provider', $qb->createNamedParameter($provider)))
+			->andWhere($qb->expr()->eq('event_id', $qb->createNamedParameter($eventId)))
+			->andWhere($qb->expr()->isNull('processed_at'))
+			->andWhere($qb->expr()->lt('received_at',
+				$qb->createNamedParameter($staleBefore, 'datetime')));
+		return $qb->executeStatement() === 1;
 	}
 
 	public function markProcessed(string $provider, string $eventId): void

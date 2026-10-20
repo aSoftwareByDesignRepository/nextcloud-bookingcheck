@@ -51,7 +51,7 @@ class PortalSessionMiddleware extends Middleware
 		if (!str_starts_with(get_class($controller), 'OCA\\BookingCheck\\')) {
 			return;
 		}
-		$path = $this->request->getPathInfo();
+		$path = ($this->request->getPathInfo() ?: '');
 		$rest = $this->restPath($path);
 		if ($rest === null) {
 			return;

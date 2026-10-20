@@ -12,9 +12,34 @@ namespace OCA\BookingCheck\Db;
 use OCP\AppFramework\Db\Entity;
 
 /**
- * Attendee upload (UGC). occurrence_id stores the uploader's seat
- * order-line id — the line pins target_type+target_id+order uniquely,
- * so scope checks never collide across event/slot/series ids.
+ * Entity for the `bc_upload` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method int|null getOccurrenceId()
+ * @method void setOccurrenceId(?int $occurrenceId)
+ * @method string getUploaderEmail()
+ * @method void setUploaderEmail(string $uploaderEmail)
+ * @method string getDisplayName()
+ * @method void setDisplayName(string $displayName)
+ * @method string getFileRef()
+ * @method void setFileRef(string $fileRef)
+ * @method int getSizeBytes()
+ * @method void setSizeBytes(int $sizeBytes)
+ * @method string getMime()
+ * @method void setMime(string $mime)
+ * @method string getSha256()
+ * @method void setSha256(string $sha256)
+ * @method string|null getThumbRef()
+ * @method void setThumbRef(?string $thumbRef)
+ * @method string getAvState()
+ * @method void setAvState(string $avState)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ * @method \DateTimeImmutable|null getDeletedAt()
+ * @method void setDeletedAt(?\DateTimeImmutable $deletedAt)
  */
 class Upload extends Entity
 {

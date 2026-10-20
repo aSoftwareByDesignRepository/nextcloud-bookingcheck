@@ -32,8 +32,13 @@ class ReminderMapper extends QBMapper
 		try {
 			$qb->executeStatement();
 			return true;
-		} catch (\Throwable) {
-			return false; // unique index hit — another run already sent it
+		} catch (\OCP\DB\Exception $e) {
+			// only the unique index means "already sent" — a transient DB
+			// error must abort loudly, not silently drop the reminder
+			if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			return false;
 		}
 	}
 

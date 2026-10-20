@@ -265,6 +265,7 @@ class OfferingController extends Controller
 		return $this->ok(['id' => (int)$o->getId()], 201);
 	}
 
+	/** @param array<string,mixed> $in */
 	private function validateOffering(array $in): array
 	{
 		$fields = [];
@@ -354,7 +355,7 @@ class OfferingController extends Controller
 		}
 		if (array_key_exists('pass_scope', $in)) {
 			$scope = [];
-			foreach (preg_split('/[\s,]+/', (string)$in['pass_scope']) as $p0) {
+			foreach (preg_split('/[\s,]+/', (string)$in['pass_scope']) ?: [] as $p0) {
 				if ($p0 === '') {
 					continue;
 				}
@@ -368,7 +369,7 @@ class OfferingController extends Controller
 				}
 				$scope[] = (int)$p0;
 			}
-			$d['pass_scope'] = $scope === [] ? null : json_encode(array_values(array_unique($scope)));
+			$d['pass_scope'] = $scope === [] ? null : (json_encode(array_values(array_unique($scope))) ?: null);
 		}
 		// Pro fields are only writable while licensed — an unlicensed save
 		// (or a hand-crafted request) leaves the stored values untouched.
@@ -411,6 +412,7 @@ class OfferingController extends Controller
 	/**
 	 * @return string|null JSON array of validated https origins, or null
 	 */
+	/** @param array<string,string> $fields */
 	private function embedDomains(mixed $raw, array &$fields): ?string
 	{
 		$raw = trim((string)$raw);
@@ -418,7 +420,7 @@ class OfferingController extends Controller
 			return null;
 		}
 		$origins = [];
-		foreach (preg_split('/[\s,]+/', $raw) as $cand) {
+		foreach (preg_split('/[\s,]+/', $raw) ?: [] as $cand) {
 			$u = parse_url($cand);
 			$host = strtolower((string)($u['host'] ?? ''));
 			if ($host === '' || !in_array($u['scheme'] ?? '', ['https'], true)) {
@@ -427,9 +429,10 @@ class OfferingController extends Controller
 			}
 			$origins[] = 'https://' . $host . (isset($u['port']) ? ':' . (int)$u['port'] : '');
 		}
-		return json_encode(array_values(array_unique($origins)));
+		return json_encode(array_values(array_unique($origins))) ?: null;
 	}
 
+	/** @param array<string,mixed> $d */
 	private function applyOffering(Offering $o, array $d): void
 	{
 		$o->setTitle($d['title']);
@@ -497,6 +500,7 @@ class OfferingController extends Controller
 		return mb_substr($slug, 0, 190);
 	}
 
+	/** @param array<string,mixed> $in */
 	private function bool(array $in, string $key): int
 	{
 		// "false" string is truthy — normalize explicitly (api-security §4)

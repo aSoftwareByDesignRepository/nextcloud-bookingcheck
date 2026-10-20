@@ -164,7 +164,7 @@
 .toast--info .toast-icon {
 	background: var(--bck-tint-info);
 	border-color: var(--bck-notif-fg-info);
-	color: var(--bck-notif-fg-info);
+	color: var(--bck-accent-ink, var(--bck-notif-fg-info));
 }
 
 .bck-notif-icon-well--warning,
@@ -606,7 +606,7 @@
 .bck-toast--error { border-left-color: var(--color-error-text, var(--color-error)); }
 
 .bck-toast__feedback {
-	color: var(--color-text-link, var(--color-primary-element));
+	color: var(--bck-accent-ink, var(--color-text-link, var(--color-primary-element)));
 	text-decoration: underline;
 	white-space: nowrap;
 }

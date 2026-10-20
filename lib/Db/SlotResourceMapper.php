@@ -71,6 +71,19 @@ class SlotResourceMapper extends QBMapper
 		return $qb->executeQuery()->fetch() !== false;
 	}
 
+	/** @return list<SlotResource> all pool rows of a slot, FOR UPDATE —
+	 *  serializes pooled holds/releases (which lock the res row, not the
+	 *  slot row) against admin-side slot teardown. Call inside a tx. */
+	public function lockRowsForSlot(int $slotId): array
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName())
+			->where($qb->expr()->eq('slot_id', $qb->createNamedParameter($slotId)))
+			->orderBy('id', 'ASC')
+			->forUpdate();
+		return $this->findEntities($qb);
+	}
+
 	/** True when the slot is backed by at least one resource-pool row. */
 	public function hasRows(int $slotId): bool
 	{
@@ -82,6 +95,7 @@ class SlotResourceMapper extends QBMapper
 	}
 
 	/** @return list<SlotResource> active pools for the given slot ids */
+	/** @param list<int> $slotIds */
 	public function forSlots(array $slotIds): array
 	{
 		if ($slotIds === []) {

@@ -32,6 +32,7 @@ class MaterialController extends Controller
 		private readonly OfferingMapper $offerings,
 		private readonly MaterialService $storage,
 		private readonly UploadGateService $gate,
+		private readonly \OCP\IDBConnection $db,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -40,7 +41,7 @@ class MaterialController extends Controller
 	public function index(int $id): JSONResponse
 	{
 		$this->mustOffering($id);
-		$qb = \OCP\Server::get(\OCP\IDBConnection::class)->getQueryBuilder();
+		$qb = $this->db->getQueryBuilder();
 		$qb->select('*')->from('bc_material')
 			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($id)))
 			->orderBy('sort', 'ASC');
@@ -57,7 +58,11 @@ class MaterialController extends Controller
 			throw new ValidationException(['file' => 'Choose a file.']);
 		}
 		$safe = $this->gate->inspect($file); // magic bytes, macros, image re-encode
-		$ref = $this->storage->store($safe['name'], fopen($file['tmp_name'], 'rb'));
+		$stream = fopen((string)$file['tmp_name'], 'rb');
+		if ($stream === false) {
+			throw new ValidationException(['file' => 'Upload could not be read.']);
+		}
+		$ref = $this->storage->store($safe['name'], $stream);
 
 		$m = new Material();
 		$m->setOfferingId($id);

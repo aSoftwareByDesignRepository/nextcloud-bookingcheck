@@ -55,8 +55,8 @@ class IcsService
 				$out[] = 'BEGIN:VEVENT';
 				$out[] = 'UID:bck-' . $order->getRef() . '-' . $line->getId() . '-' . $i . '@bookingcheck';
 				$out[] = 'DTSTAMP:' . gmdate('Ymd\THis\Z');
-				$out[] = 'DTSTART:' . $start->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
-				$out[] = 'DTEND:' . $end->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+				$out[] = 'DTSTART:' . gmdate('Ymd\THis\Z', $start->getTimestamp());
+				$out[] = 'DTEND:' . gmdate('Ymd\THis\Z', $end->getTimestamp());
 				$out[] = 'SUMMARY:' . self::esc($title);
 				$out[] = 'DESCRIPTION:' . self::esc('Order ' . $order->getRef() . ' — ' . $order->getBuyerName());
 				$out[] = 'STATUS:' . ($cancelled ? 'CANCELLED' : 'CONFIRMED');
@@ -86,8 +86,8 @@ class IcsService
 			$out[] = 'BEGIN:VEVENT';
 			$out[] = 'UID:' . self::esc($ev['uid']) . '@bookingcheck';
 			$out[] = 'DTSTAMP:' . gmdate('Ymd\THis\Z');
-			$out[] = 'DTSTART:' . $ev['start']->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
-			$out[] = 'DTEND:' . $ev['end']->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+			$out[] = 'DTSTART:' . gmdate('Ymd\THis\Z', $ev['start']->getTimestamp());
+			$out[] = 'DTEND:' . gmdate('Ymd\THis\Z', $ev['end']->getTimestamp());
 			$out[] = 'SUMMARY:' . self::esc($ev['title']);
 			$out[] = 'STATUS:' . ($ev['cancelled'] ? 'CANCELLED' : 'CONFIRMED');
 			$out[] = 'END:VEVENT';

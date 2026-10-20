@@ -26,11 +26,21 @@ $token = (string)($_['token'] ?? '');
 			<ul class="bck-line-list">
 				<?php foreach ($lines as $ln): ?>
 					<li class="bck-line-list__item">
-						<span><?php p((string)($ln['label'] ?? $l->t('Seat'))); ?></span>
+						<span><?php p((string)($ln['catName'] ?? $l->t('Seat'))); ?></span>
 						<?php foreach (($ticketsByLine[(int)$ln['id']] ?? []) as $t): ?>
 							<a class="bck-btn bck-btn--small bck-btn--secondary"
 								href="<?php p($url->linkToRoute('bookingcheck.manage.ticket', ['token' => $token, 'ticketId' => (int)$t['id']])); ?>">
 								<?php p($l->t('Ticket') . ($t['seat_no'] !== null ? ' ' . $t['seat_no'] : '')); ?></a>
+							<?php if (!empty($t['wallet_google'])): ?>
+								<a class="bck-btn bck-btn--small bck-btn--secondary"
+									href="<?php p((string)$t['wallet_google']); ?>" target="_blank" rel="noopener">
+									<?php p($l->t('Add to Google Wallet')); ?></a>
+							<?php endif; ?>
+							<?php if (!empty($t['wallet_apple'])): ?>
+								<a class="bck-btn bck-btn--small bck-btn--secondary"
+									href="<?php p($url->linkToRoute('bookingcheck.manage.appleWallet', ['token' => $token, 'ticketId' => (int)$t['id']])); ?>">
+									<?php p($l->t('Add to Apple Wallet')); ?></a>
+							<?php endif; ?>
 						<?php endforeach; ?>
 						<?php if ($questions !== [] && $order['status'] === 'paid'): ?>
 							<?php foreach (($ticketsByLine[(int)$ln['id']] ?? []) as $t): ?>

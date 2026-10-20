@@ -11,6 +11,34 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_voucher` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getCode()
+ * @method void setCode(string $code)
+ * @method string|null getCurrency()
+ * @method void setCurrency(?string $currency)
+ * @method int getCreditCents()
+ * @method void setCreditCents(int $creditCents)
+ * @method int getRemainingCents()
+ * @method void setRemainingCents(int $remainingCents)
+ * @method \DateTimeImmutable|null getValidUntil()
+ * @method void setValidUntil(?\DateTimeImmutable $validUntil)
+ * @method int getMaxUses()
+ * @method void setMaxUses(int $maxUses)
+ * @method int getUses()
+ * @method void setUses(int $uses)
+ * @method string getSource()
+ * @method void setSource(string $source)
+ * @method int|null getSourceOrderId()
+ * @method void setSourceOrderId(?int $sourceOrderId)
+ * @method int getActive()
+ * @method void setActive(int $active)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ */
 class Voucher extends Entity
 {
 	protected $code;

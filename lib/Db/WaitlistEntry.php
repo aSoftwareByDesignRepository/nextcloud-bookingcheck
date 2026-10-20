@@ -11,6 +11,30 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_waitlist` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getTargetType()
+ * @method void setTargetType(string $targetType)
+ * @method int getTargetId()
+ * @method void setTargetId(int $targetId)
+ * @method string getEmail()
+ * @method void setEmail(string $email)
+ * @method string getLocale()
+ * @method void setLocale(string $locale)
+ * @method string getState()
+ * @method void setState(string $state)
+ * @method \DateTimeImmutable|null getOfferExpiresAt()
+ * @method void setOfferExpiresAt(?\DateTimeImmutable $offerExpiresAt)
+ * @method string|null getClaimTokenHash()
+ * @method void setClaimTokenHash(?string $claimTokenHash)
+ * @method int|null getResourceId()
+ * @method void setResourceId(?int $resourceId)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ */
 class WaitlistEntry extends Entity
 {
 	protected $targetType;

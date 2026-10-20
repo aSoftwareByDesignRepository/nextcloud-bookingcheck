@@ -27,7 +27,7 @@ class SyncTaskMapper extends QBMapper
 	{
 		$t = new SyncTask();
 		$t->setKind($kind);
-		$t->setPayloadJson(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+		$t->setPayloadJson(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}');
 		$t->setStatus('pending');
 		$t->setAttempts(0);
 		$t->setNextAt(new \DateTimeImmutable());

@@ -15,6 +15,7 @@ use OCA\BookingCheck\Db\OrderLineMapper;
 use OCA\BookingCheck\Db\PaymentMapper;
 use OCA\BookingCheck\Db\TicketMapper;
 use OCA\BookingCheck\Exception\NotFoundException;
+use OCA\BookingCheck\Exception\StateConflictException;
 use OCA\BookingCheck\Exception\ValidationException;
 use OCA\BookingCheck\Psp\PspManager;
 use OCA\BookingCheck\Service\OrderService;
@@ -43,6 +44,13 @@ class OrderController extends Controller
 		private readonly PspManager $psp,
 		private readonly IUserSession $userSession,
 		private readonly IDBConnection $db,
+		private readonly \OCA\BookingCheck\Service\TokenService $tokenService,
+		private readonly \OCP\IURLGenerator $urlGenerator,
+		private readonly \OCA\BookingCheck\Service\EmailService $emailService,
+		private readonly \OCA\BookingCheck\Service\AuditService $auditService,
+		private readonly ?\OCA\BookingCheck\Db\AbuseReportMapper $abuseReports = null,
+		private readonly ?\OCA\BookingCheck\Db\UploadMapper $uploadMapper = null,
+		private readonly ?\OCA\BookingCheck\Service\UploadService $uploadService = null,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -165,20 +173,41 @@ class OrderController extends Controller
 		if ($amount === null || $amount !== (int)$payment->getAmountCents()) {
 			throw new ValidationException(['amount_cents' => 'Only full refunds are supported — echo the quoted amount.']);
 		}
-		$refundRef = $payment->getRefundRef();
-		if ($refundRef === null || $refundRef === '') {
-			// PSP refund first — order state only moves after money moved.
-			// The refund_ref is persisted BEFORE the transition: if the
-			// transition below throws, a retry finds it set and skips the
-			// PSP call instead of submitting a second real refund.
-			$result = $this->psp->byName($payment->getProvider())
-				->refund($payment->getPspRef(), $amount, $order->getCurrency());
-			if (!$result->ok) {
-				return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Refund failed at the payment provider: ' . $result->error);
+		$refundRef = (string)$payment->getRefundRef();
+		if ($refundRef === '' || str_starts_with($refundRef, 'pending:')) {
+			// CAS-claim the refund before touching the PSP — without this
+			// two concurrent refund calls both pass the refund_ref check
+			// and submit two real refunds. 'pending:' markers are
+			// reclaimable once stale (claimant died mid-call).
+			$claim = 'pending:' . bin2hex(random_bytes(8));
+			if (!$this->payments->claimRefund((int)$payment->getId(), $claim)) {
+				// lost the claim — a real refund_ref means already done;
+				// a fresh pending marker means in flight → 409, not a
+				// second PSP call and not a silent merge
+				$current = $this->payments->find((int)$payment->getId());
+				$currentRef = (string)$current?->getRefundRef();
+				if (str_starts_with($currentRef, 'pending:')) {
+					throw new StateConflictException(
+						'A refund is already in progress for this order — retry in a moment.');
+				}
+				$refundRef = $currentRef;
+			} else {
+				// PSP refund first — order state only moves after money
+				// moved. The real refund_ref is persisted BEFORE the
+				// transition: if the transition throws, a retry finds it
+				// set and skips the PSP call instead of double-refunding.
+				$result = $this->psp->byName($payment->getProvider())
+					->refund($payment->getPspRef(), $amount, $order->getCurrency());
+				if (!$result->ok) {
+					// release our claim — the PSP never moved money, so
+					// a retry must be able to claim again
+					$this->payments->releaseRefundClaim((int)$payment->getId(), $claim);
+					return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Refund failed at the payment provider: ' . $result->error);
+				}
+				$refundRef = $result->refundRef !== '' ? $result->refundRef : 'ref-' . $payment->getPspRef();
+				$payment->setRefundRef($refundRef);
+				$this->payments->update($payment);
 			}
-			$refundRef = $result->refundRef !== '' ? $result->refundRef : 'ref-' . $payment->getPspRef();
-			$payment->setRefundRef($refundRef);
-			$this->payments->update($payment);
 		}
 		// the credit note mints inside the refund transaction — allocate()'s
 		// FOR UPDATE only serializes while a transaction is open; minting in
@@ -203,11 +232,11 @@ class OrderController extends Controller
 		// Re-queue the confirmation. The stored token is a hash, so a resend
 		// mints a FRESH manage link and rotates the hash — the new email is
 		// the working link, the old one dies (same contract as /pub/m/recover).
-		[$tok, $hash] = \OCP\Server::get(\OCA\BookingCheck\Service\TokenService::class)->mint();
+		[$tok, $hash] = $this->tokenService->mint();
 		$this->orderMapper->rotateManageToken($id, $hash);
-		$manageUrl = \OCP\Server::get(\OCP\IURLGenerator::class)
+		$manageUrl = $this->urlGenerator
 			->linkToRouteAbsolute('bookingcheck.manage.show', ['token' => $tok]);
-		\OCP\Server::get(\OCA\BookingCheck\Service\EmailService::class)
+		$this->emailService
 			->queue('order_confirmed', $order->getBuyerEmail(), $order->getBuyerLocale(),
 				['order_ref' => $order->getRef(), 'manage_url' => $manageUrl]);
 		return $this->ok(['queued' => true]);
@@ -236,26 +265,30 @@ class OrderController extends Controller
 	#[NoAdminRequired]
 	public function abuseList(): JSONResponse
 	{
-		$mapper = \OCP\Server::get(\OCA\BookingCheck\Db\AbuseReportMapper::class);
+		if ($this->abuseReports === null) {
+			return $this->notFound();
+		}
 		return $this->ok(['reports' => array_map(
-			fn ($r) => $r->jsonSerialize(), $mapper->listOpen())]);
+			fn ($r) => $r->jsonSerialize(), $this->abuseReports->listOpen())]);
 	}
 
 	/** NH-31 — resolve a report (action: keep|purge). */
 	#[NoAdminRequired]
 	public function resolveAbuse(int $id): JSONResponse
 	{
-		$mapper = \OCP\Server::get(\OCA\BookingCheck\Db\AbuseReportMapper::class);
-		$r = $mapper->find($id);
+		if ($this->abuseReports === null) {
+			return $this->notFound();
+		}
+		$r = $this->abuseReports->find($id);
 		if ($r === null) {
 			return $this->notFound();
 		}
 		$action = (string)$this->request->getParam('action', 'keep');
-		if ($action === 'purge' && $r->getUploadId() !== null) {
-			$uploads = \OCP\Server::get(\OCA\BookingCheck\Db\UploadMapper::class);
-			$u = $uploads->find((int)$r->getUploadId());
+		if ($action === 'purge' && $r->getUploadId() !== null
+			&& $this->uploadMapper !== null && $this->uploadService !== null) {
+			$u = $this->uploadMapper->find((int)$r->getUploadId());
 			if ($u !== null) {
-				\OCP\Server::get(\OCA\BookingCheck\Service\UploadService::class)->purge($u);
+				$this->uploadService->purge($u);
 			}
 		}
 		// schema vocab is open|resolved|dismissed: purging the upload
@@ -263,8 +296,8 @@ class OrderController extends Controller
 		$r->setStatus($action === 'purge' ? 'resolved' : 'dismissed');
 		$r->setResolvedAt(new \DateTimeImmutable());
 		$r->setResolvedBy($this->uid());
-		$mapper->update($r);
-		\OCP\Server::get(\OCA\BookingCheck\Service\AuditService::class)
+		$this->abuseReports->update($r);
+		$this->auditService
 			->log(null, null, $this->uid(), 'abuse.resolved', null, null,
 				['report' => $id, 'action' => $action]);
 		return $this->ok(['resolved' => true]);
@@ -280,7 +313,7 @@ class OrderController extends Controller
 		}
 		$order->setStaffNote($note === '' ? null : $note);
 		$this->orderMapper->update($order);
-		\OCP\Server::get(\OCA\BookingCheck\Service\AuditService::class)
+		$this->auditService
 			->log($id, (int)$order->getOfferingId(), $this->uid(), 'order.note', null, null,
 				['note_len' => mb_strlen($note)]); // content stays out of audit PII
 		return $this->ok(['note' => $note]);

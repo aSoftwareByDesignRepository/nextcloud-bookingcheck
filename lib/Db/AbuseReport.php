@@ -11,6 +11,26 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_abuse` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getUploadId()
+ * @method void setUploadId(int $uploadId)
+ * @method string getReporter()
+ * @method void setReporter(string $reporter)
+ * @method string getReason()
+ * @method void setReason(string $reason)
+ * @method string getStatus()
+ * @method void setStatus(string $status)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ * @method \DateTimeImmutable|null getResolvedAt()
+ * @method void setResolvedAt(?\DateTimeImmutable $resolvedAt)
+ * @method string|null getResolvedBy()
+ * @method void setResolvedBy(?string $resolvedBy)
+ */
 class AbuseReport extends Entity
 {
 	protected $uploadId;

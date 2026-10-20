@@ -11,6 +11,24 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_review` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getLineId()
+ * @method void setLineId(int $lineId)
+ * @method int getRating()
+ * @method void setRating(int $rating)
+ * @method string|null getText()
+ * @method void setText(?string $text)
+ * @method string getStatus()
+ * @method void setStatus(string $status)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ * @method \DateTimeImmutable|null getPublishedAt()
+ * @method void setPublishedAt(?\DateTimeImmutable $publishedAt)
+ */
 class Review extends Entity
 {
 	protected $lineId;

@@ -34,6 +34,7 @@ class MaterialService
 	}
 
 	/** Store an uploaded file; returns the opaque file_ref. */
+	/** @param resource $stream */
 	public function store(string $filename, $stream): string
 	{
 		$ref = bin2hex(random_bytes(16));
@@ -70,7 +71,11 @@ class MaterialService
 			throw new NotFoundException();
 		}
 		$file = $dir->getFile($ref);
-		$resp = new StreamResponse($file->fopen('rb'));
+		$stream = $file->read();
+		if ($stream === false) {
+			throw new NotFoundException();
+		}
+		$resp = new StreamResponse($stream);
 		$resp->addHeader('Content-Type', 'application/octet-stream');
 		$resp->addHeader('X-Content-Type-Options', 'nosniff');
 		$resp->addHeader('Content-Disposition', self::contentDisposition($title));
@@ -106,9 +111,15 @@ class MaterialService
 			throw new NotFoundException();
 		}
 		$file = $dir->getFile($ref);
-		$head = $file->fopen('rb');
+		$head = $file->read();
+		if ($head === false) {
+			throw new NotFoundException();
+		}
 		$magic = fread($head, 12);
 		fclose($head);
+		if ($magic === false) {
+			throw new NotFoundException();
+		}
 		$mime = match (true) {
 			str_starts_with($magic, "%PDF-") => 'application/pdf',
 			str_starts_with($magic, "\xFF\xD8\xFF") => 'image/jpeg',
@@ -120,7 +131,11 @@ class MaterialService
 		if ($mime === null) {
 			return $this->stream($materialId); // not previewable → download
 		}
-		$resp = new StreamResponse($file->fopen('rb'));
+		$stream = $file->read();
+		if ($stream === false) {
+			throw new NotFoundException();
+		}
+		$resp = new StreamResponse($stream);
 		$resp->addHeader('Content-Type', $mime);
 		$resp->addHeader('X-Content-Type-Options', 'nosniff');
 		$resp->addHeader('Content-Disposition', 'inline; filename="preview"');
@@ -143,7 +158,7 @@ class MaterialService
 	/** RFC5987 filename — CRLF+quote-stripped, UTF-8 filename*= fallback. */
 	public static function contentDisposition(string $name): string
 	{
-		$ascii = preg_replace('/[^\x20-\x7E]/', '_', $name);
+		$ascii = preg_replace('/[^\x20-\x7E]/', '_', $name) ?? '';
 		$ascii = str_replace(['"', '\\', "\r", "\n"], '_', $ascii);
 		$ascii = trim($ascii) !== '' ? $ascii : 'download';
 		return 'attachment; filename="' . $ascii . '"; filename*=UTF-8\'\'' . rawurlencode($name);

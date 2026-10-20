@@ -11,6 +11,30 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_email` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method string getKind()
+ * @method void setKind(string $kind)
+ * @method string getToEmail()
+ * @method void setToEmail(string $toEmail)
+ * @method string getLocale()
+ * @method void setLocale(string $locale)
+ * @method string getPayloadJson()
+ * @method void setPayloadJson(string $payloadJson)
+ * @method string getStatus()
+ * @method void setStatus(string $status)
+ * @method int getAttempts()
+ * @method void setAttempts(int $attempts)
+ * @method \DateTimeImmutable|null getNextAt()
+ * @method void setNextAt(?\DateTimeImmutable $nextAt)
+ * @method \DateTimeImmutable getCreatedAt()
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ * @method \DateTimeImmutable|null getSentAt()
+ * @method void setSentAt(?\DateTimeImmutable $sentAt)
+ */
 class EmailOutbox extends Entity
 {
 	protected $kind;

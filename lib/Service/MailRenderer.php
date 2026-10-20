@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Service;
 
+use OCA\BookingCheck\Db\MailTplMapper;
 use OCP\L10N\IFactory;
 
 /**
@@ -19,22 +20,30 @@ use OCP\L10N\IFactory;
  */
 class MailRenderer
 {
+	/** Kinds a seller may override via bc_mail_tpl (NH-37). */
+	public const KINDS = [
+		'order_confirmed', 'payment_link', 'payment_failed', 'order_expired',
+		'order_declined', 'approval_request', 'approval_pending', 'otp',
+		'waitlist_offer', 'waitlist_notify', 'manage_link', 'broadcast',
+		'rescheduled', 'seller_order_paid',
+	];
+
 	public function __construct(
 		private readonly IFactory $l10nFactory,
+		private readonly MailTplMapper $mailTpls,
 	) {
 	}
 
 	/** @return array{0:string,1:string} subject + plaintext body */
+	/** @param array<string,mixed> $p */
 	public function render(string $kind, array $p, string $locale): array
 	{
 		$l = $this->l10nFactory->get('bookingcheck', $locale);
 		$ref = self::head($p['order_ref'] ?? '');
-		return match ($kind) {
+		[$subject, $body] = match ($kind) {
 			'order_confirmed' => [
 				$l->t('Booking confirmed — %s', [$ref]),
-				$l->t("Your booking is confirmed.\n\nOrder: %s\n\n"
-					. "Manage your booking (cancel, downloads, calendar): %s\n\n"
-					. "Your tickets are attached to this email.\n",
+				$l->t("Your booking is confirmed.\n\nOrder: %s\n\nManage your booking (cancel, downloads, calendar): %s\n\nYour tickets are attached to this email.\n",
 					[$ref, self::head($p['manage_url'] ?? '')]),
 			],
 			'payment_link' => [
@@ -114,6 +123,22 @@ class MailRenderer
 				$l->t("Notification for order %s.\n", [$ref]),
 			],
 		};
+
+		// NH-37 seller overrides — subject replaces, extra text appends.
+		// Seller text is verbatim plaintext: never sprintf'd, so a literal
+		// '%' is inert; the subject still passes head() before any header.
+		$tpl = $this->mailTpls->findApplicable($kind, $locale);
+		if ($tpl !== null) {
+			$overrideSubject = trim((string)($tpl->getSubject() ?? ''));
+			if ($overrideSubject !== '') {
+				$subject = self::head($overrideSubject);
+			}
+			$extra = trim((string)($tpl->getExtraText() ?? ''));
+			if ($extra !== '') {
+				$body .= "\n" . $extra . "\n";
+			}
+		}
+		return [$subject, $body];
 	}
 
 	/** Strip CR/LF from header-bound values (§9.9). */

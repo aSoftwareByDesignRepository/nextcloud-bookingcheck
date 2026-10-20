@@ -11,6 +11,22 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_resource` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method string getName()
+ * @method void setName(string $name)
+ * @method int getCapacity()
+ * @method void setCapacity(int $capacity)
+ * @method int getSort()
+ * @method void setSort(int $sort)
+ * @method int getActive()
+ * @method void setActive(int $active)
+ */
 class Resource extends Entity
 {
 	protected $offeringId;

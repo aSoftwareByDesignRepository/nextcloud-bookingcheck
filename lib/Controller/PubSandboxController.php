@@ -55,6 +55,7 @@ class PubSandboxController extends Controller
 
 	#[PublicPage]
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function pay(string $pspRef): PublicTemplateResponse
 	{
 		$this->guard();
@@ -89,6 +90,9 @@ class PubSandboxController extends Controller
 			'amount_cents' => (int)$payment->getAmountCents(),
 			'currency' => $this->orders->find((int)$payment->getOrderId())?->getCurrency(),
 		]);
+		if ($payload === false) {
+			return new JSONResponse(['error' => 'payload encode failed'], 500);
+		}
 		$secret = $this->settings->get('psp_test_secret');
 		if ($secret === '') {
 			return new JSONResponse(['error' => 'Sandbox secret not configured'], Http::STATUS_INTERNAL_SERVER_ERROR);

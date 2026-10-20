@@ -99,7 +99,7 @@
 			.catch(function (e) { fail(e); btn.disabled = false; });
 	});
 
-	// abuse report moderation — POST /api/abuse/{id}/resolve {action}
+	// abuse report moderation — POST abuse/{id}/resolve {action}
 	document.addEventListener('click', function (ev) {
 		var btn = ev.target.closest('[data-bck-abuse]');
 		if (!btn) { return; }
@@ -352,7 +352,7 @@
 					kindSel.appendChild(op);
 				});
 			var pctWrap = field(BCK.t('Percent'), input('percent_bps',
-				{ type: 'number', min: '1', max: '10000', inputmode: 'numeric' }), BCK.t('In basis points — 1000 = 10 %.'));
+				{ type: 'number', min: '1', max: '10000', inputmode: 'numeric' }), BCK.t('In basis points — 1000 = 10 percent.'));
 			var amtWrap = field(BCK.t('Amount'), input('amount', { type: 'number', min: '0.01', step: '0.01', inputmode: 'decimal' }));
 			var curWrap = field(BCK.t('Currency'), input('currency',
 				{ type: 'text', minlength: '3', maxlength: '3', pattern: '[A-Za-z]{3}', value: 'EUR' }));
@@ -593,7 +593,7 @@
 					items.map(function (u) {
 						var mb = (parseInt(u.sizeBytes, 10) / 1048576).toFixed(1);
 						return '<tr><td><a href="' + BCK.appBase() + '/api/uploads/'
-							+ u.id + '/file">' + BCK.t('File #%d', [String(u.id)]) + '</a></td>'
+							+ u.id + '/file">' + BCK.tf('File #%s', [String(u.id)]) + '</a></td>'
 							+ '<td>' + esc(u.displayName) + '</td>'
 							+ '<td>' + mb + ' MB</td><td>' + esc(dt(u.createdAt)) + '</td>'
 							+ '<td><button class="bck-btn bck-btn--small" data-bck-delete="/uploads/'
@@ -636,7 +636,7 @@
 					if (e.seriesId && !seenSeries[e.seriesId]) {
 						seenSeries[e.seriesId] = true;
 						opts += '<option value="series:' + parseInt(e.seriesId, 10) + '">'
-							+ BCK.t('Whole series #%d', [String(e.seriesId)]) + '</option>';
+							+ BCK.tf('Whole series #%s', [String(e.seriesId)]) + '</option>';
 					}
 					if (!e.seriesId) {
 						var t = isSlot ? 'slot' : 'event';
@@ -670,7 +670,7 @@
 						bcForm.reset(); err(e1, '');
 						if (btn) { btn.disabled = false; }
 						loadBroadcasts();
-						BCK.toast('success', BCK.t('Queued for %d recipients.', [String(d2 && d2.recipients || 0)]));
+						BCK.toast('success', BCK.tf('Queued for %s recipients.', [String(d2 && d2.recipients || 0)]));
 					}).catch(function (x) {
 						if (btn) { btn.disabled = false; }
 						err(e1, (x && x.message) || BCK.t('Could not send.'));
@@ -732,7 +732,7 @@
 					{ method: 'POST', json: payload }).then(function (d) {
 					tplForm.reset(); err(e1, '');
 					loadTemplates(); loadOcc();
-					BCK.toast('success', BCK.t('%d slots created.', [String(d && d.materialized || 0)]));
+					BCK.toast('success', BCK.tf('%s slots created.', [String(d && d.materialized || 0)]));
 				}).catch(function (x) {
 					err(e1, (x && x.message) || BCK.t('Could not create the pattern.'));
 				});

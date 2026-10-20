@@ -31,7 +31,7 @@ class CapiController extends Controller
 	use ApiControllerTrait;
 
 	/** @var CompanionToken|null injected by middleware */
-	public $companionDevice = null;
+	public ?\OCA\BookingCheck\Db\CompanionToken $companionDevice = null;
 
 	public function __construct(
 		string $appName,
@@ -67,21 +67,79 @@ class CapiController extends Controller
 	public function events(): JSONResponse
 	{
 		$scope = $this->deviceScope();
+		$since = new \DateTime('-1 day');
+		$intArr = \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY;
+		$events = [];
+
+		// standalone occurrences — series members surface through their
+		// series row below, so the door sees ONE scannable target per
+		// series instead of the same admission listed N times.
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('e.id', 'e.starts_at', 'e.ends_at', 'e.capacity', 'e.sold',
 			'o.title', 'o.id AS offering_id')
 			->from('bc_event', 'e')
 			->innerJoin('e', 'bc_offering', 'o', $qb->expr()->eq('o.id', 'e.offering_id'))
 			->where($qb->expr()->eq('e.status', $qb->createNamedParameter('scheduled')))
+			->andWhere($qb->expr()->isNull('e.series_id'))
 			->andWhere($qb->expr()->gte('e.starts_at',
-				$qb->createNamedParameter(new \DateTime('-1 day'), 'datetime')))
+				$qb->createNamedParameter($since, 'datetime')))
 			->orderBy('e.starts_at', 'ASC')
 			->setMaxResults(200);
 		if ($scope !== null) {
 			$qb->andWhere($qb->expr()->in('o.id',
-				$qb->createNamedParameter($scope, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+				$qb->createNamedParameter($scope, $intArr)));
 		}
-		return $this->ok(['events' => $qb->executeQuery()->fetchAll()]);
+		foreach ($qb->executeQuery()->fetchAll() as $row) {
+			$row['type'] = 'event';
+			$events[] = $row;
+		}
+
+		// timeslots — identical door semantics (capacity + window)
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('s.id', 's.starts_at', 's.ends_at', 's.capacity', 's.sold',
+			'o.title', 'o.id AS offering_id')
+			->from('bc_slot', 's')
+			->innerJoin('s', 'bc_offering', 'o', $qb->expr()->eq('o.id', 's.offering_id'))
+			->where($qb->expr()->gte('s.starts_at',
+				$qb->createNamedParameter($since, 'datetime')))
+			->orderBy('s.starts_at', 'ASC')
+			->setMaxResults(200);
+		if ($scope !== null) {
+			$qb->andWhere($qb->expr()->in('o.id',
+				$qb->createNamedParameter($scope, $intArr)));
+		}
+		foreach ($qb->executeQuery()->fetchAll() as $row) {
+			$row['type'] = 'slot';
+			$events[] = $row;
+		}
+
+		// series — only when a member occurrence is still upcoming; the
+		// earliest upcoming member supplies the displayed window. Both
+		// subqueries read one consistent snapshot.
+		$qb = $this->db->getQueryBuilder();
+		$member = fn (string $col): string => '(SELECT e2.' . $col
+			. ' FROM *PREFIX*bc_event e2 WHERE e2.series_id = s.id'
+			. " AND e2.status = 'scheduled' AND e2.starts_at >= "
+			. $qb->createNamedParameter($since, 'datetime')
+			. ' ORDER BY e2.starts_at ASC LIMIT 1)';
+		$qb->select('s.id', 's.offering_id', 's.title', 's.capacity', 's.sold')
+			->selectAlias($qb->createFunction($member('starts_at')), 'starts_at')
+			->selectAlias($qb->createFunction($member('ends_at')), 'ends_at')
+			->from('bc_series', 's')
+			->where($qb->expr()->isNotNull($qb->createFunction($member('id'))))
+			->setMaxResults(200);
+		if ($scope !== null) {
+			$qb->andWhere($qb->expr()->in('s.offering_id',
+				$qb->createNamedParameter($scope, $intArr)));
+		}
+		foreach ($qb->executeQuery()->fetchAll() as $row) {
+			$row['type'] = 'series';
+			$events[] = $row;
+		}
+
+		usort($events, fn (array $a, array $b): int =>
+			strnatcmp((string)$a['starts_at'], (string)$b['starts_at']));
+		return $this->ok(['events' => array_slice($events, 0, 200)]);
 	}
 
 	/** Roster for a bookable target — the route predates target_type, so the
@@ -210,12 +268,19 @@ class CapiController extends Controller
 		if ($ticket === false) {
 			return $this->notFound();
 		}
+		// scope resolves via the line's TARGET — the order's offering_id
+		// is only the cart lead and would mis-scope multi-offering lines
 		$qb2 = $this->db->getQueryBuilder();
-		$offeringId = $qb2->select('o.offering_id')->from('bc_order_line', 'ol')
-			->innerJoin('ol', 'bc_order', 'o', $qb2->expr()->eq('o.id', 'ol.order_id'))
+		$target = $qb2->select('ol.target_type', 'ol.target_id')
+			->from('bc_order_line', 'ol')
 			->where($qb2->expr()->eq('ol.id', $qb2->createNamedParameter((int)$ticket['line_id'])))
-			->executeQuery()->fetchOne();
-		if ($offeringId === false || !$this->scopeAllows((int)$offeringId)) {
+			->executeQuery()->fetch();
+		if ($target === false) {
+			return $this->notFound();
+		}
+		$offeringId = $this->offeringIdForTarget(
+			(string)$target['target_type'], (int)$target['target_id']);
+		if ($offeringId === null || !$this->scopeAllows($offeringId)) {
 			return $this->notFound();
 		}
 		$this->tickets->undoCheckIn($id);
@@ -232,27 +297,70 @@ class CapiController extends Controller
 			return $this->fail(403, 'FORBIDDEN', 'Manager devices only.');
 		}
 		$scope = $this->deviceScope();
-		$qb = $this->db->getQueryBuilder();
-		$qb->select('e.id', 'o.title', 'e.capacity', 'e.sold')
-			->selectAlias($qb->createFunction(
-				'(SELECT COUNT(*) FROM *PREFIX*bc_ticket t
+		$since = new \DateTime('-1 day');
+		$intArr = \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY;
+		$checkedIn = static function (string $type, string $idCol): string {
+			return '(SELECT COUNT(*) FROM *PREFIX*bc_ticket t
 				  JOIN *PREFIX*bc_order_line ol ON ol.id = t.line_id
-				  WHERE ol.target_type = ' . $qb->createNamedParameter('event') . '
-				    AND ol.target_id = e.id
+				  WHERE ol.target_type = \'' . $type . '\'
+				    AND ol.target_id = ' . $idCol . '
 				    AND t.checked_in_at IS NOT NULL
-				    AND t.revoked_at IS NULL)'), 'checked_in')
-			->from('bc_event', 'e')
-			->innerJoin('e', 'bc_offering', 'o', $qb->expr()->eq('o.id', 'e.offering_id'))
-			->where($qb->expr()->eq('e.status', $qb->createNamedParameter('scheduled')))
-			->andWhere($qb->expr()->gte('e.starts_at',
-				$qb->createNamedParameter(new \DateTime('-1 day'), 'datetime')))
-			->orderBy('e.starts_at', 'ASC')
+				    AND t.revoked_at IS NULL)';
+		};
+		$rows = [];
+
+		// per-occurrence stats — unlike the door list, series members DO
+		// appear individually (managers want per-date numbers)
+		foreach ([
+			['bc_event', 'e', 'event', "e.status = 'scheduled'"],
+			['bc_slot', 's', 'slot', '1 = 1'],
+		] as [$table, $alias, $type, $extra]) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->select($alias . '.id', 'o.title', $alias . '.capacity', $alias . '.sold',
+					$alias . '.starts_at')
+				->selectAlias($qb->createFunction($checkedIn($type, $alias . '.id')), 'checked_in')
+				->from($table, $alias)
+				->innerJoin($alias, 'bc_offering', 'o',
+					$qb->expr()->eq('o.id', $alias . '.offering_id'))
+				->where($qb->expr()->gte($alias . '.starts_at',
+					$qb->createNamedParameter($since, 'datetime')))
+				->andWhere($extra)
+				->orderBy($alias . '.starts_at', 'ASC')
+				->setMaxResults(200);
+			if ($scope !== null) {
+				$qb->andWhere($qb->expr()->in('o.id',
+					$qb->createNamedParameter($scope, $intArr)));
+			}
+			foreach ($qb->executeQuery()->fetchAll() as $r) {
+				$r['type'] = $type;
+				$rows[] = $r;
+			}
+		}
+
+		// series totals — only while a member occurrence is upcoming
+		$qb = $this->db->getQueryBuilder();
+		$member = '(SELECT e2.starts_at FROM *PREFIX*bc_event e2'
+			. ' WHERE e2.series_id = s.id AND e2.status = \'scheduled\' AND e2.starts_at >= '
+			. $qb->createNamedParameter($since, 'datetime')
+			. ' ORDER BY e2.starts_at ASC LIMIT 1)';
+		$qb->select('s.id', 's.title', 's.capacity', 's.sold')
+			->selectAlias($qb->createFunction($member), 'starts_at')
+			->selectAlias($qb->createFunction($checkedIn('series', 's.id')), 'checked_in')
+			->from('bc_series', 's')
+			->where($qb->expr()->isNotNull($qb->createFunction($member)))
 			->setMaxResults(200);
 		if ($scope !== null) {
-			$qb->andWhere($qb->expr()->in('o.id',
-				$qb->createNamedParameter($scope, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+			$qb->andWhere($qb->expr()->in('s.offering_id',
+				$qb->createNamedParameter($scope, $intArr)));
 		}
-		return $this->ok(['stats' => $qb->executeQuery()->fetchAll()]);
+		foreach ($qb->executeQuery()->fetchAll() as $r) {
+			$r['type'] = 'series';
+			$rows[] = $r;
+		}
+
+		usort($rows, fn (array $a, array $b): int =>
+			strnatcmp((string)$a['starts_at'], (string)$b['starts_at']));
+		return $this->ok(['stats' => array_slice($rows, 0, 200)]);
 	}
 
 	// ---------------------------------------------------------------
@@ -320,9 +428,10 @@ class CapiController extends Controller
 		}
 		$type = (string)$this->request->getParam('target_type', '');
 		$tid = $this->strictId($this->request->getParam('target_id'));
-		$seats = (int)($this->request->getParam('seats') ?? 0);
+		// strict seats too — (int)"2.9"/"3abc" silently truncates a door sale
+		$seats = $this->strictId($this->request->getParam('seats'));
 		if (!in_array($type, ['event', 'slot', 'series'], true) || $tid === null
-			|| $seats < 1 || $seats > 50) {
+			|| $seats === null || $seats > 50) {
 			return $this->fail(400, 'VALIDATION', 'target_type, target_id and 1–50 seats required.');
 		}
 		$offeringId = $this->offeringIdForTarget($type, $tid);
@@ -412,6 +521,7 @@ class CapiController extends Controller
 			?: \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $startsAt);
 		if ($start === false || $start < new \DateTimeImmutable('now')) {
 			$fields['starts_at'] = 'Future ATOM datetime required.';
+			return $this->fail(400, 'VALIDATION', 'Invalid offering.', $fields);
 		}
 		if ($fields !== []) {
 			return $this->fail(400, 'VALIDATION', 'Invalid offering.', $fields);

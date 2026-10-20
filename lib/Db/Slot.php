@@ -11,6 +11,26 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_slot` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getTplId()
+ * @method void setTplId(int $tplId)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method \DateTimeImmutable getStartsAt()
+ * @method void setStartsAt(\DateTimeImmutable $startsAt)
+ * @method \DateTimeImmutable getEndsAt()
+ * @method void setEndsAt(\DateTimeImmutable $endsAt)
+ * @method int getCapacity()
+ * @method void setCapacity(int $capacity)
+ * @method int getSold()
+ * @method void setSold(int $sold)
+ * @method int getHeld()
+ * @method void setHeld(int $held)
+ */
 class Slot extends Entity
 {
 	protected $tplId;

@@ -36,6 +36,9 @@ class ReservationService
 	public const TARGET_SERIES = 'series';
 	public const TARGET_SLOT = 'slot';
 
+	/** @var array<int, list<int>> member event ids per series, resolved at prelock */
+	private array $seriesMembers = [];
+
 	public function __construct(
 		private readonly IDBConnection $db,
 	) {
@@ -91,15 +94,34 @@ class ReservationService
 			}
 		}
 		// series holds lock every member event — pre-lock them in the same
-		// global id order as direct event targets, BEFORE the series rows
-		if ($seriesIds !== []) {
+		// global id order as direct event targets, BEFORE the series rows.
+		// The resolved member set is also cached: holdSeries/moveSeries must
+		// operate on the exact rows we locked. Under PostgreSQL's default
+		// READ COMMITTED a re-read could see a member attached mid-
+		// transaction and lock it out of canonical order — the deadlock
+		// this pre-lock exists to prevent.
+		// Only resolve series not already snapshotted — prelock runs more
+		// than once per order lifecycle (create → confirm/release) on the
+		// same service instance, and the FIRST resolution is authoritative:
+		// those are exactly the member rows we locked. A member attached
+		// between prelocks was never locked, so it must not enter the set
+		// (that would break canonical lock order AND double-move it).
+		$unresolved = array_diff(array_map('intval', array_keys($seriesIds)),
+			array_map('intval', array_keys($this->seriesMembers)));
+		if ($unresolved !== []) {
 			$qb = $this->db->getQueryBuilder();
-			$members = $qb->select('id')->from('bc_event')
+			$rows = $qb->select('id', 'series_id')->from('bc_event')
 				->where($qb->expr()->in('series_id', $qb->createNamedParameter(
-					array_map('intval', array_keys($seriesIds)), IQueryBuilder::PARAM_INT_ARRAY)))
-				->executeQuery()->fetchAll(\PDO::FETCH_COLUMN);
-			foreach ($members as $id) {
-				$eventIds[(int)$id] = true;
+					$unresolved, IQueryBuilder::PARAM_INT_ARRAY)))
+				->executeQuery()->fetchAll();
+			foreach ($rows as $r) {
+				$sid = (int)$r['series_id'];
+				$this->seriesMembers[$sid][] = (int)$r['id'];
+				$eventIds[(int)$r['id']] = true;
+			}
+			foreach ($unresolved as $sid) {
+				$this->seriesMembers[$sid] ??= [];
+				sort($this->seriesMembers[$sid]);
 			}
 		}
 		$this->forUpdateIds('bc_event', array_map('intval', array_keys($eventIds)));
@@ -145,7 +167,7 @@ class ReservationService
 	 * Uniform rejection — never reveals whether an id exists on another
 	 * offering (existence oracle).
 	 *
-	 * @param list<array{target_type:string,target_id:int}> $seatLines
+	 * @param list<array{target_type:string,target_id:int,resource_id?:int|null}> $seatLines
 	 */
 	public function assertTargetsOwnedBy(int $offeringId, array $seatLines): void
 	{
@@ -238,6 +260,19 @@ class ReservationService
 		};
 	}
 
+	/**
+	 * Transfer a just-freed seat into a waitlist offer hold. Counter-only —
+	 * the seat was validated when originally held/sold, and re-checking
+	 * capacity/active/status here (what hold() does) would let an
+	 * admin-side change — a deactivated resource pool or a cancelled
+	 * event — abort a release/cancel transaction whenever a waitlist
+	 * offer exists. Underflow guards still apply.
+	 */
+	public function transferToOfferHold(string $targetType, int $targetId, ?int $resourceId = null): void
+	{
+		$this->move($targetType, $targetId, 1, 0, $resourceId);
+	}
+
 	public function releaseHold(string $targetType, int $targetId, int $seats, ?int $resourceId = null): void
 	{
 		if ($seats <= 0) {
@@ -265,7 +300,7 @@ class ReservationService
 			$this->moveSold($targetType, $targetId, -1, $resourceId);
 			// Try to transfer the freed seat into an offer hold.
 			if ($offerSeat($targetType, $targetId, $resourceId)) {
-				$this->hold($targetType, $targetId, 1, $resourceId);
+				$this->transferToOfferHold($targetType, $targetId, $resourceId);
 			} else {
 				$free++;
 			}
@@ -286,7 +321,7 @@ class ReservationService
 		for ($i = 0; $i < $seats; $i++) {
 			$this->releaseHold($targetType, $targetId, 1, $resourceId);
 			if ($offerSeat($targetType, $targetId, $resourceId)) {
-				$this->hold($targetType, $targetId, 1, $resourceId);
+				$this->transferToOfferHold($targetType, $targetId, $resourceId);
 			} else {
 				$free++;
 			}
@@ -471,10 +506,15 @@ class ReservationService
 	/** @return list<int> event ids of a series, sorted ASC (lock order). */
 	private function seriesEventIds(int $seriesId): array
 	{
+		if (isset($this->seriesMembers[$seriesId])) {
+			return $this->seriesMembers[$seriesId];
+		}
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('id')->from('bc_event')
 			->where($qb->expr()->eq('series_id', $qb->createNamedParameter($seriesId)))
 			->orderBy('id', 'ASC');
-		return array_map('intval', $qb->executeQuery()->fetchAll(\PDO::FETCH_COLUMN));
+		$ids = array_map('intval', $qb->executeQuery()->fetchAll(\PDO::FETCH_COLUMN));
+		$this->seriesMembers[$seriesId] = $ids;
+		return $ids;
 	}
 }

@@ -23,7 +23,8 @@ final class UpgradeBackupCatalog
 
 	/** @var list<string> App-data folder names (under appdata_<instance>/bookingcheck/) to include in snapshots. */
 	public const APPDATA_FOLDERS = [
-
+		'uploads',
+		'materials',
 	];
 
 	public const CONFIG_MAX_SNAPSHOTS = 'upgrade_backup_max_snapshots';

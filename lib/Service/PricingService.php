@@ -41,14 +41,14 @@ class PricingService
 	/**
 	 * Price an order draft.
 	 *
-	 * @param array $offering  offering row (id, price_cents, currency, vat_bp)
-	 * @param list<array{target_type:string,target_id:int,seats:int,price_cat_id?:int,resource_id?:int}> $seatLines
+	 * @param array{id:int,price_cents:int,currency:string,vat_bp:int,dyn_bp?:int,dyn_step_pct?:int} $offering
+	 * @param list<array{target_type:string,target_id:int,seats:int,price_cat_id?:int|null,resource_id?:int|null}> $seatLines
 	 * @param list<array{addon_id:int,qty:int}> $addonLines
 	 * @param string|null $promoCode
 	 * @param string|null $voucherCode
 	 * @return array{
 	 *   lines: list<array>, seatSubtotal:int, addonSubtotal:int,
-	 *   promoCents:int, promoId:?int, promoCode:?string,
+	 *   promoCents:int, promoId:?int, promoCode:?string, promo:?Promo,
 	 *   voucherId:?int, voucherCents:int, total:int,
 	 *   netCents:int, vatCents:int, vatBp:int, currency:string
 	 * }
@@ -256,6 +256,7 @@ class PricingService
 	/**
 	 * Gross-inclusive VAT split. Returns [net, vat] in cents.
 	 * Half-up per document total (GoBD: one VAT line per rate).
+	 * @return array{0:int,1:int}
 	 */
 	public static function splitVat(int $grossCents, int $vatBp): array
 	{
@@ -273,6 +274,7 @@ class PricingService
 	 * consumed adds dyn_bp basis points to the unit price (cap 10 steps).
 	 * Returns $unit unchanged when the feature is off or data is missing.
 	 */
+	/** @param array{dyn_bp?:int,dyn_step_pct?:int} $offering */
 	private function dynamicPrice(array $offering, int $unit, string $targetType, int $targetId): int
 	{
 		$dynBp = (int)($offering['dyn_bp'] ?? 0);
@@ -317,6 +319,7 @@ class PricingService
 	 * orders whose billing country differs from the seller's. Reverse
 	 * charge and disabled OSS both return the offering rate untouched.
 	 */
+	/** @param array{vat_bp:int} $offering */
 	private function vatBpFor(array $offering, bool $reverseCharge, ?string $billingCountry): int
 	{
 		if ($reverseCharge || !$this->settings->getBool('oss_enabled')) {
@@ -355,7 +358,7 @@ class PricingService
 		return $promo;
 	}
 
-	private function promoUsable($promo, int $offeringId): bool
+	private function promoUsable(Promo $promo, int $offeringId): bool
 	{
 		if ((int)$promo->getActive() !== 1) {
 			return false;

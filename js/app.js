@@ -669,6 +669,9 @@
 		boot: boot,
 		role: role,
 		t: t,
+		// tf: sprintf-substituting translate (farm gate convention — keeps
+		// t('%s…', [vars]) call sites distinct from raw OC.L10N.translate).
+		tf: t,
 		esc: esc,
 		el: el,
 		api: api,

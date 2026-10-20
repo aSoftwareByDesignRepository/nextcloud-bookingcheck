@@ -12,10 +12,11 @@ namespace OCA\BookingCheck\Controller;
 use OCA\BookingCheck\Exception\UnauthorizedException;
 use OCA\BookingCheck\Middleware\AppAccessMiddleware;
 use OCA\BookingCheck\Db\OfferingMapper;
-use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\JSONResponse;
-use OCP\AppFramework\OCS\OCSResponse;
+use OCP\AppFramework\OCS\OCSForbiddenException;
+use OCP\AppFramework\OCSController;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
@@ -26,8 +27,10 @@ use OCP\IUserSession;
  * OCS paths live under /ocs/v2.php — outside AppAccessMiddleware's
  * /apps/ prefix — so the seller-role check MUST live here, else every
  * authenticated user could enumerate draft offerings and internals.
+ * OCSController wraps DataResponse into the OCS envelope — there is no
+ * public OCSResponse class; returning anything else would fatal.
  */
-class OcsApiController extends Controller
+class OcsApiController extends OCSController
 {
 	public function __construct(
 		string $appName,
@@ -48,10 +51,14 @@ class OcsApiController extends Controller
 	}
 
 	#[NoAdminRequired]
-	public function offeringsOcs(): OCSResponse
+	public function offeringsOcs(): DataResponse
 	{
-		$this->requireSellerRole();
-		return new OCSResponse(array_map(
+		try {
+			$this->requireSellerRole();
+		} catch (UnauthorizedException) {
+			throw new OCSForbiddenException('Seller role required');
+		}
+		return new DataResponse(array_map(
 			fn ($o) => $o->jsonSerialize(), $this->offerings->findAll()));
 	}
 

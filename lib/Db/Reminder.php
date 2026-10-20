@@ -11,7 +11,20 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
-/** Dedupe row for NH-20 attendee reminders — one mail per (order,target). */
+/**
+ * Entity for the `bc_reminder` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOrderId()
+ * @method void setOrderId(int $orderId)
+ * @method string getTargetType()
+ * @method void setTargetType(string $targetType)
+ * @method int getTargetId()
+ * @method void setTargetId(int $targetId)
+ * @method \DateTimeImmutable getSentAt()
+ * @method void setSentAt(\DateTimeImmutable $sentAt)
+ */
 class Reminder extends Entity
 {
 	protected $orderId;

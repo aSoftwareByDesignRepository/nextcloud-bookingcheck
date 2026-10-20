@@ -67,7 +67,7 @@ class StripeProvider extends AbstractProvider
 				'body' => $body,
 				'timeout' => self::TIMEOUT,
 			]);
-			$data = json_decode($res->getBody(), true) ?? [];
+			$data = self::bodyJson($res);
 		} catch (\Throwable $e) {
 			throw new PspException('Stripe session failed: ' . $e->getMessage(), 0, $e);
 		}
@@ -84,7 +84,7 @@ class StripeProvider extends AbstractProvider
 		$payload = file_get_contents('php://input');
 		$sigHeader = $request->getHeader('Stripe-Signature');
 		$secret = $this->settings->getSecret('stripe_webhook_secret');
-		if ($payload === '' || $sigHeader === '' || $secret === '') {
+		if ($payload === false || $payload === '' || $sigHeader === '' || $secret === '') {
 			throw new PspException('Stripe: cannot verify webhook');
 		}
 		$this->verifySignature($payload, $sigHeader, $secret);
@@ -135,7 +135,7 @@ class StripeProvider extends AbstractProvider
 				]),
 				'timeout' => self::TIMEOUT,
 			]);
-			$data = json_decode($res->getBody(), true) ?? [];
+			$data = self::bodyJson($res);
 			return new RefundResult(true, (string)($data['id'] ?? ''));
 		} catch (\Throwable $e) {
 			return new RefundResult(false, '', $e->getMessage());

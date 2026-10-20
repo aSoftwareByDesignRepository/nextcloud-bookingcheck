@@ -55,6 +55,7 @@ class ScanController extends Controller
 		private readonly DoorSessionService $doors,
 		private readonly IDBConnection $db,
 		private readonly TokenService $tokenService,
+		private readonly \OCA\BookingCheck\Service\WaitlistService $waitlist,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -102,6 +103,7 @@ class ScanController extends Controller
 	/** End a door session — shared-tablet hygiene. */
 	#[PublicPage]
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function closeSession(): JSONResponse
 	{
 		$this->doors->close();
@@ -110,6 +112,7 @@ class ScanController extends Controller
 
 	#[PublicPage]
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function checkIn(): JSONResponse
 	{
 		$device = $this->assertDoorOrAdmin();
@@ -149,6 +152,7 @@ class ScanController extends Controller
 	 */
 	#[PublicPage]
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function lookup(): JSONResponse
 	{
 		$device = $this->assertDoorOrAdmin();
@@ -178,11 +182,18 @@ class ScanController extends Controller
 			if ($order === null || $order->getStatus() !== 'paid') {
 				return $this->fail(404, 'NOT_FOUND', 'No valid booking for this code.');
 			}
-			if ($device !== null
-				&& !$this->doors->scopeAllows($device, (int)$order->getOfferingId())) {
-				return $this->fail(404, 'NOT_FOUND', 'No valid booking for this code.');
-			}
 			$list = $this->tickets->liveTicketsForOrder((int)$order->getId());
+			if ($device !== null) {
+				// cart orders span offerings — a door sees only the lines
+				// in ITS scope, never the lead offering's whole list
+				$list = array_values(array_filter($list, fn ($r) =>
+					$r['offering_id'] !== null
+					&& $this->doors->scopeAllows($device, (int)$r['offering_id'])));
+			}
+			foreach ($list as &$row) {
+				unset($row['offering_id']);
+			}
+			unset($row);
 			if ($list === []) {
 				return $this->fail(404, 'NOT_FOUND', 'No valid booking for this code.');
 			}
@@ -209,21 +220,26 @@ class ScanController extends Controller
 		return $device;
 	}
 
-	/** Ticket QR token → its offering id, via the order line. A ticket
-	 *  outside the device's scope is indistinguishable from unknown. */
+	/** Ticket QR token → its offering id, via the order line's TARGET.
+	 *  A ticket outside the device's scope is indistinguishable from
+	 *  unknown. The line carries no offering_id of its own — resolving
+	 *  via the order's lead offering would scope multi-offering carts
+	 *  wrong, so the target row decides. */
 	private function doorScopeOk(CompanionToken $device, string $qrToken): bool
 	{
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('ol.offering_id')
+		$qb->select('ol.target_type', 'ol.target_id')
 			->from('bc_ticket', 't')
 			->innerJoin('t', 'bc_order_line', 'ol', $qb->expr()->eq('ol.id', 't.line_id'))
 			->where($qb->expr()->eq('t.qr_token_hash',
 				$qb->createNamedParameter($this->tokenService->hash($qrToken))));
-		$offeringId = $qb->executeQuery()->fetchOne();
-		if ($offeringId === false) {
+		$row = $qb->executeQuery()->fetch();
+		if ($row === false) {
 			return false;
 		}
-		return $this->doors->scopeAllows($device, (int)$offeringId);
+		$offeringId = $this->waitlist->offeringForTarget(
+			(string)$row['target_type'], (int)$row['target_id']);
+		return $offeringId !== null && $this->doors->scopeAllows($device, $offeringId);
 	}
 
 	private function isAdmin(): bool

@@ -35,6 +35,9 @@ class CsvExportService
 			->setMaxResults(50000);
 
 		$out = fopen('php://temp', 'w+');
+		if ($out === false) {
+			throw new \RuntimeException('Could not open temp stream');
+		}
 		fputcsv($out, ['ref', 'title', 'buyer_name', 'buyer_email', 'status',
 			'amount_cents', 'currency', 'created_at', 'paid_at']);
 		foreach ($qb->executeQuery()->fetchAll() as $r) {
@@ -46,7 +49,8 @@ class CsvExportService
 			]);
 		}
 		rewind($out);
-		return stream_get_contents($out);
+		$csv = stream_get_contents($out);
+		return $csv === false ? '' : $csv;
 	}
 
 	/** Per-offering roster for the seller zip export — same cell safety. */
@@ -63,6 +67,9 @@ class CsvExportService
 			->orderBy('o.id', 'ASC')
 			->setMaxResults(50000);
 		$out = fopen('php://temp', 'w+');
+		if ($out === false) {
+			throw new \RuntimeException('Could not open temp stream');
+		}
 		fputcsv($out, ['ref', 'buyer_name', 'buyer_email', 'status', 'paid_at',
 			'seats', 'target_type', 'target_id', 'attendee_name']);
 		foreach ($qb->executeQuery()->fetchAll() as $r) {
@@ -75,7 +82,8 @@ class CsvExportService
 			]);
 		}
 		rewind($out);
-		return stream_get_contents($out);
+		$csv = stream_get_contents($out);
+		return $csv === false ? '' : $csv;
 	}
 
 	/** Prefix spreadsheet-dangerous leading chars with a literal quote. */

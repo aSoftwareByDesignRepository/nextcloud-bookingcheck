@@ -11,6 +11,28 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\Entity;
 
+/**
+ * Entity for the `bc_broadcast` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
+ * @method int getOfferingId()
+ * @method void setOfferingId(int $offeringId)
+ * @method string getScope()
+ * @method void setScope(string $scope)
+ * @method string getSubject()
+ * @method void setSubject(string $subject)
+ * @method string getBodyMd()
+ * @method void setBodyMd(string $bodyMd)
+ * @method string|null getLocaleMap()
+ * @method void setLocaleMap(?string $localeMap)
+ * @method string getSentBy()
+ * @method void setSentBy(string $sentBy)
+ * @method \DateTimeImmutable getSentAt()
+ * @method void setSentAt(\DateTimeImmutable $sentAt)
+ * @method int getRcptCount()
+ * @method void setRcptCount(int $rcptCount)
+ */
 class Broadcast extends Entity
 {
 	protected $offeringId;

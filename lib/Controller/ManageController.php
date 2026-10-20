@@ -63,6 +63,11 @@ class ManageController extends Controller
 		private readonly \OCA\BookingCheck\Db\UploadMapper $uploads,
 		private readonly \OCA\BookingCheck\Db\InvoiceMapper $invoices,
 		private readonly \OCA\BookingCheck\Service\SettingsService $settings,
+		private readonly \OCA\BookingCheck\Service\WalletPassService $wallet,
+		private readonly \OCA\BookingCheck\Service\IcsService $icsService,
+		private readonly \OCA\BookingCheck\Service\EInvoiceService $einvoice,
+		private readonly \OCA\BookingCheck\Db\AbuseReportMapper $abuseReports,
+		private readonly \OCA\BookingCheck\Service\PushService $push,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -79,15 +84,26 @@ class ManageController extends Controller
 			]);
 		}
 		$lineRows = array_map(fn ($l) => $l->jsonSerialize(), $this->lines->findByOrder((int)$order->getId()));
+		$walletLive = $order->getStatus() === 'paid'
+			&& ($this->wallet->googleAvailable() || $this->wallet->appleAvailable());
 		$ticketsByLine = [];
 		foreach ($lineRows as $ln) {
 			foreach ($this->tickets->findByLine((int)$ln['id']) as $t) {
-				$ticketsByLine[(int)$ln['id']][] = [
+				$row = [
 					'id' => (int)$t->getId(),
 					'seat_no' => $t->getSeatNo() !== null ? (int)$t->getSeatNo() : null,
 					'attendee_name' => $t->getAttendeeName(),
 					'checked_in' => $t->getCheckedInAt() !== null,
 				];
+				if ($walletLive && $t->getRevokedAt() === null) {
+					$qr = $this->ticketService->qrPayload($t);
+					if ($qr !== null) {
+						$title = (string)($ln['catName'] ?? 'Ticket');
+						$row['wallet_google'] = $this->wallet->googleSaveUrl($order, $t, $qr, $title);
+						$row['wallet_apple'] = $this->wallet->appleAvailable();
+					}
+				}
+				$ticketsByLine[(int)$ln['id']][] = $row;
 			}
 		}
 		// reviews are a paid-order perk on review-enabled offerings (Pro)
@@ -152,13 +168,13 @@ class ManageController extends Controller
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function ics(string $token)
+	public function ics(string $token): DataDownloadResponse
 	{
 		$order = $this->resolve($token);
 		if ($order === null) {
 			throw new NotFoundException();
 		}
-		$ics = \OCP\Server::get(\OCA\BookingCheck\Service\IcsService::class)->forOrder($order);
+		$ics = $this->icsService->forOrder($order);
 		$resp = new DataDownloadResponse($ics, 'booking-' . $order->getRef() . '.ics', 'text/calendar');
 		return $resp;
 	}
@@ -167,17 +183,17 @@ class ManageController extends Controller
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function einvoice(string $token)
+	public function einvoice(string $token): \OCP\AppFramework\Http\DataDownloadResponse
 	{
 		$order = $this->resolve($token);
 		if ($order === null) {
 			throw new NotFoundException();
 		}
-		$svc = \OCP\Server::get(\OCA\BookingCheck\Service\EInvoiceService::class);
+		$svc = $this->einvoice;
 		if (!$svc->isAvailable()) {
 			throw new NotFoundException();
 		}
-		$invoice = \OCP\Server::get(\OCA\BookingCheck\Db\InvoiceMapper::class)
+		$invoice = $this->invoices
 			->findByOrderAndType((int)$order->getId(), 'invoice');
 		if ($invoice === null) {
 			throw new NotFoundException();
@@ -185,6 +201,40 @@ class ManageController extends Controller
 		return new \OCP\AppFramework\Http\DataDownloadResponse(
 			$svc->ciiXml($invoice, $order),
 			'einvoice-' . $order->getRef() . '.xml', 'application/xml');
+	}
+
+	/**
+	 * NH-30 wallet adapter — Apple .pkpass download. Same manage-token
+	 * entitlement as the ticket page; 404s identically when the seller
+	 * never configured Apple creds (feature stays invisible).
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function appleWallet(string $token, int $ticketId): \OCP\AppFramework\Http\DataDownloadResponse
+	{
+		$order = $this->resolve($token);
+		if ($order === null || $order->getStatus() !== 'paid') {
+			throw new NotFoundException();
+		}
+		$ticket = $this->tickets->find($ticketId);
+		if ($ticket === null || $ticket->getRevokedAt() !== null) {
+			throw new NotFoundException();
+		}
+		$line = $this->lines->find((int)$ticket->getLineId());
+		if ($line === null || (int)$line->getOrderId() !== (int)$order->getId()) {
+			throw new NotFoundException();
+		}
+		$qr = $this->ticketService->qrPayload($ticket);
+		if ($qr === null) {
+			throw new NotFoundException();
+		}
+		$bytes = $this->wallet->applePass($order, $ticket, $qr, (string)($line->getCatName() ?? 'Ticket'));
+		if ($bytes === null) {
+			throw new NotFoundException();
+		}
+		return new \OCP\AppFramework\Http\DataDownloadResponse(
+			$bytes, 'ticket-' . $ticketId . '.pkpass', 'application/vnd.apple.pkpass');
 	}
 
 	/**
@@ -206,7 +256,17 @@ class ManageController extends Controller
 		$offering = $this->offerings->find((int)$order->getOfferingId());
 		return new PublicTemplateResponse($this->appName, 'public/invoice', [
 			'token' => $token,
-			'order' => $order->jsonSerialize(),
+			// whitelist — the full serialize carries staffNote/consentText/
+			// promo internals that have no business on a buyer invoice
+			'order' => [
+				'ref' => $order->getRef(),
+				'status' => $order->getStatus(),
+				'buyerName' => $order->getBuyerName(),
+				'buyerCompany' => $order->getBuyerCompany(),
+				'buyerEmail' => $order->getBuyerEmail(),
+				'billingCountry' => $order->getBillingCountry(),
+				'vatId' => $order->getVatId(),
+			],
 			'offeringTitle' => $offering?->getTitle() ?? '',
 			'invoice' => $invoice->jsonSerialize(),
 			'credits' => array_map(fn ($i) => $i->jsonSerialize(),
@@ -353,7 +413,7 @@ class ManageController extends Controller
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function uploadDownload(string $token, int $id)
+	public function uploadDownload(string $token, int $id): \OCP\AppFramework\Http\StreamResponse
 	{
 		$order = $this->resolve($token);
 		$u = $order !== null ? $this->uploads->find($id) : null;
@@ -385,7 +445,7 @@ class ManageController extends Controller
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function uploadThumb(string $token, int $id)
+	public function uploadThumb(string $token, int $id): \OCP\AppFramework\Http\StreamResponse
 	{
 		$order = $this->resolve($token);
 		$u = $order !== null ? $this->uploads->find($id) : null;
@@ -420,7 +480,7 @@ class ManageController extends Controller
 		if (mb_strlen($reason) > 500) {
 			return $this->fail(400, 'VALIDATION', 'Reason is limited to 500 characters.');
 		}
-		$mapper = \OCP\Server::get(\OCA\BookingCheck\Db\AbuseReportMapper::class);
+		$mapper = $this->abuseReports;
 		$reporter = strtolower((string)$order->getBuyerEmail());
 		foreach ($mapper->listForUpload((int)$u->getId()) as $r) {
 			if ($r->getReporter() === $reporter && $r->getStatus() === 'open') {
@@ -433,8 +493,15 @@ class ManageController extends Controller
 		$r->setReason($reason === '' ? 'no reason given' : $reason);
 		$r->setStatus('open');
 		$r->setCreatedAt(new \DateTimeImmutable());
-		$mapper->insert($r);
-		\OCP\Server::get(\OCA\BookingCheck\Service\PushService::class)
+		try {
+			$mapper->insert($r);
+		} catch (\OCP\DB\Exception $e) {
+			if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			return $this->ok(['reported' => true, 'duplicate' => true]);
+		}
+		$this->push
 			->notifyManagers('abuse.reported', []);
 		return $this->ok(['reported' => true], 201);
 	}

@@ -57,6 +57,8 @@ class PortalController extends Controller
 		private readonly ?\OCA\BookingCheck\Db\DownloadLogMapper $downloadLog = null,
 		private readonly ?\OCA\BookingCheck\Db\AbuseReportMapper $abuseReports = null,
 		private readonly ?\OCA\BookingCheck\Db\UploadMapper $uploads = null,
+		private readonly ?\OCA\BookingCheck\Service\MaterialService $materials = null,
+		private readonly ?\OCA\BookingCheck\Service\UploadService $uploadService = null,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -108,8 +110,7 @@ class PortalController extends Controller
 		}
 		[$token] = $this->sessions->create($email, (string)$this->request->getHeader('User-Agent'));
 		$resp = $this->ok(['redirect' => $this->urlGenerator->linkToRoute('bookingcheck.portal.home')]);
-		$resp->addCookie(self::COOKIE, $token,
-			new \DateTime('+30 days'), true, true, 'lax');
+		$resp->addCookie(self::COOKIE, $token, new \DateTime('+30 days'), 'lax');
 		return $resp;
 	}
 
@@ -117,7 +118,7 @@ class PortalController extends Controller
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function magic(string $token)
+	public function magic(string $token): \OCP\AppFramework\Http\Response
 	{
 		$email = $this->otp->consumeMagic($token);
 		if ($email === null) {
@@ -125,8 +126,7 @@ class PortalController extends Controller
 		}
 		[$sessionToken] = $this->sessions->create($email, (string)$this->request->getHeader('User-Agent'));
 		$resp = new RedirectResponse($this->urlGenerator->linkToRoute('bookingcheck.portal.home'));
-		$resp->addCookie(self::COOKIE, $sessionToken,
-			new \DateTime('+30 days'), true, true, 'lax');
+		$resp->addCookie(self::COOKIE, $sessionToken, new \DateTime('+30 days'), 'lax');
 		return $resp;
 	}
 
@@ -198,28 +198,34 @@ class PortalController extends Controller
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function download(int $id)
+	public function download(int $id): \OCP\AppFramework\Http\Response
 	{
 		$email = $this->portalEmail();
 		if ($email === null || !$this->entitlement->canAccessMaterial($email, $id)) {
 			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
 		$this->downloadLog?->record($id, null, null, 'portal:' . $email);
-		return \OCP\Server::get(\OCA\BookingCheck\Service\MaterialService::class)->stream($id);
+		if ($this->materials === null) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		return $this->materials->stream($id);
 	}
 
 	/** NH-14 — inline preview (PDF/images only — others fall back to download). */
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function preview(int $id)
+	public function preview(int $id): \OCP\AppFramework\Http\Response
 	{
 		$email = $this->portalEmail();
 		if ($email === null || !$this->entitlement->canAccessMaterial($email, $id)) {
 			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
 		$this->downloadLog?->record($id, null, null, 'portal-preview:' . $email);
-		return \OCP\Server::get(\OCA\BookingCheck\Service\MaterialService::class)->streamPreview($id);
+		if ($this->materials === null) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		return $this->materials->streamPreview($id);
 	}
 
 	/**
@@ -229,7 +235,7 @@ class PortalController extends Controller
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function uploadThumb(int $id)
+	public function uploadThumb(int $id): \OCP\AppFramework\Http\StreamResponse
 	{
 		$email = $this->portalEmail();
 		$u = $email === null || $this->uploads === null ? null : $this->uploads->find($id);
@@ -245,8 +251,10 @@ class PortalController extends Controller
 		if ($order === null || $offering === null) {
 			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
-		return \OCP\Server::get(\OCA\BookingCheck\Service\UploadService::class)
-			->thumbFor($u, $order, $offering);
+		if ($this->uploadService === null) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		return $this->uploadService->thumbFor($u, $order, $offering);
 	}
 
 	/**
@@ -278,8 +286,10 @@ class PortalController extends Controller
 		if ($u === null || $order === null || $offering === null) {
 			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
-		\OCP\Server::get(\OCA\BookingCheck\Service\UploadService::class)
-			->assertViewable($u, $order, $offering);
+		if ($this->uploadService === null) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		$this->uploadService->assertViewable($u, $order, $offering);
 		foreach ($this->abuseReports->listForUpload($uploadId) as $r) {
 			if ($r->getReporter() === strtolower($email) && $r->getStatus() === 'open') {
 				return $this->ok(['reported' => true, 'duplicate' => true]);
@@ -291,12 +301,22 @@ class PortalController extends Controller
 		$r->setReason($reason);
 		$r->setStatus('open');
 		$r->setCreatedAt(new \DateTimeImmutable());
-		$this->abuseReports->insert($r);
+		try {
+			$this->abuseReports->insert($r);
+		} catch (\OCP\DB\Exception $e) {
+			if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			// raced a concurrent report from the same reporter — the unique
+			// index kept exactly one; treat the loser as the duplicate it is
+			return $this->ok(['reported' => true, 'duplicate' => true]);
+		}
 		return $this->ok(['reported' => true], 201);
 	}
 
 	#[PublicPage]
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function logout(): JSONResponse
 	{
 		$token = $this->request->getCookie(self::COOKIE);
@@ -304,7 +324,7 @@ class PortalController extends Controller
 			$this->sessions->revoke($token);
 		}
 		$resp = $this->ok(['logged_out' => true]);
-		$resp->addCookie(self::COOKIE, '', new \DateTime('-1 hour'), true, true, 'lax');
+		$resp->addCookie(self::COOKIE, '', new \DateTime('-1 hour'), 'lax');
 		return $resp;
 	}
 

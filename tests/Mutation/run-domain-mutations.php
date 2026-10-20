@@ -321,6 +321,8 @@ $mutations = [
 			'from' => "\t\t\t\tif (isset(\$existing[\$key])) {\n\t\t\t\t\tcontinue; // idempotent — already materialized\n\t\t\t\t}",
 			'to' => "",
 			'test' => 'testSlotMaterializerGeneratesWeeklySlotsIdempotently',
+			'equivalent' => 'bc_slot_tpl_uq unique index + the unique-catch '
+				. 'rejects the twin insert — identical replay outcome',
 		],
 	],
 	// ---- SlotController — booked inventory guard ----------------------
@@ -432,8 +434,8 @@ $mutations = [
 			'test' => 'testAttendeeUploadQuotaAndOfferingScope',
 		],
 		'upload_quota_skipped' => [
-			'from' => "\t\tif (\$live + \$size > (int)\$o->getUploadQuotaMb() * 1024 * 1024) {",
-			'to' => "\t\tif (false) {",
+			'from' => "\t\t\tif (\$live + \$size > (int)\$locked->getUploadQuotaMb() * 1024 * 1024) {",
+			'to' => "\t\t\tif (false) {",
 			'test' => 'testAttendeeUploadQuotaAndOfferingScope',
 		],
 		'upload_file_cap_skipped' => [
@@ -610,9 +612,17 @@ $mutations = [
 		// a door scoped to offering A must never touch offering B's
 		// tickets — an always-true scope check is a cross-tenant door
 		'door_scope_bypass' => [
-			'from' => "\t\treturn \$this->doors->scopeAllows(\$device, (int)\$offeringId);",
+			'from' => "\t\treturn \$offeringId !== null && \$this->doors->scopeAllows(\$device, \$offeringId);",
 			'to' => "\t\treturn true;",
 			'test' => 'testDoorLookupOutOfScopeIsUniform404|testDoorCheckInOutOfScopeIsUniform404',
+		],
+		// cart orders span offerings — weakening the per-ticket scope
+		// filter to "any resolvable offering" hands a door every ticket
+		// on a mixed cart
+		'order_ref_scope_filter_dropped' => [
+			'from' => "\$r['offering_id'] !== null\n\t\t\t\t\t&& \$this->doors->scopeAllows(\$device, (int)\$r['offering_id'])));",
+			'to' => "\$r['offering_id'] !== null);",
+			'test' => 'testDoorOrderRefOutOfScopeIsUniform404|testDoorOrderRefFiltersCartToInScopeTickets',
 		],
 	],
 	// ---- DoorSessionService — the web-scanner's least-privilege door ---

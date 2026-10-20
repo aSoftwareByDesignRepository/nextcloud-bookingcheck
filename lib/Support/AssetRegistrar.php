@@ -43,7 +43,14 @@ final class AssetRegistrar
 	 */
 	public static function registerScripts(): void
 	{
-		foreach (['common/toasts', 'common/field-errors', 'common/app-feedback', 'common/mobile-nav', 'common/focus-preservation', 'app'] as $script) {
+		$scripts = ['common/toasts', 'common/field-errors', 'common/app-feedback', 'common/mobile-nav'];
+		// focus-preservation ships only in apps that synced that pack —
+		// it must load before the kernel, which installs it when present.
+		if (is_file(__DIR__ . '/../../js/common/focus-preservation.js')) {
+			$scripts[] = 'common/focus-preservation';
+		}
+		$scripts[] = 'app';
+		foreach ($scripts as $script) {
 			Util::addScript(Application::APP_ID, $script);
 		}
 	}

@@ -63,7 +63,9 @@ class EntitlementService
 			->leftJoin('o', 'bc_offering', 'of', $qb->expr()->eq('of.id', 'o.offering_id'))
 			->where($qb->expr()->in('o.id', $qb->createNamedParameter($ids, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))
 			->orderBy('o.id', 'DESC');
-		return $qb->executeQuery()->fetchAll();
+		/** @var list<array{id:int, ref:string, status:string, title:string, talk_room:?string}> $rows */
+		$rows = $qb->executeQuery()->fetchAll();
+		return $rows;
 	}
 
 	/** Materials the email may see right now. */

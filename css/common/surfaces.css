@@ -185,7 +185,6 @@
 #app-content.bck-app .bck-label {
 	font-weight: 600;
 	font-size: var(--bck-fs-sm);
-	text-align: start;
 }
 
 #app-content.bck-app .bck-input,
@@ -196,7 +195,7 @@
 	padding: var(--bck-space-2) var(--bck-space-3);
 	border: 1px solid var(--bck-form-border);
 	border-radius: var(--bck-radius-sm);
-	background: var(--bck-bg-card);
+	background-color: var(--bck-bg-card);
 	color: var(--bck-text);
 	font-size: var(--bck-fs-md);
 	font-family: inherit;
@@ -879,7 +878,7 @@ dialog.bck-dialog--wide {
 	cursor: pointer;
 }
 
-#app-content.bck-app .bck-chip--filter:hover { background: var(--color-background-hover); }
+#app-content.bck-app .bck-chip--filter:hover { background: var(--bck-bg-hover, var(--color-background-hover)); }
 
 @media (max-width: 767.98px) {
 	.bck-dialog__actions { flex-direction: column-reverse; align-items: stretch; }

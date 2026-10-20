@@ -9,11 +9,13 @@ use Exception;
 /** Carries a field→message map; serializes to the canonical 400 envelope. */
 class ValidationException extends Exception
 {
+	/** @param array<string,string> $fields */
 	public function __construct(private array $fields, string $message = 'Validation failed')
 	{
 		parent::__construct($message, 400);
 	}
 
+	/** @return array<string,string> */
 	public function getFields(): array
 	{
 		return $this->fields;

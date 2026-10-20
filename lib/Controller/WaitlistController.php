@@ -37,8 +37,19 @@ class WaitlistController extends Controller
 	{
 		return new TemplateResponse($this->appName, 'admin/waitlist', [
 			'navId' => 'waitlist',
+			// whitelist — jsonSerialize ships claimTokenHash (a live claim
+			// credential) to the template for fields it never reads
 			'entries' => array_map(
-				fn (\OCA\BookingCheck\Db\WaitlistEntry $w) => $w->jsonSerialize(),
+				fn (\OCA\BookingCheck\Db\WaitlistEntry $w) => [
+					'id' => (int)$w->getId(),
+					'targetType' => $w->getTargetType(),
+					'targetId' => (int)$w->getTargetId(),
+					'email' => $w->getEmail(),
+					'locale' => $w->getLocale(),
+					'state' => $w->getState(),
+					'offerExpiresAt' => $w->getOfferExpiresAt()?->format(\DateTimeInterface::ATOM),
+					'createdAt' => $w->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+				],
 				$this->waitlist->findAll()),
 		]);
 	}

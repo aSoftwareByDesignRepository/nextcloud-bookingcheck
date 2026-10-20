@@ -12,7 +12,6 @@ namespace OCA\BookingCheck\Integration;
 use OCP\App\IAppManager;
 use OCP\IUser;
 use OCP\IUserManager;
-use OCP\Talk\Exceptions\ConversationCreationException;
 use OCP\Talk\IBroker;
 use Psr\Log\LoggerInterface;
 
@@ -54,7 +53,7 @@ class TalkIntegration
 			$options = $this->talk->newConversationOptions()->setPublic(false);
 			$room = $this->talk->createConversation($name, [$owner], $options);
 			return $room->getAbsoluteUrl();
-		} catch (ConversationCreationException|\Throwable $e) {
+		} catch (\Throwable $e) {
 			$this->logger->warning('bookingcheck: Talk room creation failed', ['error' => $e->getMessage()]);
 			return null;
 		}

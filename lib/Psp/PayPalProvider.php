@@ -75,7 +75,7 @@ class PayPalProvider extends AbstractProvider
 
 	public function verifyWebhook(IRequest $request): VerifiedEvent
 	{
-		$payload = json_decode((string)$request->getContent(), true);
+		$payload = json_decode((string)file_get_contents('php://input'), true);
 		if (!is_array($payload)) {
 			throw new PspException('PayPal: malformed webhook payload');
 		}
@@ -165,7 +165,7 @@ class PayPalProvider extends AbstractProvider
 				'body' => 'grant_type=client_credentials',
 				'timeout' => self::TIMEOUT,
 			]);
-			$data = json_decode($res->getBody(), true);
+			$data = self::bodyJson($res);
 			$token = $data['access_token'] ?? '';
 			if (!is_string($token) || $token === '') {
 				throw new PspException('PayPal OAuth: no token');

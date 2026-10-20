@@ -11,6 +11,7 @@ namespace OCA\BookingCheck\Controller;
 
 use OCA\BookingCheck\Exception\ValidationException;
 use OCA\BookingCheck\Psp\PspManager;
+use OCA\BookingCheck\Service\MailRenderer;
 use OCA\BookingCheck\Service\SettingsService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -56,6 +57,7 @@ class SettingsController extends Controller
 		private readonly \OCA\BookingCheck\Service\SellerNotifyService $sellerNotify,
 		private readonly \OCA\BookingCheck\Service\LicenseService $license,
 		private readonly \OCA\BookingCheck\Db\OfferingMapper $offerings,
+		private readonly \OCA\BookingCheck\Db\MailTplMapper $mailTpls,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -93,7 +95,7 @@ class SettingsController extends Controller
 		$scopeRaw = trim((string)$this->request->getParam('offering_ids', ''));
 		if ($scopeRaw !== '') {
 			$scopeIds = [];
-			foreach (preg_split('/[\s,]+/', $scopeRaw) as $piece) {
+			foreach (preg_split('/[\s,]+/', $scopeRaw) ?: [] as $piece) {
 				if (!preg_match('/^\d+$/', $piece)) {
 					throw new \OCA\BookingCheck\Exception\ValidationException(
 						['offering_ids' => 'Offering ids must be a comma-separated list of numbers.']);
@@ -107,7 +109,7 @@ class SettingsController extends Controller
 				}
 			}
 			// stored as JSON — CapiController::deviceScope() json_decodes it
-			$scopeRaw = json_encode(array_values(array_unique($scopeIds)));
+			$scopeRaw = json_encode(array_values(array_unique($scopeIds))) ?: '[]';
 		}
 		[$token, $hash] = $this->tokens->mint();
 		$d = new \OCA\BookingCheck\Db\CompanionToken();
@@ -152,6 +154,63 @@ class SettingsController extends Controller
 		return $this->ok(['settings' => $out]);
 	}
 
+	/** NH-37: list seller mail-template overrides (kind+locale → subject/extra). */
+	#[NoAdminRequired]
+	public function mailTplList(): JSONResponse
+	{
+		return $this->ok(['templates' => array_map(
+			static fn (\OCA\BookingCheck\Db\MailTpl $t) => [
+				'id' => (int)$t->getId(),
+				'kind' => (string)$t->getKind(),
+				'locale' => (string)$t->getLocale(),
+				'subject' => (string)($t->getSubject() ?? ''),
+				'extra_text' => (string)($t->getExtraText() ?? ''),
+			],
+			$this->mailTpls->listAll(),
+		), 'kinds' => MailRenderer::KINDS]);
+	}
+
+	/** NH-37: upsert one override — empty subject+extra deletes the row. */
+	#[NoAdminRequired]
+	public function mailTplPut(): JSONResponse
+	{
+		$in = $this->request->getParams();
+		$kind = (string)($in['kind'] ?? '');
+		if (!in_array($kind, MailRenderer::KINDS, true)) {
+			throw new ValidationException(['kind' => 'Unknown mail kind.']);
+		}
+		$locale = trim((string)($in['locale'] ?? ''));
+		if ($locale !== '' && !preg_match('/^[a-z]{2}([_-][A-Za-z]{2})?$/', $locale)) {
+			throw new ValidationException(['locale' => 'Language must be a code like en or de, or empty for all languages.']);
+		}
+		$subject = mb_substr(trim((string)($in['subject'] ?? '')), 0, 190);
+		$extra = mb_substr(trim((string)($in['extra_text'] ?? '')), 0, 4000);
+		if ($subject === '' && $extra === '') {
+			$existing = $this->mailTpls->findFor($kind, $locale);
+			if ($existing !== null) {
+				$this->mailTpls->delete($existing);
+			}
+			return $this->ok(['deleted' => true]);
+		}
+		$tpl = $this->mailTpls->upsert($kind, $locale, $subject, $extra);
+		return $this->ok(['template' => [
+			'id' => (int)$tpl->getId(), 'kind' => $kind, 'locale' => $locale,
+			'subject' => $subject, 'extra_text' => $extra,
+		]]);
+	}
+
+	/** NH-37: remove an override — the built-in template applies again. */
+	#[NoAdminRequired]
+	public function mailTplDelete(int $id): JSONResponse
+	{
+		$tpl = $this->mailTpls->find($id);
+		if ($tpl === null) {
+			return $this->notFound();
+		}
+		$this->mailTpls->delete($tpl);
+		return $this->ok(['deleted' => true]);
+	}
+
 	/** US-528 AC-2: per-user opt-out for paid-order notifications. */
 	#[NoAdminRequired]
 	public function setNotifyPaid(): JSONResponse
@@ -194,6 +253,9 @@ class SettingsController extends Controller
 			if ($k === 'seller_country' && !preg_match('/^[A-Z]{2}$/', $v)) {
 				throw new ValidationException(['seller_country' => 'ISO country code.']);
 			}
+			if ($k === 'default_locale' && $v !== '' && !preg_match('/^[a-z]{2}$/', $v)) {
+				throw new ValidationException(['default_locale' => 'Language code like en or de.']);
+			}
 			if (in_array($k, ['order_hold_min', 'approval_hold_min', 'payment_ttl_min',
 				'otp_ttl_min', 'portal_sess_days', 'waitlist_offer_h'], true)) {
 				if (!is_numeric($v) || (int)$v < 1 || (int)$v > 525600) {
@@ -221,7 +283,7 @@ class SettingsController extends Controller
 				throw new ValidationException(['av_icap_endpoint' => 'host:port expected.']);
 			}
 			if ($k === 'cors_origins' && trim($v) !== '') {
-				foreach (preg_split('/[\s,]+/', trim($v)) as $origin) {
+				foreach (preg_split('/[\s,]+/', trim($v)) ?: [] as $origin) {
 					if ($origin === '*') {
 						throw new ValidationException(['cors_origins' => 'Wildcard origins are not allowed.']);
 					}

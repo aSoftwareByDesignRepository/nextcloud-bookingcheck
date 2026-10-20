@@ -63,7 +63,7 @@ class SumUpProvider extends AbstractProvider
 
 	public function verifyWebhook(IRequest $request): VerifiedEvent
 	{
-		$payload = json_decode((string)$request->getContent(), true);
+		$payload = json_decode((string)file_get_contents('php://input'), true);
 		$id = is_array($payload) ? ($payload['id'] ?? $payload['checkout_id'] ?? null) : null;
 		if (!is_string($id) || $id === '') {
 			throw new PspException('SumUp: malformed webhook payload');

@@ -58,14 +58,14 @@ class RateLimitMiddleware extends Middleware
 		if (!str_starts_with(get_class($controller), 'OCA\\BookingCheck\\')) {
 			return;
 		}
-		$path = $this->request->getPathInfo();
+		$path = ($this->request->getPathInfo() ?: '');
 		foreach (self::RULES as $frag => $rule) {
 			if (str_contains($path, $frag)) {
 				$ip = $this->request->getRemoteAddress() ?: 'unknown';
 				try {
 					// sleeps progressively, throws once the cap is reached
 					$this->throttler->sleepDelayOrThrowOnMax($ip, $rule['action']);
-				} catch (\OCP\AppFramework\Http\TooManyRequestsException|\Exception) {
+				} catch (\Exception) {
 					throw new RateLimitException();
 				}
 				// count this hit — repeat callers slow down then get refused

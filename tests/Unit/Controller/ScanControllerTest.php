@@ -60,12 +60,14 @@ final class ScanControllerTest extends TestCase
 		$this->doors = new DoorSessionService($this->phpSession, $this->devices,
 			$this->createMock(TokenService::class));
 
-		// doorScopeOk() runs one join: bc_ticket → bc_order_line → offering_id.
-		// The QB chain returns $this->scopeOfferingId — scopeAllows decides.
+		// doorScopeOk() resolves ticket → line's target → owning offering
+		// via WaitlistService::offeringForTarget; the stub returns
+		// $this->scopeOfferingId — scopeAllows decides.
 		$expr = $this->createMock(IExpressionBuilder::class);
 		$expr->method('eq')->willReturn('x=y');
 		$result = $this->createMock(\OCP\DB\IResult::class);
-		$result->method('fetchOne')->willReturnCallback(fn () => $this->scopeOfferingId);
+		$result->method('fetch')->willReturn(
+			['target_type' => 'event', 'target_id' => 55]);
 		$qb = $this->createMock(IQueryBuilder::class);
 		foreach (['select', 'from', 'innerJoin', 'where', 'andWhere'] as $m) {
 			$qb->method($m)->willReturnSelf();
@@ -75,10 +77,13 @@ final class ScanControllerTest extends TestCase
 		$qb->method('executeQuery')->willReturn($result);
 		$db = $this->createMock(IDBConnection::class);
 		$db->method('getQueryBuilder')->willReturn($qb);
+		$waitlist = $this->createMock(\OCA\BookingCheck\Service\WaitlistService::class);
+		$waitlist->method('offeringForTarget')
+			->willReturnCallback(fn () => $this->scopeOfferingId);
 
 		$this->ctrl = new ScanController('bookingcheck', $this->request,
 			$this->tickets, $this->orders, $this->session, $this->groups,
-			$this->doors, $db, $this->createMock(TokenService::class));
+			$this->doors, $db, $this->createMock(TokenService::class), $waitlist);
 	}
 
 	private function param(array $map): void
@@ -299,8 +304,37 @@ final class ScanControllerTest extends TestCase
 		$o = new Order();
 		$o->setId(5);
 		$o->setStatus('paid');
-		$o->setOfferingId(7); // paid + real, but not this door's offering
+		$o->setOfferingId(7);
 		$this->orders->method('findByRef')->willReturn($o);
+		// tickets resolve to offering 7 via their line's target — not the
+		// door's scope, so the whole order is invisible
+		$this->tickets->method('liveTicketsForOrder')->willReturn([
+			['id' => 9, 'seat_no' => 1, 'attendee_name' => 'A',
+				'checked_in_at' => null, 'qr' => 'x', 'offering_id' => 7],
+		]);
 		self::assertSame(404, $this->ctrl->lookup()->getStatus());
+	}
+
+	public function testDoorOrderRefFiltersCartToInScopeTickets(): void
+	{
+		$this->asDoor('[8]'); // cart: lead offering 7 + line offering 8
+		$this->param(['code' => 'BCK-2026-ABCDEFGH']);
+		$o = new Order();
+		$o->setId(5);
+		$o->setStatus('paid');
+		$o->setOfferingId(7); // lead — NOT this door's offering
+		$this->orders->method('findByRef')->willReturn($o);
+		$this->tickets->method('liveTicketsForOrder')->willReturn([
+			['id' => 9, 'seat_no' => 1, 'attendee_name' => 'A',
+				'checked_in_at' => null, 'qr' => 'qa', 'offering_id' => 7],
+			['id' => 10, 'seat_no' => 2, 'attendee_name' => 'B',
+				'checked_in_at' => null, 'qr' => 'qb', 'offering_id' => 8],
+		]);
+		$d = $this->ctrl->lookup()->getData()['data'];
+		self::assertCount(1, $d['tickets'],
+			'a cart door sees only its own offering\'s tickets');
+		self::assertSame(10, $d['tickets'][0]['id']);
+		self::assertArrayNotHasKey('offering_id', $d['tickets'][0],
+			'internal scope key must not leak into the payload');
 	}
 }

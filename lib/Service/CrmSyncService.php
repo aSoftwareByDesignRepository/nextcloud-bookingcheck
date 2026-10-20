@@ -127,6 +127,7 @@ class CrmSyncService
 	}
 
 	/** Isolated probe point — mocked in tests; the sibling class may not exist. */
+	/** @param array<string,mixed> $body */
 	protected function callSibling(string $token, array $body): void
 	{
 		\OCP\Server::get(self::SIBLING_SERVICE)->handle($token, '127.0.0.1', $body);

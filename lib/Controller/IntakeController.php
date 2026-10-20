@@ -117,6 +117,10 @@ class IntakeController extends Controller
 		if ($list === []) {
 			throw new ValidationException(['options' => 'Select needs at least one option.']);
 		}
-		return json_encode($list);
+		try {
+			return json_encode($list, JSON_THROW_ON_ERROR);
+		} catch (\JsonException) {
+			throw new ValidationException(['options' => 'Options contain invalid characters.']);
+		}
 	}
 }

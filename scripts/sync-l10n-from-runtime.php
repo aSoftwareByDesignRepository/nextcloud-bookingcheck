@@ -25,7 +25,19 @@ foreach ($argv ?? [] as $arg) {
 	}
 }
 
-$locales = ['en', 'de'];
+$locales = array (
+  0 => 'en',
+  1 => 'de',
+  2 => 'fr',
+  3 => 'es',
+  4 => 'da',
+  5 => 'nl',
+  6 => 'it',
+  7 => 'pl',
+  8 => 'sv',
+  9 => 'nb',
+  10 => 'pt_BR',
+);
 $enPath = $appRoot . '/l10n/en.json';
 $en = json_decode((string)file_get_contents($enPath), true, 512, JSON_THROW_ON_ERROR);
 $catalog = $en['translations'] ?? [];
@@ -48,6 +60,10 @@ $patterns = [
 	'/(?<![a-zA-Z])t\(\s*[\'"]bookingcheck[\'"]\s*,\s*"((?:\\\\"|[^"])*)"\s*\)/',
 	'/(?<![a-zA-Z])t\(\s*[\'"]bookingcheck[\'"]\s*,\s*\'((?:\\\\\'|[^\'])*)\'\s*,/',
 	'/(?<![a-zA-Z])t\(\s*[\'"]bookingcheck[\'"]\s*,\s*"((?:\\\\"|[^"])*)"\s*,/',
+	'/(?<![a-zA-Z])BCK\.t\(\s*\'((?:\\\\\'|[^\'])*)\'/',
+	'/(?<![a-zA-Z])BCK\.t\(\s*"((?:\\\\"|[^"])*)"/',
+	'/(?<![a-zA-Z])BCK\.tf\(\s*\'((?:\\\\\'|[^\'])*)\'/',
+	'/(?<![a-zA-Z])BCK\.tf\(\s*"((?:\\\\"|[^"])*)"/',
 ];
 
 $scanDirs = [$appRoot . '/lib', $appRoot . '/templates', $appRoot . '/js'];
@@ -79,7 +95,7 @@ foreach ($scanDirs as $dir) {
 	}
 }
 
-/** Regional variants mirror their base catalog (README: de_DE mirrors de). */
+/** Regional variants mirror their base catalog (de_DE mirrors de, …). */
 $variants = [
 	'da_DK' => 'da',
 	'de_DE' => 'de',
@@ -92,11 +108,6 @@ $variants = [
 	'sv_SE' => 'sv',
 ];
 
-/**
- * Copy keys that exist in the base catalog but not in the variant. Existing
- * variant entries are never overwritten, so deliberate regional divergence
- * survives. Returns the number of catalogs touched.
- */
 function mirror_variants(string $appRoot, array $variants, bool $dryRun): int {
 	$touched = 0;
 	foreach ($variants as $variant => $baseLang) {
@@ -120,16 +131,19 @@ function mirror_variants(string $appRoot, array $variants, bool $dryRun): int {
 		}
 		$touched++;
 		if ($dryRun) {
-			echo "[dry-run] Would mirror {$added} key(s) {$baseLang} -> {$variant}\n";
+			echo "[dry-run] Would mirror {$added} key(s) {$baseLang} -> {$variant}
+";
 			continue;
 		}
 		ksort($variantTrans, SORT_STRING);
 		$variantData['translations'] = $variantTrans;
 		file_put_contents(
 			$variantPath,
-			json_encode($variantData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "\n"
+			json_encode($variantData, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR) . "
+"
 		);
-		echo "Mirrored {$added} key(s) {$baseLang} -> {$variant} (total " . count($variantTrans) . ")\n";
+		echo "Mirrored {$added} key(s) {$baseLang} -> {$variant} (total " . count($variantTrans) . ")
+";
 	}
 	return $touched;
 }
@@ -187,8 +201,6 @@ foreach ($locales as $lang) {
 			$trans[$msgid] = $msgid;
 		}
 	}
-	// check-l10n-parity.php requires every catalog in sorted key order;
-	// appending without re-sorting would fail the parity gate.
 	ksort($trans, SORT_STRING);
 	$data['translations'] = $trans;
 	$encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);

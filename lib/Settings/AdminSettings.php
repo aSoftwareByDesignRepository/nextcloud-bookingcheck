@@ -24,6 +24,8 @@ class AdminSettings implements ISettings
 		private readonly IAppManager $appManager,
 		private readonly IConfig $serverConfig,
 		private readonly \OCA\BookingCheck\Service\LicenseService $license,
+		private readonly \OCA\BookingCheck\Db\MailTplMapper $mailTpls,
+		private readonly \OCP\IL10N $l10n,
 	) {
 	}
 
@@ -76,7 +78,67 @@ class AdminSettings implements ISettings
 				: '',
 			'avEnabled' => $this->config->getAppValue('av_enabled', '0'),
 			'avIcapEndpoint' => $this->config->getAppValue('av_icap_endpoint', ''),
+			// flags only for the remaining secrets — plaintext never leaves the server
+			'hasMollieTestKey' => $this->config->getAppValue('mollie_test_key_enc', '') !== '',
+			'hasMollieWebhookSecret' => $this->config->getAppValue('mollie_webhook_secret_enc', '') !== '',
+			'hasStripeWebhookSecret' => $this->config->getAppValue('stripe_webhook_secret_enc', '') !== '',
+			// flows — booking lifecycle TTLs the settings UI must show
+			'orderHoldMin' => $this->config->getAppValue('order_hold_min', ''),
+			'approvalHoldMin' => $this->config->getAppValue('approval_hold_min', ''),
+			'paymentTtlMin' => $this->config->getAppValue('payment_ttl_min', ''),
+			'otpTtlMin' => $this->config->getAppValue('otp_ttl_min', ''),
+			'portalSessDays' => $this->config->getAppValue('portal_sess_days', ''),
+			'waitlistOfferH' => $this->config->getAppValue('waitlist_offer_h', ''),
+			'defaultLocale' => $this->config->getAppValue('default_locale', ''),
+			// NH-30 wallet adapter — IDs plain, cert/key flag-only
+			'walletGoogleIssuer' => $this->config->getAppValue('wallet_google_issuer', ''),
+			'walletGoogleSaEmail' => $this->config->getAppValue('wallet_google_sa_email', ''),
+			'hasWalletGoogleSecret' => $this->config->getAppValue('wallet_google_secret_enc', '') !== '',
+			'walletApplePassTypeId' => $this->config->getAppValue('wallet_apple_pass_type_id', ''),
+			'walletAppleTeamId' => $this->config->getAppValue('wallet_apple_team_id', ''),
+			'hasWalletAppleCert' => $this->config->getAppValue('wallet_apple_cert_pem_enc', '') !== '',
+			'hasWalletAppleKey' => $this->config->getAppValue('wallet_apple_key_pem_enc', '') !== '',
+			'datevRevenue' => $this->config->getAppValue('datev_revenue_account', ''),
+			'datevReceivable' => $this->config->getAppValue('datev_receivable_account', ''),
+			// NH-37 mail-template overrides — kind labels translated for the picker
+			'mailTemplates' => array_map(
+				static fn (\OCA\BookingCheck\Db\MailTpl $t) => [
+					'id' => (int)$t->getId(),
+					'kind' => (string)$t->getKind(),
+					'locale' => (string)$t->getLocale(),
+					'subject' => (string)($t->getSubject() ?? ''),
+					'extra_text' => (string)($t->getExtraText() ?? ''),
+				],
+				$this->mailTpls->listAll()),
+			'mailKindLabels' => $this->mailKindLabels(),
 		]);
+	}
+
+	/** @return list<array{0:string,1:string}> [kind, human label] pairs for the picker */
+	private function mailKindLabels(): array
+	{
+		$l = $this->l10n;
+		$labels = [
+			'order_confirmed' => $l->t('Booking confirmed'),
+			'payment_link' => $l->t('Booking approved — payment link'),
+			'payment_failed' => $l->t('Payment failed'),
+			'order_expired' => $l->t('Booking expired'),
+			'order_declined' => $l->t('Booking request declined'),
+			'approval_request' => $l->t('New booking request (to staff)'),
+			'approval_pending' => $l->t('Booking request received'),
+			'otp' => $l->t('Sign-in code'),
+			'waitlist_offer' => $l->t('Waitlist seat offer'),
+			'waitlist_notify' => $l->t('Waitlist seat notification'),
+			'manage_link' => $l->t('Manage-booking link'),
+			'broadcast' => $l->t('Broadcast update'),
+			'rescheduled' => $l->t('Booking moved'),
+			'seller_order_paid' => $l->t('Paid order (to staff)'),
+		];
+		$out = [];
+		foreach (\OCA\BookingCheck\Service\MailRenderer::KINDS as $k) {
+			$out[] = [$k, $labels[$k] ?? $k];
+		}
+		return $out;
 	}
 
 	public function getSection(): string

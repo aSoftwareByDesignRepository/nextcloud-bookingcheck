@@ -47,7 +47,10 @@ class CompanionAuthMiddleware extends Middleware
 			throw new \OCA\BookingCheck\Exception\UnauthorizedException('invalid device token');
 		}
 		$this->tokens->touch((int)$row->getId());
-		// stash the authenticated device for controllers
-		$controller->companionDevice = $row;
+		// stash the authenticated device for controllers — typed property on
+		// CapiController, never a dynamic prop on an unrelated controller
+		if ($controller instanceof \OCA\BookingCheck\Controller\CapiController) {
+			$controller->companionDevice = $row;
+		}
 	}
 }

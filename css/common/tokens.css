@@ -95,6 +95,7 @@ body,
 	--bck-bg-soft: color-mix(in srgb, var(--color-main-background) 96%, var(--color-main-text) 4%);
 	--bck-bg-card: var(--color-main-background);
 	--bck-bg-stripe: color-mix(in srgb, var(--color-main-background) 92%, var(--color-main-text) 8%);
+	--bck-bg-hover: var(--color-background-hover);
 	--bck-text: var(--color-main-text);
 	--bck-muted: var(--color-text-maxcontrast);
 	--bck-border: color-mix(in srgb, var(--color-main-text) 12%, transparent);
@@ -115,6 +116,10 @@ body,
 	/* Primary / focus — track NC accent for custom branding */
 	--bck-primary: var(--color-primary-element);
 	--bck-primary-text: var(--color-primary-element-text);
+	/* Accent used as text/icon ink on surfaces: pure --color-primary-element
+	   drops below WCAG AA 4.5:1 on dark themes (~4.3:1); the dark override
+	   below blends it toward main-text. Fills keep --bck-primary. */
+	--bck-accent-ink: var(--color-primary-element);
 	--bck-focus: 3px solid var(--color-primary-element);
 	--bck-focus-offset: 2px;
 
@@ -213,6 +218,7 @@ body[data-theme-dark-highcontrast] #content.app-bookingcheck {
 		var(--color-main-background)
 	);
 	--bck-danger-on-fill: var(--color-main-text);
+	--bck-accent-ink: color-mix(in srgb, var(--color-primary-element) 70%, var(--color-main-text));
 }
 
 /* NC high-contrast themes: stronger borders / shadows for 3:1 UI chrome */

@@ -12,20 +12,24 @@ namespace OCA\BookingCheck\Db;
 use OCP\AppFramework\Db\Entity;
 
 /**
+ * Entity for the `bc_sync_task` table.
+ *
+ * @method int getId()
+ * @method void setId(int $id)
  * @method string getKind()
- * @method void setKind(string $v)
+ * @method void setKind(string $kind)
  * @method string getPayloadJson()
- * @method void setPayloadJson(string $v)
+ * @method void setPayloadJson(string $payloadJson)
  * @method string getStatus()
- * @method void setStatus(string $v)
+ * @method void setStatus(string $status)
  * @method int getAttempts()
- * @method void setAttempts(int $v)
+ * @method void setAttempts(int $attempts)
  * @method \DateTimeImmutable getNextAt()
- * @method void setNextAt(\DateTimeInterface $v)
+ * @method void setNextAt(\DateTimeImmutable $nextAt)
  * @method \DateTimeImmutable getCreatedAt()
- * @method void setCreatedAt(\DateTimeInterface $v)
- * @method ?\DateTimeImmutable getDoneAt()
- * @method void setDoneAt(?\DateTimeInterface $v)
+ * @method void setCreatedAt(\DateTimeImmutable $createdAt)
+ * @method \DateTimeImmutable|null getDoneAt()
+ * @method void setDoneAt(?\DateTimeImmutable $doneAt)
  */
 class SyncTask extends Entity
 {
