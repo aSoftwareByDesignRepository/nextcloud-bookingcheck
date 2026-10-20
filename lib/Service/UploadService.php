@@ -36,6 +36,7 @@ class UploadService
 		private readonly UploadGateService $gate,
 		private readonly LicenseService $license,
 		private readonly IAppData $appData,
+		private readonly AvScanService $av,
 	) {
 	}
 
@@ -77,7 +78,15 @@ class UploadService
 		}
 		$info = $this->gate->inspect($file); // magic bytes + macro sweep
 		$tmp = (string)$file['tmp_name'];
+		// NH-13/NN-21: when AV is enabled the scan is fail-CLOSED —
+		// 'infected' and 'unscanned' (daemon down) both refuse storage
+		$mime = (string)($file['type'] ?? 'application/octet-stream');
+		$avState = $this->av->scan($tmp, $mime);
+		if ($avState === 'infected' || $avState === 'unscanned') {
+			throw new ValidationException(['file' => 'The file could not be accepted.']);
+		}
 		$ref = bin2hex(random_bytes(16));
+		$thumbRef = $this->makeThumb($tmp, $mime);
 		$dir = $this->dir();
 		$stream = fopen($tmp, 'rb');
 		if ($stream === false) {
@@ -97,8 +106,10 @@ class UploadService
 		$u->setDisplayName($displayName);
 		$u->setFileRef($ref);
 		$u->setSizeBytes($size);
-		$u->setMime((string)($file['type'] ?? 'application/octet-stream'));
 		$u->setSha256((string)hash_file('sha256', $tmp));
+		$u->setMime($mime);
+		$u->setThumbRef($thumbRef);
+		$u->setAvState($avState);
 		$u->setCreatedAt(new \DateTimeImmutable());
 		return $this->uploads->insert($u);
 	}
@@ -131,39 +142,7 @@ class UploadService
 	/** Streaming entitlement: uploader, scoped attendee, or admin (checked upstream). */
 	public function streamFor(Upload $u, ?Order $viewerOrder = null, Offering $o = null): StreamResponse
 	{
-		if ($u->getDeletedAt() !== null) {
-			throw new NotFoundException();
-		}
-		if ($viewerOrder !== null && $o !== null) {
-			$allowed = strcasecmp((string)$u->getUploaderEmail(), (string)$viewerOrder->getBuyerEmail()) === 0;
-			if (!$allowed && $this->enabledFor($o) && $viewerOrder->getStatus() === 'paid'
-				&& (int)$viewerOrder->getOfferingId() === (int)$u->getOfferingId()) {
-				$scope = (string)$o->getSharingScope() === 'offering' ? 'offering' : 'occurrence';
-				if ($scope === 'offering') {
-					$allowed = true;
-				} else {
-					$occs = [];
-					foreach ($this->lines->findByOrder((int)$viewerOrder->getId()) as $l) {
-						if ($l->getLineKind() === 'seat') {
-							$occs[] = ['type' => (string)$l->getTargetType(), 'id' => (int)$l->getTargetId()];
-						}
-					}
-					$ul = $this->lines->find((int)$u->getOccurrenceId());
-					if ($ul !== null) {
-						foreach ($occs as $occ) {
-							if ($occ['type'] === (string)$ul->getTargetType()
-								&& $occ['id'] === (int)$ul->getTargetId()) {
-								$allowed = true;
-								break;
-							}
-						}
-					}
-				}
-			}
-			if (!$allowed) {
-				throw new NotFoundException(); // uniform — no existence oracle
-			}
-		}
+		$this->assertViewable($u, $viewerOrder, $o);
 		$dir = $this->dir();
 		$ref = (string)$u->getFileRef();
 		if (!$dir->fileExists($ref)) {
@@ -197,6 +176,104 @@ class UploadService
 			}
 		} catch (\Throwable) {
 			// orphan files are janitor work, not a fatal
+		}
+	}
+
+	/**
+	 * NH-15 — thumbnail for image uploads. Re-encoded via GD (strips
+	 * metadata + any appended payloads); returns NULL for non-images or
+	 * when GD is unavailable — the row still stores, just no thumb.
+	 */
+	private function makeThumb(string $tmp, string $mime): ?string
+	{
+		if (!str_starts_with($mime, 'image/') || !extension_loaded('gd')) {
+			return null;
+		}
+		$img = @imagecreatefromstring((string)@file_get_contents($tmp));
+		if ($img === false) {
+			return null;
+		}
+		$w = imagesx($img); $h = imagesy($img);
+		$max = 320;
+		$scale = min(1.0, $max / max($w, $h));
+		$tw = max(1, (int)round($w * $scale));
+		$th = max(1, (int)round($h * $scale));
+		$dst = imagecreatetruecolor($tw, $th);
+		if ($dst === false) {
+			imagedestroy($img);
+			return null;
+		}
+		imagecopyresampled($dst, $img, 0, 0, 0, 0, $tw, $th, $w, $h);
+		$buf = null;
+		ob_start();
+		$ok = imagejpeg($dst, null, 80);
+		$buf = ob_get_clean();
+		imagedestroy($img);
+		imagedestroy($dst);
+		if (!$ok || $buf === false || $buf === '') {
+			return null;
+		}
+		$ref = 'thumb_' . bin2hex(random_bytes(16));
+		try {
+			$this->dir()->newFile($ref, $buf);
+			return $ref;
+		} catch (\Throwable) {
+			return null;
+		}
+	}
+
+	/** NH-15 thumb stream — same entitlement funnel as streamFor(). */
+	public function thumbFor(Upload $u, ?Order $viewerOrder = null, Offering $o = null): StreamResponse
+	{
+		if ($u->getThumbRef() === null) {
+			throw new NotFoundException();
+		}
+		// entitlement check rides on the full-file path: thumbs of a file
+		// the viewer may not see are refused identically
+		$this->assertViewable($u, $viewerOrder, $o);
+		$dir = $this->dir();
+		$ref = (string)$u->getThumbRef();
+		if (!$dir->fileExists($ref)) {
+			throw new NotFoundException();
+		}
+		$resp = new StreamResponse($dir->getFile($ref)->fopen('rb'));
+		$resp->addHeader('Content-Type', 'image/jpeg');
+		$resp->addHeader('X-Content-Type-Options', 'nosniff');
+		$resp->addHeader('Cache-Control', 'private, max-age=3600');
+		return $resp;
+	}
+
+	/** Shared entitlement assertion — stream, thumb, and abuse-report gate. */
+	public function assertViewable(Upload $u, ?Order $viewerOrder = null, Offering $o = null): void
+	{
+		if ($u->getDeletedAt() !== null) {
+			throw new NotFoundException();
+		}
+		if ($viewerOrder === null || $o === null) {
+			return; // admin path — gate is upstream
+		}
+		$allowed = strcasecmp((string)$u->getUploaderEmail(), (string)$viewerOrder->getBuyerEmail()) === 0;
+		if (!$allowed && $this->enabledFor($o) && $viewerOrder->getStatus() === 'paid'
+			&& (int)$viewerOrder->getOfferingId() === (int)$u->getOfferingId()) {
+			$scope = (string)$o->getSharingScope() === 'offering' ? 'offering' : 'occurrence';
+			if ($scope === 'offering') {
+				$allowed = true;
+			} else {
+				foreach ($this->lines->findByOrder((int)$viewerOrder->getId()) as $l) {
+					if ($l->getLineKind() !== 'seat') {
+						continue;
+					}
+					$ul = $this->lines->find((int)$u->getOccurrenceId());
+					if ($ul !== null && (string)$ul->getTargetType() === (string)$l->getTargetType()
+						&& (int)$ul->getTargetId() === (int)$l->getTargetId()) {
+						$allowed = true;
+						break;
+					}
+				}
+			}
+		}
+		if (!$allowed) {
+			throw new NotFoundException();
 		}
 	}
 

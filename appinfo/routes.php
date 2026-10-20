@@ -61,6 +61,9 @@ return [
 		['name' => 'order#approve',     'url' => '/api/orders/{id}/approve',       'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'order#decline',     'url' => '/api/orders/{id}/decline',       'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'order#addNote',     'url' => '/api/orders/{id}/notes',         'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'order#markPaid',    'url' => '/api/orders/{id}/mark-paid',    'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'order#abuseList',   'url' => '/api/abuse',                    'verb' => 'GET'],
+		['name' => 'order#resolveAbuse','url' => '/api/abuse/{id}/resolve',       'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 
 		// Roster & check-in (app)
 		['name' => 'roster#index',      'url' => '/roster',                        'verb' => 'GET'],
@@ -117,6 +120,9 @@ return [
 		// Reports / exports
 		['name' => 'report#index',      'url' => '/reports',                       'verb' => 'GET'],
 		['name' => 'report#export',     'url' => '/api/reports/export',            'verb' => 'POST'],
+		['name' => 'report#datev',      'url' => '/api/reports/datev',            'verb' => 'GET'],
+		['name' => 'report#exportZip',  'url' => '/api/reports/zip/{offeringId}', 'verb' => 'GET', 'requirements' => ['offeringId' => '\d+']],
+		['name' => 'report#downloadStats','url' => '/api/reports/dlstats/{offeringId}', 'verb' => 'GET', 'requirements' => ['offeringId' => '\d+']],
 
 		// Audit viewer (pro)
 		['name' => 'audit#index',       'url' => '/audit',                         'verb' => 'GET'],
@@ -146,6 +152,7 @@ return [
 		['name' => 'pubCheckout#return', 'url' => '/pub/return/{publicRef}',       'verb' => 'GET'],
 		['name' => 'pubCheckout#cancel', 'url' => '/pub/api/orders/{publicRef}/cancel','verb' => 'POST'],
 		['name' => 'pubCheckout#promo',  'url' => '/pub/api/promo/validate',       'verb' => 'POST'],
+		['name' => 'pubCheckout#createCart','url' => '/pub/api/cart',            'verb' => 'POST'],
 
 		// Manage link (bearer token in path, hashed at rest)
 		['name' => 'manage#show',        'url' => '/pub/m/{token}',                'verb' => 'GET'],
@@ -153,9 +160,12 @@ return [
 		['name' => 'manage#answers',     'url' => '/pub/m/{token}/answers',        'verb' => 'POST'],
 		['name' => 'manage#ics',         'url' => '/pub/m/{token}/ics',            'verb' => 'GET'],
 		['name' => 'manage#invoice',     'url' => '/pub/m/{token}/invoice',        'verb' => 'GET'],
+		['name' => 'manage#einvoice',    'url' => '/pub/m/{token}/invoice.xml', 'verb' => 'GET'],
 		['name' => 'manage#uploadFile',  'url' => '/pub/m/{token}/uploads',        'verb' => 'POST'],
 		['name' => 'manage#uploadDownload', 'url' => '/pub/m/{token}/uploads/{id}', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
 		['name' => 'manage#uploadDelete', 'url' => '/pub/m/{token}/uploads/{id}',  'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
+		['name' => 'manage#uploadThumb','url' => '/pub/m/{token}/uploads/{id}/thumb', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'manage#reportAbuse','url' => '/pub/m/{token}/uploads/{id}/report', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 		['name' => 'manage#ticket',      'url' => '/pub/m/{token}/tickets/{ticketId}', 'verb' => 'GET','requirements' => ['ticketId' => '\d+']],
 		['name' => 'manage#pay',         'url' => '/pub/m/{token}/pay',            'verb' => 'POST'],
 		['name' => 'manage#recover',     'url' => '/pub/m/recover',                'verb' => 'POST'],
@@ -167,8 +177,10 @@ return [
 		['name' => 'portal#magic',       'url' => '/pub/portal/magic/{token}',     'verb' => 'GET'],
 		['name' => 'portal#home',        'url' => '/pub/portal/home',              'verb' => 'GET'],
 		['name' => 'portal#order',       'url' => '/pub/portal/orders/{id}',       'verb' => 'GET',  'requirements' => ['id' => '\d+']],
-		['name' => 'portal#page',        'url' => '/pub/portal/pages/{id}',        'verb' => 'GET',  'requirements' => ['id' => '\d+']],
 		['name' => 'portal#download',    'url' => '/pub/portal/materials/{id}',    'verb' => 'GET',  'requirements' => ['id' => '\d+']],
+		['name' => 'portal#preview',     'url' => '/pub/portal/materials/{id}/preview', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'portal#uploadThumb', 'url' => '/pub/portal/uploads/{id}/thumb', 'verb' => 'GET', 'requirements' => ['id' => '\d+']],
+		['name' => 'portal#reportAbuse', 'url' => '/pub/portal/abuse',            'verb' => 'POST'],
 		['name' => 'portal#logout',      'url' => '/pub/portal/logout',            'verb' => 'POST'],
 
 		// Waitlist public join
@@ -186,6 +198,8 @@ return [
 
 		// Public directory feed (JSON, no checkout)
 		['name' => 'feed#directory',     'url' => '/pub/feed/directory.json',      'verb' => 'GET'],
+		['name' => 'ical#seller',        'url' => '/pub/ical/seller/{token}.ics', 'verb' => 'GET'],
+		['name' => 'ical#order',         'url' => '/pub/ical/order/{token}.ics',  'verb' => 'GET'],
 
 		// ---------------------------------------------------------------
 		// PSP webhook receivers (signature-verified, no session, no CSRF)
@@ -202,6 +216,8 @@ return [
 		// Door check-in surface (restricted door session or admin)
 		// ---------------------------------------------------------------
 		['name' => 'scan#index',         'url' => '/scan',                         'verb' => 'GET'],
+		['name' => 'scan#openSession',   'url' => '/api/scan/session',             'verb' => 'POST'],
+		['name' => 'scan#closeSession',  'url' => '/api/scan/session-close',       'verb' => 'POST'],
 		['name' => 'scan#lookup',        'url' => '/api/scan/lookup',              'verb' => 'POST'],
 		['name' => 'scan#checkIn',       'url' => '/api/scan/check-in',            'verb' => 'POST'],
 
@@ -215,6 +231,10 @@ return [
 		['name' => 'capi#undoCheckIn',   'url' => '/capi/v1/check-in',             'verb' => 'DELETE'],
 		['name' => 'capi#manifest',      'url' => '/capi/v1/manifest',             'verb' => 'GET'],
 		['name' => 'capi#stats',         'url' => '/capi/v1/stats',                'verb' => 'GET'],
+		['name' => 'capi#admitPass',     'url' => '/capi/v1/pass',               'verb' => 'POST'],
+		['name' => 'capi#walkup',        'url' => '/capi/v1/walkup',             'verb' => 'POST'],
+		['name' => 'capi#registerPush',  'url' => '/capi/v1/push',               'verb' => 'POST'],
+		['name' => 'capi#createOffering','url' => '/capi/v1/offerings',          'verb' => 'POST'],
 
 		// ---------------------------------------------------------------
 		// OCS API (admin, for integrations)

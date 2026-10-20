@@ -264,7 +264,28 @@ class ReservationService
 			// sold-1 only when the seat is actually sold.
 			$this->moveSold($targetType, $targetId, -1, $resourceId);
 			// Try to transfer the freed seat into an offer hold.
-			if ($offerSeat($targetType, $targetId)) {
+			if ($offerSeat($targetType, $targetId, $resourceId)) {
+				$this->hold($targetType, $targetId, 1, $resourceId);
+			} else {
+				$free++;
+			}
+		}
+		return $free;
+	}
+
+	/**
+	 * Free one or more HELD seats (expired/failed/cancelled pending orders).
+	 * Same atomic transfer as releaseSold: each freed seat is first offered
+	 * to the waitlist (offer-hold for allocate, mail-only for notify) —
+	 * US-104 AC-4 / US-105 AC-2 require the waitlist on ANY seat release,
+	 * not just sold-seat releases. Returns seats that became genuinely free.
+	 */
+	public function releaseHoldWithOffer(string $targetType, int $targetId, int $seats, ?int $resourceId, callable $offerSeat): int
+	{
+		$free = 0;
+		for ($i = 0; $i < $seats; $i++) {
+			$this->releaseHold($targetType, $targetId, 1, $resourceId);
+			if ($offerSeat($targetType, $targetId, $resourceId)) {
 				$this->hold($targetType, $targetId, 1, $resourceId);
 			} else {
 				$free++;

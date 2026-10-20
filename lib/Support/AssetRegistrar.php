@@ -43,7 +43,7 @@ final class AssetRegistrar
 	 */
 	public static function registerScripts(): void
 	{
-		foreach (['common/toasts', 'common/field-errors', 'common/app-feedback', 'common/mobile-nav', 'app'] as $script) {
+		foreach (['common/toasts', 'common/field-errors', 'common/app-feedback', 'common/mobile-nav', 'common/focus-preservation', 'app'] as $script) {
 			Util::addScript(Application::APP_ID, $script);
 		}
 	}

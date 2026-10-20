@@ -55,6 +55,15 @@ class PublicErrorMiddleware extends Middleware
 			return $this->envelope(409, $exception->getCodeName(), $exception->getMessage());
 		}
 		if ($exception instanceof UnauthorizedException) {
+			$path = $this->request->getPathInfo();
+			// a dead/expired portal session on a PAGE request is a human
+			// navigation — land them on the request form, not a JSON blob
+			if ($this->request->getMethod() === 'GET'
+				&& str_contains($path, '/pub/portal')) {
+				return new \OCP\AppFramework\Http\RedirectResponse(
+					\OCP\Server::get(\OCP\IURLGenerator::class)
+						->linkToRoute('bookingcheck.portal.request'));
+			}
 			return $this->envelope(401, 'UNAUTHORIZED', 'Unauthorized.');
 		}
 		if ($exception instanceof RateLimitException) {

@@ -7,6 +7,9 @@ $priceCats = $_['priceCats'] ?? [];
 $addons = $_['addons'] ?? [];
 $tosText = trim((string)($o['tosText'] ?? ''));
 $currency = (string)($o['currency'] ?? 'EUR');
+$isPass = ($_['isPass'] ?? false) === true;
+$invoicePay = ($_['invoicePay'] ?? false) === true;
+$depositBp = (int)($_['depositBp'] ?? 0);
 $fmt = static function (int $cents) use ($currency): string {
 	return $currency . ' ' . number_format($cents / 100, 2, ',', '.');
 };
@@ -17,10 +20,10 @@ $fmt = static function (int $cents) use ($currency): string {
 		? $l->t('Send your request — we confirm by email.')
 		: $l->t('Almost done — pick a date and tell us who is booking.')); ?></p>
 
-	<?php if ($occurrences === []): ?>
+	<?php if ($occurrences === [] && !$isPass): ?>
 	<div class="bck-card">
 		<div class="bck-card__body">
-			<div class="bck-callout bck-callout--info">
+			<div class="bck-callout bck-callout--info" role="status">
 				<p class="bck-callout__text"><?php p($l->t('No dates are bookable right now. Please check back later.')); ?></p>
 			</div>
 		</div>
@@ -29,10 +32,16 @@ $fmt = static function (int $cents) use ($currency): string {
 	<form id="bck-checkout" class="bck-card bck-form" novalidate
 		data-bck-offering-id="<?php p((int)$o['id']); ?>"
 		data-bck-approval="<?php p($_['approvalRequired'] ? '1' : '0'); ?>"
+		data-bck-pass="<?php p($isPass ? '1' : '0'); ?>"
 		data-bck-unit="<?php p((int)$o['priceCents']); ?>"
 		data-bck-currency="<?php p($currency); ?>">
 
 		<div class="bck-card__body">
+			<?php if ($isPass): ?>
+			<div class="bck-callout bck-callout--info" role="status">
+				<p class="bck-callout__text"><?php p($l->t('This is a membership — it is valid right away and does not need a date.')); ?></p>
+			</div>
+			<?php else: ?>
 			<fieldset class="bck-field bck-fieldset">
 				<legend class="bck-label"><?php p($l->t('Pick a date')); ?></legend>
 				<div class="bck-occ-list" role="radiogroup">
@@ -107,9 +116,12 @@ $fmt = static function (int $cents) use ($currency): string {
 				<p class="bck-field-error" id="bck-price_cat_id-error" hidden></p>
 			</div>
 			<?php endif; ?>
+			<?php endif; // !isPass — end of date + ticket-type section ?>
 
 			<div class="bck-field">
-				<label for="bck-qty" class="bck-label"><?php p($l->t('How many seats?')); ?></label>
+				<label for="bck-qty" class="bck-label"><?php p($isPass
+					? $l->t('How many memberships?')
+					: $l->t('How many seats?')); ?></label>
 				<input id="bck-qty" name="qty" type="number" min="1" max="50" value="1" required inputmode="numeric">
 				<p class="bck-field-error" id="bck-qty-error" hidden></p>
 			</div>
@@ -181,6 +193,27 @@ $fmt = static function (int $cents) use ($currency): string {
 				<p class="bck-field__hint" id="bck-promo-hint"></p>
 				<p class="bck-field-error" id="bck-promo-error" hidden></p>
 			</div>
+
+			<?php if ($invoicePay): ?>
+			<fieldset class="bck-field bck-fieldset">
+				<legend class="bck-label"><?php p($l->t('How do you want to pay?')); ?></legend>
+				<label class="bck-occ">
+					<input type="radio" name="pay_method" value="psp" checked>
+					<span class="bck-occ__label"><?php p($l->t('Pay now online')); ?></span>
+				</label>
+				<label class="bck-occ">
+					<input type="radio" name="pay_method" value="invoice">
+					<span class="bck-occ__label"><?php p($l->t('Pay later by invoice')); ?></span>
+				</label>
+				<p class="bck-field__hint"><?php p($l->t('With invoice you get your tickets now and pay after the bill arrives.')); ?></p>
+			</fieldset>
+			<?php endif; ?>
+
+			<?php if ($depositBp > 0 && $depositBp < 10000): ?>
+			<div class="bck-callout bck-callout--info" role="status">
+				<p class="bck-callout__text"><?php p($l->t('You pay %s%% now — the rest is due later.', [(string)intdiv($depositBp, 100)])); ?></p>
+			</div>
+			<?php endif; ?>
 
 			<?php /* honeypot — bots fill hidden fields, humans never see it */ ?>
 			<input type="text" name="hp_website" tabindex="-1" autocomplete="off"

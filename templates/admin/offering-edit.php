@@ -29,7 +29,9 @@ $action = $isNew
 				<div class="bck-field">
 					<label for="bck-type" class="bck-label"><?php p($l->t('How is it sold?')); ?></label>
 					<select id="bck-type" name="type">
-						<?php foreach (['event' => $l->t('Single event'), 'course' => $l->t('Course / series'), 'timeslot' => $l->t('Bookable timeslots')] as $v => $lbl): ?>
+						<?php $types = ['event' => $l->t('Single event'), 'course' => $l->t('Course / series'), 'timeslot' => $l->t('Bookable timeslots')];
+						if (!empty($_['pro'])) { $types['pass'] = $l->t('Membership / pass'); }
+						foreach ($types as $v => $lbl): ?>
 						<option value="<?php p($v); ?>" <?php if (($o['type'] ?? 'event') === $v) { p('selected'); } ?>><?php p($lbl); ?></option>
 						<?php endforeach; ?>
 					</select>
@@ -77,6 +79,12 @@ $action = $isNew
 				<textarea id="bck-tos" name="tos_text" rows="3" maxlength="5000"><?php p((string)($o['tos_text'] ?? '')); ?></textarea>
 				<p class="bck-field__hint"><?php p($l->t('Shown as a required checkbox at checkout. The exact wording is stored on every order.')); ?></p>
 			</div>
+			<div class="bck-field">
+				<label for="bck-reminder" class="bck-label"><?php p($l->t('Email reminder (days before)')); ?></label>
+				<input id="bck-reminder" name="reminder_days" type="number" min="0" max="365" inputmode="numeric"
+					value="<?php p((int)($o['reminderDays'] ?? 0)); ?>">
+				<p class="bck-field__hint"><?php p($l->t('0 means no reminder. Buyers get one email that many days before the booked date.')); ?></p>
+			</div>
 		</fieldset>
 
 		<?php if (!$isNew && (!empty($_['deckAvailable']) || !empty($_['talkAvailable']))): ?>
@@ -99,18 +107,21 @@ $action = $isNew
 		</fieldset>
 		<?php endif; ?>
 
-		<?php if (!empty($_['pro'])): ?>
 		<fieldset class="bck-fieldset">
-			<legend class="bck-fieldset__legend"><?php p($l->t('Pro features')); ?></legend>
 			<div class="bck-field">
 				<label for="bck-waitlist" class="bck-label"><?php p($l->t('When sold out')); ?></label>
 				<select id="bck-waitlist" name="waitlist_mode" class="bck-select">
 					<?php $wl = (string)($o['waitlistMode'] ?? 'allocate'); ?>
 					<option value="none" <?php if ($wl === 'none') { p('selected'); } ?>><?php p($l->t('Just show “sold out”')); ?></option>
 					<option value="notify" <?php if ($wl === 'notify') { p('selected'); } ?>><?php p($l->t('Waitlist — notify when a seat opens')); ?></option>
-					<option value="allocate" <?php if ($wl === 'allocate') { p('selected'); } ?>><?php p($l->t('Waitlist — offer the freed seat for 24 h')); ?></option>
+					<option value="allocate" <?php if ($wl === 'allocate') { p('selected'); } ?> <?php if (empty($_['pro'])) { p('disabled'); } ?>><?php p($l->t('Waitlist — offer the freed seat for 24 h')); ?><?php if (empty($_['pro'])) { p(' ' . $l->t('(Pro)')); } ?></option>
 				</select>
 			</div>
+		</fieldset>
+
+		<?php if (!empty($_['pro'])): ?>
+		<fieldset class="bck-fieldset">
+			<legend class="bck-fieldset__legend"><?php p($l->t('Pro features')); ?></legend>
 			<label class="bck-check">
 				<input type="hidden" name="review_display" value="0">
 				<input type="checkbox" name="review_display" value="1" <?php if ((int)($o['reviewDisplay'] ?? 0) === 1) { p('checked'); } ?>>
@@ -141,6 +152,40 @@ $action = $isNew
 						value="<?php p((int)($o['uploadQuotaMb'] ?? 5120)); ?>">
 				</div>
 			</div>
+			<label class="bck-check">
+				<input type="hidden" name="invoice_pay" value="0">
+				<input type="checkbox" name="invoice_pay" value="1" <?php if ((int)($o['invoicePay'] ?? 0) === 1) { p('checked'); } ?>>
+				<span><?php p($l->t('Buyers may also pay by invoice')); ?></span>
+			</label>
+			<div class="bck-field bck-field--row">
+				<div>
+					<label for="bck-deposit" class="bck-label"><?php p($l->t('Deposit (%)')); ?></label>
+					<input id="bck-deposit" name="deposit_pct" type="number" min="0" max="99" step="1" inputmode="numeric"
+						value="<?php p((int)intdiv((int)($o['depositBp'] ?? 0), 100)); ?>">
+					<p class="bck-field__hint"><?php p($l->t('Percent charged now; the rest is due later. 0 = full amount.')); ?></p>
+				</div>
+				<div>
+					<label for="bck-dynbp" class="bck-label"><?php p($l->t('Fill markup (%)')); ?></label>
+					<input id="bck-dynbp" name="dyn_pct" type="number" min="0" max="100" step="1" inputmode="numeric"
+						value="<?php p((int)intdiv((int)($o['dynBp'] ?? 0), 100)); ?>">
+					<p class="bck-field__hint"><?php p($l->t('Price rises as seats fill (dynamic pricing). 0 = off.')); ?></p>
+				</div>
+			</div>
+			<div class="bck-field">
+				<label for="bck-dynstep" class="bck-label"><?php p($l->t('…applied per % filled')); ?></label>
+				<input id="bck-dynstep" name="dyn_step_pct" type="number" min="1" max="100" step="1" inputmode="numeric"
+					value="<?php p((int)($o['dynStepPct'] ?? 25) === 0 ? 25 : (int)($o['dynStepPct'] ?? 25)); ?>">
+				<p class="bck-field__hint"><?php p($l->t('Example: 25 means the markup grows in four steps.')); ?></p>
+			</div>
+			<div class="bck-field" id="bck-passscope-wrap">
+				<label for="bck-passscope" class="bck-label"><?php p($l->t('Pass admits to offering ids')); ?>
+					<span class="bck-label__opt">(<?php p($l->t('memberships only')); ?>)</span></label>
+				<input id="bck-passscope" name="pass_scope" type="text" inputmode="numeric"
+					value="<?php p(implode(' ', json_decode((string)($o['passScope'] ?? ''), true) ?: [])); ?>"
+					placeholder="12 15">
+				<p class="bck-field__hint"><?php p($l->t('Space-separated offering ids this pass grants admission to. Empty = the pass offering itself.')); ?></p>
+				<p class="bck-field-error" id="bck-pass_scope-error" hidden></p>
+			</div>
 			<div class="bck-field">
 				<label for="bck-embed" class="bck-label"><?php p($l->t('Embed allowed on these sites')); ?>
 					<span class="bck-label__opt">(<?php p($l->t('optional')); ?>)</span></label>
@@ -151,7 +196,7 @@ $action = $isNew
 			</div>
 		</fieldset>
 		<?php else: ?>
-		<div class="bck-callout bck-callout--info">
+		<div class="bck-callout bck-callout--info" role="status">
 			<p class="bck-callout__text">
 				<?php p($l->t('Waitlists, reviews, file sharing and website embeds come with BookingCheck Pro.')); ?>
 				<a href="<?php p($url->linkToRoute('bookingcheck.page.pro')); ?>"><?php p($l->t('See what Pro unlocks')); ?></a>

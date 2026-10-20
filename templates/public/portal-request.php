@@ -20,7 +20,7 @@
 			</form>
 
 			<form id="bck-portal-verify" class="bck-form" hidden novalidate>
-				<p class="bck-callout bck-callout--info"><?php p($l->t('Check your inbox — enter the code from the email.')); ?></p>
+				<p class="bck-callout bck-callout--info" role="status"><?php p($l->t('Check your inbox — enter the code from the email.')); ?></p>
 				<div class="bck-field">
 					<label for="bck-portal-code" class="bck-label"><?php p($l->t('Code')); ?></label>
 					<input id="bck-portal-code" name="code" type="text" inputmode="numeric"

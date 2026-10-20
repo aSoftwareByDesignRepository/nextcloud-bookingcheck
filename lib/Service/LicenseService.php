@@ -25,7 +25,7 @@ class LicenseService
 		'vouchers', 'promos', 'waitlist', 'portal', 'embed', 'directory_feed',
 		'outbound_webhooks', 'materials', 'uploads', 'reviews', 'b2b_vies',
 		'resources', 'intake_questions', 'broadcasts', 'customercheck_sync',
-		'companion', 'reports_csv',
+		'companion', 'reports_csv', 'passes',
 	];
 
 	private const STATE_FREE = 'free';
@@ -72,7 +72,20 @@ class LicenseService
 		if (!in_array($feature, self::PRO_FEATURES, true)) {
 			return true; // unknown feature = not gated (free path)
 		}
-		return $this->isPro();
+		if ($this->isPro()) {
+			return true;
+		}
+		// Buyer protection (spec §License gating): portal READ access
+		// persists 90 days past expiry — attendees keep tickets/materials
+		// while seller-side Pro controls disable immediately.
+		if ($feature === 'portal') {
+			$s = $this->status();
+			if ($s['state'] === self::STATE_EXPIRED && $s['validUntil'] !== null) {
+				$graceEnd = (new \DateTimeImmutable($s['validUntil']))->modify('+90 days');
+				return $graceEnd >= new \DateTimeImmutable('today');
+			}
+		}
+		return false;
 	}
 
 	/** Throw when a Pro-gated feature is invoked on the free tier. */

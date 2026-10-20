@@ -21,6 +21,8 @@ class CompanionToken extends Entity
 	protected $createdAt;
 	protected $lastSeenAt;
 	protected $revokedAt;
+	protected $pushToken;
+	protected $pushKind;
 
 	public function __construct()
 	{
@@ -28,6 +30,8 @@ class CompanionToken extends Entity
 		$this->addType('createdAt', 'datetime_immutable');
 		$this->addType('lastSeenAt', 'datetime_immutable');
 		$this->addType('revokedAt', 'datetime_immutable');
+		$this->addType('pushToken', 'string');
+		$this->addType('pushKind', 'string');
 	}
 
 	public function jsonSerialize(): array

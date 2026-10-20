@@ -111,9 +111,16 @@ $mutations = [
 			'test' => 'testRefundedOrderRevokesTickets',
 		],
 		'cancel_keeps_tickets_live' => [
-			'from' => "\t\t\t\$this->releaseSoldSeatsLocked(\$o);\n\t\t\t\$this->tickets->revokeForOrder((int)\$o->getId());\n\t\t\t\$this->setStatusLocked(\$o, [self::ST_PAID], self::ST_CANCELLED);",
-			'to' => "\t\t\t\$this->releaseSoldSeatsLocked(\$o);\n\t\t\t\$this->setStatusLocked(\$o, [self::ST_PAID], self::ST_CANCELLED);",
+			'from' => "\t\t\t\$this->releaseSoldSeatsLocked(\$o);\n\t\t\t\$this->tickets->revokeForOrder((int)\$o->getId());\n\t\t\tif (\$this->passes !== null) {",
+			'to' => "\t\t\t\$this->releaseSoldSeatsLocked(\$o);\n\t\t\tif (\$this->passes !== null) {",
 			'test' => 'testBuyerCancelRevokesTickets',
+		],
+		// US-104 AC-4: expiry/payment-failure releases must route freed
+		// seats through the waitlist like sold-seat releases do
+		'hold_release_skips_waitlist' => [
+			'from' => "\t\t\t\$this->inventory->releaseHoldWithOffer(\n\t\t\t\t\$line->getTargetType(), (int)\$line->getTargetId(), (int)\$line->getSeats(),\n\t\t\t\t\$line->getResourceId() !== null ? (int)\$line->getResourceId() : null,\n\t\t\t\tfn (string \$tt, int \$tid, ?int \$rid = null) => \$this->waitlist->offerSeat(\$tt, \$tid, \$rid),\n\t\t\t);",
+			'to' => "\t\t\t\$this->inventory->releaseHold(\$line->getTargetType(), (int)\$line->getTargetId(), (int)\$line->getSeats(),\n\t\t\t\t\$line->getResourceId() !== null ? (int)\$line->getResourceId() : null);",
+			'test' => 'testHoldExpiryOffersSeatToWaitlist',
 		],
 	],
 	// ---- PricingService — promo preview parity -------------------------
@@ -171,6 +178,63 @@ $mutations = [
 			'to' => "\t\t\$offeringId = 0;",
 			// needs both legs: dead-target rejection AND live-target acceptance
 			'test' => 'testWaitlistJoinRejectsDeadTargetsSilently|testWaitlistJoinAcceptsSeriesTargets',
+		],
+		// 'none'-mode offerings must never queue guests
+		'join_accepts_none_mode' => [
+			'from' => "|| !in_array((string)\$offering->getWaitlistMode(), ['notify', 'allocate'], true)) {",
+			'to' => ")) {",
+			'test' => 'testNoneModeJoinRefused',
+		],
+		// mode dispatch: notify-mode guests get mailed, never claim-held
+		'offer_mode_dispatch_removed' => [
+			'from' => "\t\tif ((string)\$offering->getWaitlistMode() !== 'allocate'\n\t\t\t|| !\$this->license->hasFeature('waitlist')) {",
+			'to' => "\t\tif (false) {",
+			'test' => 'testNotifyModeFreeTier|testAllocateDegradesToNotifyOnFreeTier',
+		],
+		// a lapsed tier must never mint claim holds
+		'offer_license_gate_dropped' => [
+			'from' => "\t\t\t|| !\$this->license->hasFeature('waitlist')) {",
+			'to' => "\t\t\t|| false) {",
+			'test' => 'testAllocateDegradesToNotifyOnFreeTier',
+		],
+		// dead/unpublished offerings must not mail guests a dead link
+		'offer_dead_offering_mails' => [
+			'from' => "\t\tif (\$offering === null || \$offering->getStatus() !== 'published') {\n\t\t\treturn false;",
+			'to' => "\t\tif (false) {\n\t\t\treturn false;",
+			'test' => 'testUnpublishedOfferingDoesNotNotify',
+		],
+		// the offer MUST remember its pool or the claim desyncs counters
+		'offer_forgets_pool' => [
+			'from' => "\t\t\$row->setResourceId(\$resourceId); // pooled seats: remember WHICH pool",
+			'to' => "",
+			'test' => 'testPooledSlotOfferClaimKeepsPoolCounters',
+		],
+		// claim must release/re-book the SAME pool the offer reserved
+		'claim_ignores_pool' => [
+			'from' => "\$this->inventory->releaseHold(\$locked->getTargetType(), (int)\$locked->getTargetId(), 1, \$rid);",
+			'to' => "\$this->inventory->releaseHold(\$locked->getTargetType(), (int)\$locked->getTargetId(), 1);",
+			'test' => 'testPooledSlotOfferClaimKeepsPoolCounters',
+		],
+	],
+	// ---- LicenseService — 90d portal grace ---------------------------
+	'lib/Service/LicenseService.php' => [
+		'grace_window_shrunk' => [
+			'from' => "->modify('+90 days')",
+			'to' => "->modify('+30 days')",
+			'test' => 'testGraceEndsAtNinetyDays|testExpiredWithinGraceKeepsPortal',
+		],
+		'grace_for_all_features' => [
+			'from' => "\t\tif (\$feature === 'portal') {",
+			'to' => "\t\tif (true) {",
+			'test' => 'testExpiredWithinGraceKeepsPortal',
+		],
+		'grace_on_never_licensed' => [
+			'from' => "\$s['state'] === self::STATE_EXPIRED && \$s['validUntil'] !== null",
+			'to' => "\$s['validUntil'] !== null",
+			'test' => 'testNeverLicensedHasNoPortal|testValidLicenseIsPro',
+			'equivalent' => 'status() returns validUntil=null for free/invalid; '
+				. 'state=pro never reaches the grace branch (isPro short-circuits) — '
+				. 'a non-null validUntil inside hasFeature can only mean expired',
 		],
 	],
 	// ---- PubReviewController — capability gate ------------------------
@@ -280,6 +344,30 @@ $mutations = [
 			'from' => "\t\t\t\t\$qb->delete('bc_waitlist')\n\t\t\t\t\t->where(\$qb->expr()->eq('target_type', \$qb->createNamedParameter('slot')))\n\t\t\t\t\t->andWhere(\$qb->expr()->in('target_id', \$qb->createNamedParameter(\n\t\t\t\t\t\t\$slotIds, \\OCP\\DB\\QueryBuilder\\IQueryBuilder::PARAM_INT_ARRAY)))\n\t\t\t\t\t->executeStatement();",
 			'to' => "",
 			'test' => 'testTemplateDestroyKeepsBookedPoolSlots',
+		],
+		// update(): shrinking capacity under live bookings oversells silently
+		'update_capacity_floor_dropped' => [
+			'from' => "\t\t\t} elseif (\$cap < \$booked) {",
+			'to' => "\t\t\t} elseif (false) {",
+			'test' => 'testUpdateCapacityBelowBookedRejected',
+		],
+		// update(): a moved slot that never notifies = silent reschedule
+		'update_notify_skipped' => [
+			'from' => "\t\t\tif (\$moved) {\n\t\t\t\t\$this->notifyRescheduled('slot', \$id, \$start, \$end);\n\t\t\t}",
+			'to' => "",
+			'test' => 'testUpdateMovedSlotNotifiesPaidBuyers',
+		],
+		// update(): pool cap on the slot row desyncs the two counter homes
+		'update_pool_cap_bypass' => [
+			'from' => "\t\t\t\tif (\$cap !== (int)\$s->getCapacity()) {",
+			'to' => "\t\t\t\tif (false) {",
+			'test' => 'testUpdatePooledSlotCapacityChangeRejected',
+		],
+		// update(): notify on any write spams buyers for capacity-only edits
+		'update_moved_always_true' => [
+			'from' => "\t\t\t\$moved = \$s->getStartsAt() != \$start || \$s->getEndsAt() != \$end;",
+			'to' => "\t\t\t\$moved = true;",
+			'test' => 'testUpdateUnmovedSlotSendsNoMail',
 		],
 	],
 	// ---- CatalogService — pooled availability -------------------------
@@ -512,12 +600,108 @@ $mutations = [
 			'to' => "\t\t\treturn \$this->ok([\n\t\t\t\t'ticket_id'",
 			'test' => 'testLookupRevokedTicketIs409',
 		],
+		// door sessions gate INSIDE the controller — dropping the throw
+		// lets anonymous callers reach lookup/check-in
+		'anon_door_gate_removed' => [
+			'from' => "\t\t\$device = \$this->doors->device();\n\t\tif (\$device === null) {\n\t\t\tthrow new \\OCA\\BookingCheck\\Exception\\UnauthorizedException();\n\t\t}\n\t\treturn \$device;",
+			'to' => "\t\treturn \$this->doors->device();",
+			'test' => 'testAnonymousLookupIsRefused|testAnonymousCheckInIsRefused',
+		],
+		// a door scoped to offering A must never touch offering B's
+		// tickets — an always-true scope check is a cross-tenant door
+		'door_scope_bypass' => [
+			'from' => "\t\treturn \$this->doors->scopeAllows(\$device, (int)\$offeringId);",
+			'to' => "\t\treturn true;",
+			'test' => 'testDoorLookupOutOfScopeIsUniform404|testDoorCheckInOutOfScopeIsUniform404',
+		],
+	],
+	// ---- DoorSessionService — the web-scanner's least-privilege door ---
+	'lib/Service/DoorSessionService.php' => [
+		// a revoked device must lose access immediately, not at expiry
+		'revoked_device_still_usable' => [
+			'from' => "\t\treturn \$row !== null\n\t\t\t&& \$row->getRevokedAt() === null\n\t\t\t&& in_array(\$row->getRole(), self::ROLES, true);",
+			'to' => "\t\treturn \$row !== null\n\t\t\t&& in_array(\$row->getRole(), self::ROLES, true);",
+			'test' => 'testOpenRejectsUnknownRevokedAndWrongRoleUniformly|testDeviceRevokedMidSessionClearsAndRefuses',
+		],
+		// only door|manager tokens may mint a door session — anything
+		// else (e.g. a future buyer-scoped token) must be refused
+		'wrong_role_mints_session' => [
+			'from' => "\t\treturn \$row !== null\n\t\t\t&& \$row->getRevokedAt() === null\n\t\t\t&& in_array(\$row->getRole(), self::ROLES, true);",
+			'to' => "\t\treturn \$row !== null\n\t\t\t&& \$row->getRevokedAt() === null;",
+			'test' => 'testOpenRejectsUnknownRevokedAndWrongRoleUniformly',
+		],
+		// a corrupt scope row means "no offerings", never "all" —
+		// failing open here hands a damaged device every tenant's door
+		'scope_malformed_fails_open' => [
+			'from' => "\t\t\$ids = json_decode((string)\$raw, true);\n\t\tif (!is_array(\$ids)) {\n\t\t\treturn false;\n\t\t}",
+			'to' => "\t\t\$ids = json_decode((string)\$raw, true);\n\t\tif (!is_array(\$ids)) {\n\t\t\treturn true;\n\t\t}",
+			'test' => 'testScopeMalformedFailsClosed',
+		],
+	],
+	// ---- PortalSessionMiddleware — the portal session door ------------
+	'lib/Middleware/PortalSessionMiddleware.php' => [
+		// '/pub/portal' contains '/pub/portal' — a contains-exemption on
+		// the gated prefix swallows EVERY portal page; the gate dies
+		'open_list_swallows_gate' => [
+			'from' => "\t\tif (in_array(\$rest, self::OPEN_EXACT, true)) {\n\t\t\treturn;\n\t\t}\n\t\tforeach (self::OPEN_PREFIX as \$prefix) {\n\t\t\tif (str_starts_with(\$rest, \$prefix)) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t}",
+			'to' => "\t\tforeach (array_merge(self::OPEN_EXACT, self::OPEN_PREFIX) as \$open) {\n\t\t\tif (str_contains(\$rest, \$open)) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t}",
+			'test' => 'testPortalHomeNeedsSession|testPortalOrderPathGated|testLogoutLookalikeIsGated',
+		],
+	],
+	// ---- PortalController — least-PII order page ----------------------
+	'lib/Controller/PortalController.php' => [
+		// an attendee-scoped session must see only its own tickets —
+		// dropping the filter hands one guest the whole party's QRs
+		'attendee_scope_leaks_party' => [
+			'from' => "\t\t\tif (\$scope === 'attendee'\n\t\t\t\t&& strtolower((string)\$t->getAttendeeEmail()) !== \$email) {\n\t\t\t\tcontinue; // a guest sees their own tickets only\n\t\t\t}",
+			'to' => "",
+			'test' => 'testOrderAttendeeScopeSeesOnlyOwnTickets',
+		],
+		// a null scope must mean 404 — passing on renders foreign orders
+		'unentitled_scope_renders' => [
+			'from' => "\t\tif (\$email === null || \$scope === null || \$order === null) {",
+			'to' => "\t\tif (\$email === null || \$order === null) {",
+			'test' => 'testOrderUnentitledEmailIsUniform404',
+		],
+	],
+	// ---- SessionCsrfMiddleware — ambient-cookie CSRF door -------------
+	'lib/Middleware/SessionCsrfMiddleware.php' => [
+		// door sessions carry cookie authority — skipping them reverts to
+		// "guest = no check" and opens a CSRF hole on check-in
+		'door_session_csrf_skipped' => [
+			'from' => "\t\tif (\$this->userSession->getUser() === null\n\t\t\t&& \$this->session->get(DoorSessionService::SESSION_KEY) === null) {\n\t\t\treturn;\n\t\t}",
+			'to' => "\t\tif (\$this->userSession->getUser() === null) {\n\t\t\treturn;\n\t\t}",
+			'test' => 'testDoorSessionPostWithoutTokenIsRefused',
+		],
+	],
+	// ---- AppAccessMiddleware — the admin role door --------------------
+	'lib/Middleware/AppAccessMiddleware.php' => [
+		// substring exemption lets /publish, /public-x, … ride the /pub
+		// exemption straight past the role gate
+		'pub_exemption_substring' => [
+			'from' => "\t\t\tif (\$rest === \$open || str_starts_with(\$rest, \$open . '/')) {",
+			'to' => "\t\t\tif (str_contains(\$path, \$open)) {",
+			'test' => 'testPublishLikePathIsNotExempt',
+		],
+		// logged-out must never reach the admin surface
+		'anon_passes_gate' => [
+			'from' => "\t\tif (\$user === null) {\n\t\t\tthrow new \\OCA\\BookingCheck\\Exception\\UnauthorizedException();\n\t\t}",
+			'to' => "",
+			'test' => 'testLoggedOutAdminPathRejected',
+		],
+		// group membership is the door — dropping the role check lets
+		// any logged-in user in
+		'role_check_dropped' => [
+			'from' => "\t\tif (\$this->groupManager->isAdmin(\$uid)\n\t\t\t|| \$this->groupManager->isInGroup(\$uid, self::ADMIN_GROUP)) {",
+			'to' => "\t\tif (true) {",
+			'test' => 'testPlainUserRejected',
+		],
 	],
 ];
 
 // baseline
 echo "== baseline ==\n";
-if (run_filter('OrderFlowIntegrationTest|AuthAndPricingIntegrationTest|TestProviderVerifyTest') !== 0) {
+if (run_filter('OrderFlowIntegrationTest|AuthAndPricingIntegrationTest|TestProviderVerifyTest|WaitlistClaimIntegrationTest|LicenseServiceTest') !== 0) {
 	fwrite(STDERR, "Baseline suite must be green before mutating\n");
 	exit(1);
 }

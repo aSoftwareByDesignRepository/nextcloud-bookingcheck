@@ -18,6 +18,7 @@ class Event extends Entity
 	protected $endsAt;
 	protected $capacity;
 	protected $sold;
+	protected $priceCents;
 	protected $held;
 	protected $status;
 	protected $seriesId;
@@ -30,6 +31,7 @@ class Event extends Entity
 		$this->addType('endsAt', 'datetime_immutable');
 		$this->addType('capacity', 'integer');
 		$this->addType('sold', 'integer');
+		$this->addType('priceCents', 'integer');
 		$this->addType('held', 'integer');
 		$this->addType('seriesId', 'integer');
 	}
@@ -42,6 +44,7 @@ class Event extends Entity
 			'startsAt' => $this->startsAt === null ? null : $this->startsAt->format(\DateTimeInterface::ATOM),
 			'endsAt' => $this->endsAt === null ? null : $this->endsAt->format(\DateTimeInterface::ATOM),
 			'capacity' => (int)$this->capacity,
+			'priceCents' => $this->priceCents === null ? null : (int)$this->priceCents,
 			'sold' => (int)$this->sold,
 			'held' => (int)$this->held,
 			'status' => $this->status,

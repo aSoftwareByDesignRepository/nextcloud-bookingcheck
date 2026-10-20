@@ -24,12 +24,19 @@ class RateLimitMiddleware extends Middleware
 {
 	private const RULES = [
 		'/pub/api/orders'          => ['action' => 'bck_checkout',   'sleep' => 250],
+		// cart mints N holds in one call — same blast radius as /orders
+		'/pub/api/cart'            => ['action' => 'bck_checkout',   'sleep' => 400],
 		'/pub/api/portal/send'     => ['action' => 'bck_otp_send',   'sleep' => 250],
 		'/pub/api/portal/verify'   => ['action' => 'bck_otp_verify', 'sleep' => 400],
 		'/pub/api/waitlist'        => ['action' => 'bck_waitlist',   'sleep' => 250],
 		'/pub/api/reviews'         => ['action' => 'bck_review',     'sleep' => 250],
+		// abuse reports are free DB rows + moderator attention
+		'/pub/portal/abuse'        => ['action' => 'bck_abuse',      'sleep' => 400],
 		'/pub/api/promo/validate'  => ['action' => 'bck_promo',      'sleep' => 200],
 		'/pub/m/recover'           => ['action' => 'bck_recover',    'sleep' => 400],
+		// door-session mint consumes a device token — the 256-bit space is
+		// unguessable, but there is no reason to let anyone try fast
+		'/api/scan/session'        => ['action' => 'bck_door_sess',  'sleep' => 400],
 		// PSP session minting is a real-money call — a leaked manage token
 		// or impatient buyer must not spawn unbounded checkout sessions
 		'/pay'                     => ['action' => 'bck_pay_now',    'sleep' => 400],

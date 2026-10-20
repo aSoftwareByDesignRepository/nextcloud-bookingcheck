@@ -67,6 +67,35 @@ class IcsService
 		return implode("\r\n", array_map([self::class, 'fold'], $out)) . "\r\n";
 	}
 
+	/**
+	 * NH-22 — seller schedule subscription feed. Public-safe by
+	 * construction: only published offerings' upcoming occurrences,
+	 * title + time — never buyer data.
+	 * @param list<array{uid:string,title:string,start:\DateTimeInterface,end:\DateTimeInterface,cancelled:bool}> $events
+	 */
+	public function forFeed(array $events, string $feedName): string
+	{
+		$out = [
+			'BEGIN:VCALENDAR',
+			'VERSION:2.0',
+			'PRODID:-//BookingCheck//EN',
+			'CALSCALE:GREGORIAN',
+			'X-WR-CALNAME:' . self::esc($feedName),
+		];
+		foreach ($events as $i => $ev) {
+			$out[] = 'BEGIN:VEVENT';
+			$out[] = 'UID:' . self::esc($ev['uid']) . '@bookingcheck';
+			$out[] = 'DTSTAMP:' . gmdate('Ymd\THis\Z');
+			$out[] = 'DTSTART:' . $ev['start']->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+			$out[] = 'DTEND:' . $ev['end']->setTimezone(new \DateTimeZone('UTC'))->format('Ymd\THis\Z');
+			$out[] = 'SUMMARY:' . self::esc($ev['title']);
+			$out[] = 'STATUS:' . ($ev['cancelled'] ? 'CANCELLED' : 'CONFIRMED');
+			$out[] = 'END:VEVENT';
+		}
+		$out[] = 'END:VCALENDAR';
+		return implode("\r\n", array_map([self::class, 'fold'], $out)) . "\r\n";
+	}
+
 	/** @return list<array{0:\DateTimeInterface,1:\DateTimeInterface}> */
 	private function targets(string $type, int $id): array
 	{

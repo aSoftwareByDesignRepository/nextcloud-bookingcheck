@@ -38,6 +38,12 @@ if ($ncRoot !== '') {
 		if (is_file($integrationBootstrap)) {
 			require_once $integrationBootstrap;
 		}
+		// Register app routes/services like the real HTTP and cron
+		// bootstrap — mail links and route resolution must work in
+		// every test regardless of execution order.
+		if (\class_exists(\OC_App::class)) {
+			\OC_App::loadApps();
+		}
 		$nextcloudBootstrapped = true;
 	}
 

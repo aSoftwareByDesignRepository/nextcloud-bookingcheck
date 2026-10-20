@@ -20,12 +20,14 @@ class WaitlistEntry extends Entity
 	protected $state;
 	protected $offerExpiresAt;
 	protected $claimTokenHash;
+	protected $resourceId;
 	protected $createdAt;
 
 	public function __construct()
 	{
 		$this->addType('id', 'integer');
 		$this->addType('targetId', 'integer');
+		$this->addType('resourceId', 'integer');
 		$this->addType('offerExpiresAt', 'datetime_immutable');
 		$this->addType('createdAt', 'datetime_immutable');
 	}
@@ -41,6 +43,7 @@ class WaitlistEntry extends Entity
 			'state' => $this->state,
 			'offerExpiresAt' => $this->offerExpiresAt === null ? null : $this->offerExpiresAt->format(\DateTimeInterface::ATOM),
 			'claimTokenHash' => $this->claimTokenHash,
+			'resourceId' => $this->resourceId === null ? null : (int)$this->resourceId,
 			'createdAt' => $this->createdAt === null ? null : $this->createdAt->format(\DateTimeInterface::ATOM),
 		];
 	}

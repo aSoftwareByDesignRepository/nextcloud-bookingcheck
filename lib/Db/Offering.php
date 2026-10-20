@@ -46,6 +46,12 @@ class Offering extends Entity
 	protected $createdBy;
 	protected $createdAt;
 	protected $updatedAt;
+	protected $reminderDays;
+	protected $dynBp;
+	protected $dynStepPct;
+	protected $depositBp;
+	protected $invoicePay;
+	protected $passScope;
 
 	public function __construct()
 	{
@@ -66,6 +72,12 @@ class Offering extends Entity
 		$this->addType('eolActionAt', 'datetime_immutable');
 		$this->addType('createdAt', 'datetime_immutable');
 		$this->addType('updatedAt', 'datetime_immutable');
+		$this->addType('reminderDays', 'integer');
+		$this->addType('dynBp', 'integer');
+		$this->addType('dynStepPct', 'integer');
+		$this->addType('depositBp', 'integer');
+		$this->addType('invoicePay', 'integer');
+		$this->addType('passScope', 'string');
 	}
 
 	public function jsonSerialize(): array
@@ -98,6 +110,12 @@ class Offering extends Entity
 			'salesFrom' => $this->salesFrom === null ? null : $this->salesFrom->format(\DateTimeInterface::ATOM),
 			'salesTo' => $this->salesTo === null ? null : $this->salesTo->format(\DateTimeInterface::ATOM),
 			'tosText' => $this->tosText,
+			'reminderDays' => (int)$this->reminderDays,
+			'dynBp' => (int)$this->dynBp,
+			'dynStepPct' => (int)$this->dynStepPct,
+			'depositBp' => (int)$this->depositBp,
+			'invoicePay' => (int)$this->invoicePay,
+			'passScope' => $this->passScope,
 			'listInDirectory' => (int)$this->listInDirectory,
 			'eolState' => $this->eolState,
 			'eolPolicy' => $this->eolPolicy,

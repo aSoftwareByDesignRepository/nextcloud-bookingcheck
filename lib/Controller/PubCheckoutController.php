@@ -66,12 +66,17 @@ class PubCheckoutController extends Controller
 		if ($o === null || $o->getStatus() !== 'published') {
 			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
 		}
+		$isPass = $o->getType() === 'pass';
 		return new PublicTemplateResponse($this->appName, 'public/checkout', [
 			'offering' => $o->jsonSerialize(),
-			'occurrences' => $this->catalog->occurrenceList($o),
-			'priceCats' => $this->catalog->priceCatsFor($o),
-			'addons' => $this->catalog->addonsFor($o),
-			'approvalRequired' => (int)$o->getApprovalRequired() === 1,
+			// a pass sells memberships — no occurrence picker at all
+			'occurrences' => $isPass ? [] : $this->catalog->occurrenceList($o),
+			'priceCats' => $isPass ? [] : $this->catalog->priceCatsFor($o),
+			'addons' => $isPass ? [] : $this->catalog->addonsFor($o),
+			'approvalRequired' => !$isPass && (int)$o->getApprovalRequired() === 1,
+			'isPass' => $isPass,
+			'invoicePay' => (int)$o->getInvoicePay() === 1,
+			'depositBp' => (int)$o->getDepositBp(),
 		]);
 	}
 
@@ -111,9 +116,30 @@ class PubCheckoutController extends Controller
 
 		// consent is a checkbox — arrive as '1'/'true' or absent (api-security §4)
 		$consented = in_array((string)($in['consent'] ?? ''), ['1', 'true'], true);
+		$payMethod = in_array($in['pay_method'] ?? null, ['psp', 'invoice'], true)
+			? $in['pay_method'] : null;
+		$passQty = isset($in['pass_qty']) && preg_match('/^\d+$/', (string)$in['pass_qty'])
+			? (int)$in['pass_qty'] : null;
 
 		try {
-			$result = $this->orders->createOrder(
+			// NH-28: a qty on a pass offering routes to the pass flow —
+			// the service re-checks the offering type, never the client.
+			$result = $passQty !== null
+				? $this->orders->createPassOrder(
+					$offeringId,
+					(string)($in['buyer_name'] ?? ''),
+					(string)($in['buyer_email'] ?? ''),
+					(string)($in['locale'] ?? 'en'),
+					$passQty,
+					$this->strOrNull($in['promo'] ?? null),
+					$this->strOrNull($in['voucher'] ?? null),
+					$idem,
+					$billing,
+					'guest',
+					$consented,
+					$payMethod,
+				)
+				: $this->orders->createOrder(
 				$offeringId,
 				(string)($in['buyer_name'] ?? ''),
 				(string)($in['buyer_email'] ?? ''),
@@ -127,7 +153,8 @@ class PubCheckoutController extends Controller
 				$isTest,
 				'guest',
 				$consented,
-			);
+				$payMethod,
+				);
 		} catch (StateConflictException $e) {
 			return $this->fail(409, $e->getCodeName(), $e->getMessage());
 		}
@@ -158,6 +185,92 @@ class PubCheckoutController extends Controller
 			return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Payment is temporarily unavailable — please try again.');
 		}
 
+		return $this->ok($base + [
+			'action' => 'pay',
+			'checkout_url' => $session->checkoutUrl,
+		], 201);
+	}
+
+	/**
+	 * NH-36 — cart checkout: `cart` = list of {offering_id, lines, addons}
+	 * (max 10 groups, unique offerings). One order, one payment.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function createCart(): JSONResponse
+	{
+		$in = $this->request->getParams();
+		if (($in['hp_website'] ?? '') !== '') {
+			return $this->ok(['action' => 'done', 'order_ref' => 'BCK-XXXX-XXXXXX']);
+		}
+		$rawCart = $in['cart'] ?? null;
+		if (!is_array($rawCart) || count($rawCart) < 1 || count($rawCart) > 10) {
+			throw new ValidationException(['cart' => 'Cart must contain between 1 and 10 offerings.']);
+		}
+		$groups = [];
+		foreach (array_values($rawCart) as $i => $g) {
+			if (!is_array($g)) {
+				throw new ValidationException(["cart.$i" => 'Invalid cart group.']);
+			}
+			$oid = $this->strictId($g['offering_id'] ?? null);
+			if ($oid === null) {
+				throw new ValidationException(["cart.$i.offering_id" => 'Missing offering.']);
+			}
+			$groups[] = [
+				'offering_id' => $oid,
+				'lines' => $this->parseLines($g['lines'] ?? []),
+				'addons' => $this->parseAddons($g['addons'] ?? []),
+			];
+		}
+		$promos = [];
+		if (is_array($in['promos'] ?? null)) {
+			foreach ($in['promos'] as $oid => $code) {
+				if (preg_match('/^\d+$/', (string)$oid) && is_string($code)) {
+					$promos[(int)$oid] = $code;
+				}
+			}
+		}
+		$consented = in_array((string)($in['consent'] ?? ''), ['1', 'true'], true);
+		$payMethod = in_array($in['pay_method'] ?? null, ['psp', 'invoice'], true)
+			? $in['pay_method'] : null;
+		try {
+			$result = $this->orders->createCartOrder(
+				$groups,
+				(string)($in['buyer_name'] ?? ''),
+				(string)($in['buyer_email'] ?? ''),
+				(string)($in['locale'] ?? 'en'),
+				$promos,
+				$this->strOrNull($in['voucher'] ?? null),
+				(string)($in['idem_token'] ?? ''),
+				$this->parseBilling($in),
+				'guest',
+				$consented,
+				$payMethod,
+			);
+		} catch (StateConflictException $e) {
+			return $this->fail(409, $e->getCodeName(), $e->getMessage());
+		}
+		$order = $result['order'];
+		$base = ['order_ref' => $order->getRef(), 'status' => $order->getStatus()];
+		if ($result['action'] === 'approve') {
+			return $this->ok($base + ['action' => 'approval',
+				'manage_url' => $this->manageUrl($result['manageToken'])], 201);
+		}
+		if ($result['action'] === 'done') {
+			return $this->ok($base + ['action' => 'done',
+				'manage_url' => $this->manageUrl($result['manageToken'])], 201);
+		}
+		if ($result['action'] === 'idempotent-replay') {
+			return $this->ok($base + ['action' => 'replay']);
+		}
+		try {
+			$session = $this->paySessions->createForOrder($order);
+		} catch (PspException $e) {
+			$this->logger->warning('cart PSP session failed', ['order' => $order->getRef(), 'err' => $e->getMessage()]);
+			$this->orders->cancelPending((int)$order->getId(), 'psp');
+			return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Payment is temporarily unavailable — please try again.');
+		}
 		return $this->ok($base + [
 			'action' => 'pay',
 			'checkout_url' => $session->checkoutUrl,

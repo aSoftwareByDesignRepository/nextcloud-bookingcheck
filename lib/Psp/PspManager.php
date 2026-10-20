@@ -24,6 +24,9 @@ class PspManager
 		private readonly MollieProvider $mollie,
 		private readonly StripeProvider $stripe,
 		private readonly TestProvider $test,
+		private readonly SumUpProvider $sumup,
+		private readonly PayPalProvider $paypal,
+		private readonly KlarnaProvider $klarna,
 		private readonly SettingsService $settings,
 	) {
 	}
@@ -39,6 +42,9 @@ class PspManager
 			'mollie' => $this->mollie,
 			'stripe' => $this->stripe,
 			'test' => $this->test, // sandbox — admin-configured only, §9.13
+			'sumup' => $this->sumup,
+			'paypal' => $this->paypal,
+			'klarna' => $this->klarna,
 
 			default => throw new PspException('No payment provider configured'),
 		};

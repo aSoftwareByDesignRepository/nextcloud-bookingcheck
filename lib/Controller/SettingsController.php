@@ -24,15 +24,25 @@ class SettingsController extends Controller
 
 	private const SECTIONS = [
 		'payments' => ['psp_provider', 'mollie_api_key', 'mollie_test_key',
-			'stripe_secret_key', 'stripe_webhook_secret', 'mollie_webhook_secret'],
+			'stripe_secret_key', 'stripe_webhook_secret', 'mollie_webhook_secret',
+			'sumup_api_key', 'sumup_merchant_code',
+			'paypal_client_id', 'paypal_client_secret', 'paypal_sandbox',
+			'klarna_api_uid', 'klarna_api_password', 'klarna_sandbox'],
 		'invoicing' => ['invoice_prefix', 'seller_name', 'seller_email',
 			'seller_address', 'seller_vat_id', 'seller_country', 'kleinunternehmer',
-			'vies_online'],
+			'vies_online', 'oss_enabled', 'oss_vat_map',
+			'datev_consultant_no', 'datev_client_no',
+			'datev_revenue_account', 'datev_receivable_account'],
 		'flows' => ['order_hold_min', 'approval_hold_min', 'payment_ttl_min',
 			'otp_ttl_min', 'portal_sess_days', 'waitlist_offer_h'],
-		'directory' => ['directory_enabled', 'cors_origins', 'default_locale'],
+		'directory' => ['directory_enabled', 'cors_origins', 'default_locale',
+			'ical_feed_token'],
 		'general' => ['portal_enabled', 'license_key'],
-		'integrations' => ['crm_sync_enabled', 'crm_sync_token'],
+		'integrations' => ['crm_sync_enabled', 'crm_sync_token',
+			'av_enabled', 'av_icap_endpoint',
+			'wallet_google_issuer', 'wallet_google_sa_email', 'wallet_google_secret',
+			'wallet_apple_pass_type_id', 'wallet_apple_team_id',
+			'wallet_apple_cert_pem', 'wallet_apple_key_pem'],
 	];
 
 	public function __construct(
@@ -74,8 +84,8 @@ class SettingsController extends Controller
 		if ($label === '' || mb_strlen($label) > 190) {
 			throw new \OCA\BookingCheck\Exception\ValidationException(['label' => 'Device name is required.']);
 		}
-		if (!in_array($role, ['door', 'manager'], true)) {
-			throw new \OCA\BookingCheck\Exception\ValidationException(['role' => 'Role must be door or manager.']);
+		if (!in_array($role, ['door', 'manager', 'api'], true)) {
+			throw new \OCA\BookingCheck\Exception\ValidationException(['role' => 'Role must be door, manager or api.']);
 		}
 		// scope: comma-separated offering ids — empty = all offerings.
 		// A garbage scope would silently mean "no offerings" (fail-closed);
@@ -173,11 +183,12 @@ class SettingsController extends Controller
 				}
 				continue;
 			}
-			if ($k === 'psp_provider' && !in_array($v, ['', 'mollie', 'stripe'], true)) {
+			if ($k === 'psp_provider' && !in_array($v, ['', 'mollie', 'stripe', 'sumup', 'paypal', 'klarna'], true)) {
 				throw new ValidationException(['psp_provider' => 'Unknown provider.']);
 			}
 			if (in_array($k, ['kleinunternehmer', 'vies_online', 'directory_enabled',
-				'crm_sync_enabled', 'portal_enabled'], true)) {
+				'crm_sync_enabled', 'portal_enabled', 'oss_enabled', 'av_enabled',
+				'paypal_sandbox', 'klarna_sandbox'], true)) {
 				$v = in_array($v, ['1', 'true'], true) ? '1' : '0';
 			}
 			if ($k === 'seller_country' && !preg_match('/^[A-Z]{2}$/', $v)) {
@@ -189,6 +200,25 @@ class SettingsController extends Controller
 					throw new ValidationException([$k => 'Must be a positive duration.']);
 				}
 				$v = (string)(int)$v;
+			}
+			if ($k === 'oss_vat_map' && trim($v) !== '') {
+				$map = json_decode($v, true);
+				if (!is_array($map)) {
+					throw new ValidationException(['oss_vat_map' => 'JSON map of country code → VAT basis points.']);
+				}
+				foreach ($map as $cc => $bp) {
+					if (!preg_match('/^[A-Z]{2}$/', (string)$cc) || !is_numeric($bp)
+						|| (int)$bp < 0 || (int)$bp > 10000) {
+						throw new ValidationException(['oss_vat_map' => 'Keys are ISO country codes; values 0–10000 bp.']);
+					}
+				}
+			}
+			if ($k === 'ical_feed_token' && $v !== '' && !preg_match('/^[A-Za-z0-9_-]{16,64}$/', $v)) {
+				throw new ValidationException(['ical_feed_token' => 'Token must be 16–64 url-safe chars.']);
+			}
+			if ($k === 'av_icap_endpoint' && trim($v) !== ''
+				&& !preg_match('/^[A-Za-z0-9.\-]+:\\d{1,5}$/', trim($v))) {
+				throw new ValidationException(['av_icap_endpoint' => 'host:port expected.']);
 			}
 			if ($k === 'cors_origins' && trim($v) !== '') {
 				foreach (preg_split('/[\s,]+/', trim($v)) as $origin) {

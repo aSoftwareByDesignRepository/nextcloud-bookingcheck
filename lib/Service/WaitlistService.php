@@ -44,22 +44,38 @@ class WaitlistService
 	 * Caller holds the transaction. Returns true when an offer was placed
 	 * (caller then converts the freed seat to a hold).
 	 */
-	public function offerSeat(string $targetType, int $targetId): bool
+	public function offerSeat(string $targetType, int $targetId, ?int $resourceId = null): bool
 	{
-		// Pro-gated — service-level backstop: order transitions call this
-		// from free paths; on the free tier a freed seat goes public
-		if (!$this->license->hasFeature('waitlist')) {
-			return false;
-		}
 		$row = $this->waitlist->firstWaitingForUpdate($targetType, $targetId);
 		if ($row === null) {
 			return false;
+		}
+		// Mode dispatch on the owning offering: 'allocate' (Pro) holds the
+		// seat for the claim; 'notify' (free tier) leaves it public and just
+		// emails the first in line. An allocate offering on a lapsed tier
+		// degrades to notify — a queued guest is never silently dropped.
+		$offeringId = $this->offeringForTarget($targetType, $targetId);
+		$offering = $offeringId === null ? null : $this->offerings->find($offeringId);
+		if ($offering === null || $offering->getStatus() !== 'published') {
+			return false; // gone or unpublished — no dead-link mail to guests
+		}
+		if ((string)$offering->getWaitlistMode() !== 'allocate'
+			|| !$this->license->hasFeature('waitlist')) {
+			$row->setState('notified');
+			$row->setResourceId(null);
+			$this->waitlist->update($row);
+			$this->email->queue('waitlist_notify', $row->getEmail(), $row->getLocale(),
+				['offering_url' => $this->url->linkToRouteAbsolute(
+					'bookingcheck.pubCatalog.offering', ['slug' => (string)$offering->getSlug()]),
+				 'title' => (string)$offering->getTitle()], capped: true);
+			return false; // seat stays public — caller must NOT re-hold it
 		}
 		[$token, $hash] = $this->tokens->mint();
 		$expires = new \DateTimeImmutable('+' . $this->settings->getInt('waitlist_offer_h', 24) . ' hours');
 		$row->setState('offered');
 		$row->setOfferExpiresAt($expires);
 		$row->setClaimTokenHash($hash);
+		$row->setResourceId($resourceId); // pooled seats: remember WHICH pool
 		$this->waitlist->update($row);
 		$this->email->queue('waitlist_offer', $row->getEmail(), $row->getLocale(),
 			['claim_url' => $this->url->linkToRouteAbsolute(
@@ -74,8 +90,7 @@ class WaitlistService
 	public function join(string $targetType, int $targetId, string $email, string $locale): bool
 	{
 		$email = strtolower(trim($email));
-		// Pro-gated — silently declined like any invalid target (uniform 202)
-		if (!$this->license->hasFeature('waitlist') || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+		if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 			return false;
 		}
 		// the target must resolve to a published offering with waitlisting
@@ -134,6 +149,8 @@ class WaitlistService
 			$this->inventory->prelock([[
 				'target_type' => $row->getTargetType(),
 				'target_id' => (int)$row->getTargetId(),
+				'resource_id' => $row->getResourceId() !== null
+					? (int)$row->getResourceId() : null,
 			]]);
 			$locked = $this->waitlist->findForUpdate((int)$row->getId());
 			if ($locked === null || $locked->getState() !== 'offered'
@@ -147,11 +164,14 @@ class WaitlistService
 			$locked->setClaimTokenHash(null); // one-shot: the token is dead now
 			$this->waitlist->update($locked);
 
-			// free our offer-hold, then let the normal order path re-hold it
-			$this->inventory->releaseHold($locked->getTargetType(), (int)$locked->getTargetId(), 1);
+			// free our offer-hold from the SAME pool it was placed in,
+			// then let the normal order path re-hold it
+			$rid = $locked->getResourceId() !== null ? (int)$locked->getResourceId() : null;
+			$this->inventory->releaseHold($locked->getTargetType(), (int)$locked->getTargetId(), 1, $rid);
 			$result = $orders->createOrder(
 				$offeringId, $buyerName, $locked->getEmail(), $locale,
-				[['target_type' => $locked->getTargetType(), 'target_id' => (int)$locked->getTargetId(), 'seats' => 1]],
+				[['target_type' => $locked->getTargetType(), 'target_id' => (int)$locked->getTargetId(),
+					'seats' => 1, 'resource_id' => $rid]],
 				[], null, null,
 				'claim-' . (int)$locked->getId() . '-' . substr($this->tokens->hash($token), 0, 16),
 				null, false, 'waitlist-claim', $consented);
@@ -189,6 +209,8 @@ class WaitlistService
 				$this->inventory->prelock([[
 					'target_type' => $probe->getTargetType(),
 					'target_id' => (int)$probe->getTargetId(),
+					'resource_id' => $probe->getResourceId() !== null
+						? (int)$probe->getResourceId() : null,
 				]]);
 			}
 			$row = $this->waitlist->findForUpdate($id);
@@ -197,14 +219,16 @@ class WaitlistService
 				return false;
 			}
 			$wasOffered = $row->getState() === 'offered';
+			$rid = $row->getResourceId() !== null ? (int)$row->getResourceId() : null;
 			$row->setState('declined');
 			$row->setClaimTokenHash(null);
 			$row->setOfferExpiresAt(null);
+			$row->setResourceId(null);
 			$this->waitlist->update($row);
 			if ($wasOffered) {
-				$this->inventory->releaseHold($row->getTargetType(), (int)$row->getTargetId(), 1);
-				if ($this->offerSeat($row->getTargetType(), (int)$row->getTargetId())) {
-					$this->inventory->hold($row->getTargetType(), (int)$row->getTargetId(), 1);
+				$this->inventory->releaseHold($row->getTargetType(), (int)$row->getTargetId(), 1, $rid);
+				if ($this->offerSeat($row->getTargetType(), (int)$row->getTargetId(), $rid)) {
+					$this->inventory->hold($row->getTargetType(), (int)$row->getTargetId(), 1, $rid);
 				}
 			}
 			$this->db->commit();
@@ -250,6 +274,8 @@ class WaitlistService
 				$this->inventory->prelock([[
 					'target_type' => $row->getTargetType(),
 					'target_id' => (int)$row->getTargetId(),
+					'resource_id' => $row->getResourceId() !== null
+						? (int)$row->getResourceId() : null,
 				]]);
 				$locked = $this->waitlist->findForUpdate((int)$row->getId());
 				if ($locked === null || $locked->getState() !== 'offered') {
@@ -259,10 +285,12 @@ class WaitlistService
 				$locked->setState('expired');
 				$locked->setClaimTokenHash(null);
 				$this->waitlist->update($locked);
-				// release the offer-hold, then offer the seat onward.
-				$this->inventory->releaseHold($locked->getTargetType(), (int)$locked->getTargetId(), 1);
-				if ($this->offerSeat($locked->getTargetType(), (int)$locked->getTargetId())) {
-					$this->inventory->hold($locked->getTargetType(), (int)$locked->getTargetId(), 1);
+				// release the offer-hold, then offer the seat onward —
+				// always the SAME pool the hold was placed in
+				$rid = $locked->getResourceId() !== null ? (int)$locked->getResourceId() : null;
+				$this->inventory->releaseHold($locked->getTargetType(), (int)$locked->getTargetId(), 1, $rid);
+				if ($this->offerSeat($locked->getTargetType(), (int)$locked->getTargetId(), $rid)) {
+					$this->inventory->hold($locked->getTargetType(), (int)$locked->getTargetId(), 1, $rid);
 				}
 				$this->db->commit();
 				$n++;

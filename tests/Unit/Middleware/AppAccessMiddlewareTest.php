@@ -9,8 +9,6 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Tests\Unit\Middleware;
 
-use OCA\BookingCheck\Controller\OrderController;
-use OCA\BookingCheck\Controller\PubCheckoutController;
 use OCA\BookingCheck\Exception\UnauthorizedException;
 use OCA\BookingCheck\Middleware\AppAccessMiddleware;
 use OCP\IGroupManager;
@@ -138,10 +136,17 @@ class AppAccessMiddlewareTest extends TestCase
 		$this->callGate();
 	}
 
-	/** /scan is the staff door — behind the role, not public. */
-	public function testScanRequiresRole(): void
+	/** /scan is middleware-exempt so anonymous door tablets reach the
+	 *  token-entry page — the ScanController self-gates every endpoint
+	 *  (door session or admin). A near-miss like /scanner must still hit
+	 *  the role gate. */
+	public function testScanPathsExemptButScannerLikeNot(): void
 	{
-		$this->at('/apps/bookingcheck/scan', 'bob');
+		foreach (['/apps/bookingcheck/scan', '/apps/bookingcheck/api/scan/lookup'] as $p) {
+			$this->at($p, null);
+			$this->callGate();
+		}
+		$this->at('/apps/bookingcheck/scanner', 'bob');
 		$this->expectException(UnauthorizedException::class);
 		$this->callGate();
 	}

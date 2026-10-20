@@ -38,6 +38,9 @@ class CapiController extends Controller
 		IRequest $request,
 		private readonly TicketService $tickets,
 		private readonly IDBConnection $db,
+		private readonly ?\OCA\BookingCheck\Service\PassService $passes = null,
+		private readonly ?\OCA\BookingCheck\Service\OrderService $orderService = null,
+		private readonly ?\OCA\BookingCheck\Db\CompanionTokenMapper $companions = null,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -50,8 +53,11 @@ class CapiController extends Controller
 		return $this->ok([
 			'api' => 'v1',
 			'role' => $this->companionDevice?->getRole() ?? 'door',
-			'capabilities' => $this->companionDevice?->getRole() === 'manager'
-				? ['events', 'roster', 'check-in', 'stats'] : ['events', 'roster', 'check-in'],
+			'capabilities' => match ($this->companionDevice?->getRole() ?? 'door') {
+				'manager' => ['events', 'roster', 'check-in', 'stats', 'push', 'pass', 'walkup'],
+				'api' => ['events', 'roster', 'check-in', 'stats', 'push', 'pass', 'walkup', 'offerings.write'],
+				default => ['events', 'roster', 'check-in', 'push', 'pass', 'walkup'],
+			},
 		]);
 	}
 
@@ -151,6 +157,9 @@ class CapiController extends Controller
 	public function checkIn(): JSONResponse
 	{
 		$qr = (string)$this->request->getParam('qr', '');
+		if (str_starts_with($qr, 'BCK1P-')) {
+			return $this->admitPassPayload($qr);
+		}
 		// BCK1:<ticketId>:<token>
 		if (!preg_match('/^BCK1:\d+:([A-Za-z0-9_-]{32,64})$/', $qr, $m)) {
 			return $this->fail(400, 'BAD_QR', 'Not a BookingCheck ticket.');
@@ -251,6 +260,171 @@ class CapiController extends Controller
 	// ---------------------------------------------------------------
 
 	/** @return list<int>|null null = unrestricted device */
+	/**
+	 * NH-28 — wallet pass admission. The device resolves the signed
+	 * serial offline-capable (HMAC over serial), then claims the use
+	 * atomically — a replayed pass code can never admit twice.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function admitPass(): JSONResponse
+	{
+		return $this->admitPassPayload((string)$this->request->getParam('payload', ''));
+	}
+
+	private function admitPassPayload(string $payload): JSONResponse
+	{
+		if ($this->passes === null || !preg_match('/^BCK1P-[a-f0-9]{48}$/', $payload)) {
+			return $this->fail(400, 'BAD_QR', 'Not a BookingCheck pass.');
+		}
+		$type = (string)$this->request->getParam('target_type', 'event');
+		$tid = $this->strictId($this->request->getParam('target_id'));
+		if (!in_array($type, ['event', 'slot', 'series'], true) || $tid === null) {
+			return $this->fail(400, 'VALIDATION', 'target_type and target_id required for pass admission.');
+		}
+		$targetOffering = $this->offeringIdForTarget($type, $tid);
+		if ($targetOffering === null || !$this->scopeAllows($targetOffering)) {
+			return $this->notFound();
+		}
+		$res = $this->passes->admit($payload, $type, $tid, $targetOffering,
+			'device:' . ($this->companionDevice?->getLabel() ?? 'unknown'));
+		if (!$res['ok']) {
+			return match ($res['reason']) {
+				'already_admitted' => $this->fail(409, 'PASS_USED', 'This pass was already admitted here.'),
+				'exhausted' => $this->fail(409, 'PASS_EXHAUSTED', 'Pass use limit reached.'),
+				'outside_validity' => $this->fail(409, 'PASS_EXPIRED', 'Pass is not valid right now.'),
+				'out_of_scope' => $this->fail(409, 'PASS_SCOPE', 'Pass does not cover this offering.'),
+				default => $this->notFound(),
+			};
+		}
+		return $this->ok(['admitted' => true, 'holder' => $res['holder']]);
+	}
+
+	/**
+	 * NH-12 — door walk-up sale. Creates a PAID zero-friction order
+	 * (payMethod walkup, no PSP roundtrip) for a scoped target. Buyer
+	 * contact is optional — a door sale may be anonymous, the ticket is
+	 * printed/handed, no manage link is mailed.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function walkup(): JSONResponse
+	{
+		if (!in_array($this->companionDevice?->getRole(), ['door', 'manager', 'api'], true)) {
+			return $this->fail(403, 'FORBIDDEN', 'Device role cannot sell.');
+		}
+		if ($this->orderService === null) {
+			return $this->fail(400, 'UNSUPPORTED', 'Walk-up sales unavailable.');
+		}
+		$type = (string)$this->request->getParam('target_type', '');
+		$tid = $this->strictId($this->request->getParam('target_id'));
+		$seats = (int)($this->request->getParam('seats') ?? 0);
+		if (!in_array($type, ['event', 'slot', 'series'], true) || $tid === null
+			|| $seats < 1 || $seats > 50) {
+			return $this->fail(400, 'VALIDATION', 'target_type, target_id and 1–50 seats required.');
+		}
+		$offeringId = $this->offeringIdForTarget($type, $tid);
+		if ($offeringId === null || !$this->scopeAllows($offeringId)) {
+			return $this->notFound();
+		}
+		// device supplies an idem_token so a retry after a dropped
+		// connection replays instead of double-selling (NN-idempotency)
+		$idem = trim((string)$this->request->getParam('idem_token', ''));
+		if ($idem !== '' && !preg_match('/^[A-Za-z0-9_-]{8,36}$/', $idem)) {
+			return $this->fail(400, 'VALIDATION', 'idem_token must be 8–36 url-safe chars.');
+		}
+		try {
+			$result = $this->orderService->createWalkupOrder(
+				$offeringId, $type, $tid, $seats,
+				'device:' . ($this->companionDevice?->getLabel() ?? 'unknown'),
+				$idem !== '' ? $idem : null);
+		} catch (\OCA\BookingCheck\Exception\ValidationException $e) {
+			return $this->fail(400, 'VALIDATION', 'Invalid walk-up request.', $e->getFields());
+		} catch (\OCA\BookingCheck\Exception\CapacityException) {
+			return $this->fail(409, 'CAPACITY', 'Not enough seats left.');
+		} catch (\OCA\BookingCheck\Exception\NotFoundException) {
+			return $this->notFound();
+		}
+		return $this->ok([
+			'order_ref' => $result['order']->getRef(),
+			'amount' => $result['order']->getAmountCents(),
+			'currency' => $result['order']->getCurrency(),
+		]);
+	}
+
+	/**
+	 * NH-26 — register a push target on this device. Token is a device
+	 * secret; store it server-side and keep it out of logs/serialization.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function registerPush(): JSONResponse
+	{
+		if ($this->companions === null || $this->companionDevice === null) {
+			return $this->notFound();
+		}
+		$token = trim((string)$this->request->getParam('token', ''));
+		$kind = (string)$this->request->getParam('kind', '');
+		// 'expo' is the only live transport today (PushService fans out via
+		// the Expo Push API) — registering an fcm/apns kind would store a
+		// token nothing can deliver to, so refuse it honestly.
+		if ($token === '' || mb_strlen($token) > 512 || $kind !== 'expo') {
+			return $this->fail(400, 'VALIDATION', 'token (≤512 chars) and kind "expo" required.');
+		}
+		$this->companionDevice->setPushToken($token);
+		$this->companionDevice->setPushKind($kind);
+		$this->companions->update($this->companionDevice);
+		return $this->ok(['registered' => true]);
+	}
+
+	/**
+	 * NH-04 write API — `api` role devices create a simple published
+	 * event offering (single event, fixed capacity). Deliberately narrow:
+	 * complex offerings go through the web UI.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function createOffering(): JSONResponse
+	{
+		if ($this->companionDevice?->getRole() !== 'api') {
+			return $this->fail(403, 'FORBIDDEN', 'API devices only.');
+		}
+		$title = trim((string)$this->request->getParam('title', ''));
+		$priceCents = (int)($this->request->getParam('price_cents') ?? 0);
+		$capacity = (int)($this->request->getParam('capacity') ?? 0);
+		$startsAt = trim((string)$this->request->getParam('starts_at', ''));
+		$duration = max(15, min(1440, (int)($this->request->getParam('duration_min') ?? 60)));
+		$fields = [];
+		if ($title === '' || mb_strlen($title) > 190) {
+			$fields['title'] = 'Title required (≤190 chars).';
+		}
+		if ($priceCents < 0 || $priceCents > 100000000) {
+			$fields['price_cents'] = 'Price out of range.';
+		}
+		if ($capacity < 1 || $capacity > 100000) {
+			$fields['capacity'] = 'Capacity 1–100000 required.';
+		}
+		$start = \DateTimeImmutable::createFromFormat(\DateTimeInterface::ATOM, $startsAt)
+			?: \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $startsAt);
+		if ($start === false || $start < new \DateTimeImmutable('now')) {
+			$fields['starts_at'] = 'Future ATOM datetime required.';
+		}
+		if ($fields !== []) {
+			return $this->fail(400, 'VALIDATION', 'Invalid offering.', $fields);
+		}
+		if ($this->orderService === null) {
+			return $this->fail(400, 'UNSUPPORTED', 'Write API unavailable.');
+		}
+		[$offeringId, $eventId] = $this->orderService->createQuickOffering(
+			$title, $priceCents, $capacity, $start, $duration,
+			'device:' . ($this->companionDevice?->getLabel() ?? 'unknown'));
+		return $this->ok(['offering_id' => $offeringId, 'event_id' => $eventId], 201);
+	}
+
 	private function deviceScope(): ?array
 	{
 		$raw = $this->companionDevice?->getOfferingIds();

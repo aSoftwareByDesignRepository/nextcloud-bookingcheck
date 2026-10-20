@@ -49,6 +49,35 @@ class CsvExportService
 		return stream_get_contents($out);
 	}
 
+	/** Per-offering roster for the seller zip export — same cell safety. */
+	public function roster(int $offeringId): string
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('o.ref', 'o.buyer_name', 'o.buyer_email', 'o.status', 'o.paid_at',
+			'l.seats', 'l.target_type', 'l.target_id', 't.attendee_name')
+			->from('bc_order', 'o')
+			->innerJoin('o', 'bc_order_line', 'l', $qb->expr()->eq('l.order_id', 'o.id'))
+			->leftJoin('l', 'bc_ticket', 't', $qb->expr()->eq('t.line_id', 'l.id'))
+			->where($qb->expr()->eq('o.offering_id', $qb->createNamedParameter($offeringId)))
+			->andWhere($qb->expr()->eq('o.is_test', $qb->createNamedParameter(0)))
+			->orderBy('o.id', 'ASC')
+			->setMaxResults(50000);
+		$out = fopen('php://temp', 'w+');
+		fputcsv($out, ['ref', 'buyer_name', 'buyer_email', 'status', 'paid_at',
+			'seats', 'target_type', 'target_id', 'attendee_name']);
+		foreach ($qb->executeQuery()->fetchAll() as $r) {
+			fputcsv($out, [
+				self::cell($r['ref']), self::cell($r['buyer_name']),
+				self::cell($r['buyer_email']), self::cell($r['status']),
+				self::cell($r['paid_at'] ?? ''), $r['seats'],
+				self::cell($r['target_type']), $r['target_id'],
+				self::cell($r['attendee_name'] ?? ''),
+			]);
+		}
+		rewind($out);
+		return stream_get_contents($out);
+	}
+
 	/** Prefix spreadsheet-dangerous leading chars with a literal quote. */
 	public static function cell(?string $v): string
 	{

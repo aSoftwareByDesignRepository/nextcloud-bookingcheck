@@ -165,13 +165,23 @@ class TicketService
 	public function liveTicketsForOrder(int $orderId): array
 	{
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('t.id', 't.seat_no', 't.attendee_name', 't.checked_in_at')
+		$qb->select('t.id', 't.seat_no', 't.attendee_name', 't.checked_in_at', 't.qr_token_enc')
 			->from('bc_ticket', 't')
 			->innerJoin('t', 'bc_order_line', 'ol', $qb->expr()->eq('ol.id', 't.line_id'))
 			->where($qb->expr()->eq('ol.order_id', $qb->createNamedParameter($orderId)))
 			->andWhere($qb->expr()->isNull('t.revoked_at'))
 			->orderBy('ol.id', 'ASC')->addOrderBy('t.seat_no', 'ASC');
-		return $qb->executeQuery()->fetchAll();
+		$rows = $qb->executeQuery()->fetchAll();
+		// The door checks tickets in by their QR token, never by enumerable
+		// row id — echo the payload so the scan page can re-post it.
+		foreach ($rows as &$r) {
+			$enc = (string)($r['qr_token_enc'] ?? '');
+			$r['qr'] = $enc !== ''
+				? 'BCK1:' . (int)$r['id'] . ':' . $this->crypto->decrypt($enc)
+				: null;
+			unset($r['qr_token_enc']);
+		}
+		return $rows;
 	}
 
 	/** Offering a ticket belongs to — for companion-token scope checks. */

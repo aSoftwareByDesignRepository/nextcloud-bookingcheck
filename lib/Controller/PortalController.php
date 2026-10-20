@@ -9,11 +9,15 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Controller;
 
+use OCA\BookingCheck\Db\OfferingMapper;
+use OCA\BookingCheck\Db\OrderMapper;
+use OCA\BookingCheck\Db\TicketMapper;
 use OCA\BookingCheck\Service\EmailService;
 use OCA\BookingCheck\Service\EntitlementService;
 use OCA\BookingCheck\Service\OtpService;
 use OCA\BookingCheck\Service\PortalSessionService;
 use OCA\BookingCheck\Service\SettingsService;
+use OCA\BookingCheck\Service\TicketService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -46,6 +50,13 @@ class PortalController extends Controller
 		private readonly EmailService $email,
 		private readonly SettingsService $settings,
 		private readonly IURLGenerator $urlGenerator,
+		private readonly OrderMapper $orders,
+		private readonly OfferingMapper $offerings,
+		private readonly TicketMapper $tickets,
+		private readonly TicketService $ticketService,
+		private readonly ?\OCA\BookingCheck\Db\DownloadLogMapper $downloadLog = null,
+		private readonly ?\OCA\BookingCheck\Db\AbuseReportMapper $abuseReports = null,
+		private readonly ?\OCA\BookingCheck\Db\UploadMapper $uploads = null,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -135,6 +146,54 @@ class PortalController extends Controller
 		]);
 	}
 
+	/**
+	 * One order in the portal — the "Open" link on the home page.
+	 *
+	 * Scope is least-PII: the buyer sees every live ticket; an email that
+	 * is only a ticket attendee sees just their own tickets on that
+	 * order — never the buyer's name, email, or the rest of the party.
+	 * Unentitled and foreign order ids collapse to the same 404.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function order(int $id): PublicTemplateResponse
+	{
+		$email = $this->portalEmail();
+		$scope = $email === null ? null : $this->entitlement->orderScope($email, $id);
+		$order = $this->orders->find($id);
+		$email = $email === null ? null : strtolower($email);
+		if ($email === null || $scope === null || $order === null) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		$offering = $this->offerings->find((int)$order->getOfferingId());
+		$tickets = [];
+		foreach ($this->tickets->findForOrder($id) as $t) {
+			if ($scope === 'attendee'
+				&& strtolower((string)$t->getAttendeeEmail()) !== $email) {
+				continue; // a guest sees their own tickets only
+			}
+			$tickets[] = [
+				'attendee_name' => $t->getAttendeeName(),
+				'seat_no' => $t->getSeatNo(),
+				'checked_in' => $t->getCheckedInAt() !== null,
+				'qr_svg' => $this->ticketService->qrSvg($t),
+			];
+		}
+		// materials for this order's offering (entitlement already proven)
+		$materials = array_values(array_filter(
+			$this->entitlement->entitledMaterials($email),
+			fn ($m) => (int)$m['offering_id'] === (int)$order->getOfferingId()));
+		return new PublicTemplateResponse($this->appName, 'public/portal-order', [
+			'ref' => $order->getRef(),
+			'title' => $offering?->getTitle() ?? '',
+			'status' => $order->getStatus(),
+			'scope' => $scope,
+			'tickets' => $tickets,
+			'materials' => $materials,
+		]);
+	}
+
 	/** Material download — entitlement re-evaluated at download time. */
 	#[PublicPage]
 	#[NoAdminRequired]
@@ -145,7 +204,95 @@ class PortalController extends Controller
 		if ($email === null || !$this->entitlement->canAccessMaterial($email, $id)) {
 			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		}
+		$this->downloadLog?->record($id, null, null, 'portal:' . $email);
 		return \OCP\Server::get(\OCA\BookingCheck\Service\MaterialService::class)->stream($id);
+	}
+
+	/** NH-14 — inline preview (PDF/images only — others fall back to download). */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function preview(int $id)
+	{
+		$email = $this->portalEmail();
+		if ($email === null || !$this->entitlement->canAccessMaterial($email, $id)) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		$this->downloadLog?->record($id, null, null, 'portal-preview:' . $email);
+		return \OCP\Server::get(\OCA\BookingCheck\Service\MaterialService::class)->streamPreview($id);
+	}
+
+	/**
+	 * NH-15 — upload thumbnail in the portal. The viewer must be
+	 * entitled to the upload's order (buyer or attendee scope).
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function uploadThumb(int $id)
+	{
+		$email = $this->portalEmail();
+		$u = $email === null || $this->uploads === null ? null : $this->uploads->find($id);
+		if ($email === null || $u === null) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		// visibility is evaluated from the VIEWER's order on the upload's
+		// offering — the uploader's order is irrelevant here (NH-15)
+		$viewerOrderId = $this->entitlement->viewerOrderIdForOffering(
+			strtolower($email), (int)$u->getOfferingId());
+		$order = $viewerOrderId === null ? null : $this->orders->find($viewerOrderId);
+		$offering = $this->offerings->find((int)$u->getOfferingId());
+		if ($order === null || $offering === null) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		return \OCP\Server::get(\OCA\BookingCheck\Service\UploadService::class)
+			->thumbFor($u, $order, $offering);
+	}
+
+	/**
+	 * NH-31 — report an uploaded file as abusive. Session-gated,
+	 * deduplicated per reporter+upload, never reveals upload existence
+	 * (foreign upload ids get the same 404 as everything else).
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function reportAbuse(): JSONResponse
+	{
+		$email = $this->portalEmail();
+		if ($email === null || $this->abuseReports === null || $this->uploads === null) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		$uploadId = $this->strictId($this->request->getParam('upload_id'));
+		$reason = trim((string)$this->request->getParam('reason', ''));
+		if ($uploadId === null || $reason === '' || mb_strlen($reason) > 500) {
+			return $this->fail(400, 'VALIDATION', 'upload_id and a short reason are required.');
+		}
+		$u = $this->uploads->find($uploadId);
+		// you can only report what you can see — same viewer-order +
+		// sharing-scope gate as streaming (uniform 404 otherwise)
+		$viewerOrderId = $u === null ? null : $this->entitlement->viewerOrderIdForOffering(
+			strtolower($email), (int)$u->getOfferingId());
+		$order = $viewerOrderId === null ? null : $this->orders->find($viewerOrderId);
+		$offering = $u === null ? null : $this->offerings->find((int)$u->getOfferingId());
+		if ($u === null || $order === null || $offering === null) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		\OCP\Server::get(\OCA\BookingCheck\Service\UploadService::class)
+			->assertViewable($u, $order, $offering);
+		foreach ($this->abuseReports->listForUpload($uploadId) as $r) {
+			if ($r->getReporter() === strtolower($email) && $r->getStatus() === 'open') {
+				return $this->ok(['reported' => true, 'duplicate' => true]);
+			}
+		}
+		$r = new \OCA\BookingCheck\Db\AbuseReport();
+		$r->setUploadId($uploadId);
+		$r->setReporter(strtolower($email));
+		$r->setReason($reason);
+		$r->setStatus('open');
+		$r->setCreatedAt(new \DateTimeImmutable());
+		$this->abuseReports->insert($r);
+		return $this->ok(['reported' => true], 201);
 	}
 
 	#[PublicPage]

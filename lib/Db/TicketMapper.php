@@ -85,4 +85,16 @@ class TicketMapper extends QBMapper
 		return $this->findEntities($qb);
 	}
 
+	/** Live tickets of an order — the portal order page renders these. */
+	public function findForOrder(int $orderId): array
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('t.*')->from('bc_ticket', 't')
+			->innerJoin('t', 'bc_order_line', 'ol', $qb->expr()->eq('ol.id', 't.line_id'))
+			->where($qb->expr()->eq('ol.order_id', $qb->createNamedParameter($orderId)))
+			->andWhere($qb->expr()->isNull('t.revoked_at'))
+			->orderBy('ol.id', 'ASC')->addOrderBy('t.seat_no', 'ASC');
+		return $this->findEntities($qb);
+	}
+
 }

@@ -16,6 +16,9 @@ $status = (string)($o['status'] ?? '');
 $canApprove = $status === 'pending_approval';
 $canRefund = in_array($status, ['paid'], true);
 $canCancel = in_array($status, ['paid', 'pending_approval', 'created', 'approved'], true);
+$remainder = (int)($o['remainderCents'] ?? 0);
+$payMethod = (string)($o['payMethod'] ?? 'psp');
+$canMarkPaid = $status === 'paid' && $remainder > 0;
 ?>
 <div class="bck-page-stack" data-bck-order-id="<?php p((string)$oid); ?>"
 	data-bck-order-currency="<?php p((string)($o['currency'] ?? '')); ?>">
@@ -28,13 +31,13 @@ $canCancel = in_array($status, ['paid', 'pending_approval', 'created', 'approved
 			<div class="bck-card__body">
 				<dl class="bck-kv">
 					<dt><?php p($l->t('Buyer')); ?></dt>
-					<dd><?php p((string)$o['buyer_name']); ?> &lt;<?php p((string)$o['buyer_email']); ?>&gt;</dd>
+					<dd><?php p((string)$o['buyerName']); ?> &lt;<?php p((string)$o['buyerEmail']); ?>&gt;</dd>
 					<dt><?php p($l->t('Amount')); ?></dt>
-					<dd><?php p((string)$o['currency'] . ' ' . number_format(((int)$o['amount_cents']) / 100, 2, ',', '.')); ?></dd>
+					<dd><?php p((string)$o['currency'] . ' ' . number_format(((int)$o['amountCents']) / 100, 2, ',', '.')); ?></dd>
 					<dt><?php p($l->t('Placed')); ?></dt>
-					<dd><?php p((string)$o['created_at']); ?></dd>
-					<?php if (!empty($o['paid_at'])): ?>
-					<dt><?php p($l->t('Paid')); ?></dt><dd><?php p((string)$o['paid_at']); ?></dd>
+					<dd><?php p((string)$o['createdAt']); ?></dd>
+					<?php if (!empty($o['paidAt'])): ?>
+					<dt><?php p($l->t('Paid')); ?></dt><dd><?php p((string)$o['paidAt']); ?></dd>
 					<?php endif; ?>
 					<?php if (!empty($o['buyerCompany']) || !empty($o['billingCountry']) || !empty($o['vatId'])): ?>
 					<dt><?php p($l->t('Company')); ?></dt>
@@ -50,11 +53,25 @@ $canCancel = in_array($status, ['paid', 'pending_approval', 'created', 'approved
 					<dd><span class="bck-badge bck-badge--info"><?php p($l->t('Reverse charge §13b')); ?></span></dd>
 					<?php endif; ?>
 					<?php endif; ?>
+					<?php if ($payMethod !== 'psp' || $remainder > 0): ?>
+					<dt><?php p($l->t('Payment method')); ?></dt>
+					<dd><span class="bck-badge bck-badge--neutral"><?php p($payMethod === 'invoice'
+						? $l->t('Invoice') : ($payMethod === 'deposit'
+							? $l->t('Deposit') : ($payMethod === 'walkup' ? $l->t('Walk-up') : $l->t('Online')))); ?></span></dd>
+					<?php endif; ?>
+					<?php if ($remainder > 0): ?>
+					<dt><?php p($l->t('Open amount')); ?></dt>
+					<dd><strong class="bck-amount-due"><?php p((string)$o['currency'] . ' ' . number_format($remainder / 100, 2, ',', '.')); ?></strong>
+						<span class="bck-field__hint"><?php p($l->t('Still to be received')); ?></span></dd>
+					<?php endif; ?>
 				</dl>
 				<div class="bck-btn-row">
 					<?php if ($canApprove): ?>
 						<button type="button" class="bck-btn bck-btn--primary" data-bck-order-action="approve"><?php p($l->t('Approve')); ?></button>
 						<button type="button" class="bck-btn bck-btn--warn" data-bck-order-action="decline"><?php p($l->t('Decline')); ?></button>
+					<?php endif; ?>
+					<?php if ($canMarkPaid): ?>
+						<button type="button" class="bck-btn bck-btn--primary" data-bck-order-action="mark-paid"><?php p($l->t('Received payment')); ?></button>
 					<?php endif; ?>
 					<?php if ($canRefund): ?>
 						<button type="button" class="bck-btn bck-btn--warn" data-bck-order-action="refund"><?php p($l->t('Refund')); ?></button>

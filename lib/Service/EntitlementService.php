@@ -26,9 +26,10 @@ class EntitlementService
 	}
 
 	/**
-	 * Paid order ids for an email — union of "is the buyer" and
-	 * "is an attendee on any ticket of the order".
-	 * @return list<int>
+	 * Paid orders for an email — union of "is the buyer" and
+	 * "is an attendee on any ticket of the order", hydrated with
+	 * ref/status/title for portal display.
+	 * @return list<array{id:int, ref:string, status:string, title:string, talk_room:?string}>
 	 */
 	public function entitledOrders(string $email): array
 	{
@@ -138,5 +139,57 @@ class EntitlementService
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Portal order scope: 'buyer' when the mailbox owns the order,
+	 * 'attendee' when it only appears on a live ticket of it, null when
+	 * neither (or the order is not paid). Least-PII — an attendee sees
+	 * their own tickets on the order, never the buyer's whole party.
+	 */
+	/**
+	 * The VIEWER's own paid order on an offering. Upload sharing is
+	 * evaluated against the viewer's order — never the uploader's —
+	 * so 'offering'-scoped files reach co-attendees on other orders.
+	 */
+	public function viewerOrderIdForOffering(string $email, int $offeringId): ?int
+	{
+		$rows = $this->entitledOrders($email);
+		if ($rows === []) {
+			return null;
+		}
+		$ids = array_map(static fn ($r) => (int)$r['id'], $rows);
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')->from('bc_order')
+			->where($qb->expr()->in('id',
+				$qb->createNamedParameter($ids, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))
+			->andWhere($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)))
+			->setMaxResults(1);
+		$id = $qb->executeQuery()->fetchOne();
+		return $id === false ? null : (int)$id;
+	}
+
+	public function orderScope(string $email, int $orderId): ?string
+	{
+		$email = strtolower(trim($email));
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('buyer_email')->from('bc_order')
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($orderId)))
+			->andWhere($qb->expr()->eq('status', $qb->createNamedParameter('paid')));
+		$buyer = $qb->executeQuery()->fetchOne();
+		if ($buyer === false) {
+			return null;
+		}
+		if (strtolower((string)$buyer) === $email) {
+			return 'buyer';
+		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('t.id')->from('bc_ticket', 't')
+			->innerJoin('t', 'bc_order_line', 'ol', $qb->expr()->eq('ol.id', 't.line_id'))
+			->where($qb->expr()->eq('ol.order_id', $qb->createNamedParameter($orderId)))
+			->andWhere($qb->expr()->isNull('t.revoked_at'))
+			->andWhere($qb->expr()->eq('t.attendee_email', $qb->createNamedParameter($email)))
+			->setMaxResults(1);
+		return $qb->executeQuery()->fetchOne() !== false ? 'attendee' : null;
 	}
 }

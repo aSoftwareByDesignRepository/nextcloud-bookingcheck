@@ -73,7 +73,9 @@
 		if (window.OC && OC.requestToken) return OC.requestToken;
 		var meta = document.querySelector('meta[name="requesttoken"]');
 		var input = document.getElementById('requesttoken');
-		return (meta && meta.getAttribute('content')) || (input && input.value) || '';
+		var holder = document.querySelector('[data-requesttoken]');
+		return (meta && meta.getAttribute('content')) || (input && input.value)
+			|| (holder && holder.getAttribute('data-requesttoken')) || '';
 	}
 
 	function appBase() {
@@ -658,6 +660,9 @@
 	/* ---------- field errors ---------- */
 	if (window.CheckFieldErrors) {
 		CheckFieldErrors.install({ prefix: 'bck' });
+	}
+	if (window.CheckFocusPreservation) {
+		CheckFocusPreservation.install({ prefix: 'bck' });
 	}
 
 	window.BCK = {

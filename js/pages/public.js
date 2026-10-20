@@ -154,6 +154,40 @@
 		});
 	});
 
+	document.querySelectorAll('.bck-upload-report').forEach(function (btn) {
+		btn.addEventListener('click', function () {
+			var token = btn.getAttribute('data-manage-token');
+			var id = btn.getAttribute('data-upload-id');
+			var reason = '';
+			if (BCK.openDialog) {
+				var wrap = BCK.el('div', { class: 'bck-field' });
+				var ta = document.createElement('textarea');
+				ta.maxLength = 500; ta.rows = 3; ta.className = 'bck-input';
+				ta.setAttribute('aria-label', BCK.t('Why are you reporting this file?'));
+				wrap.appendChild(ta);
+				BCK.openDialog({
+					title: BCK.t('Report this file?'),
+					body: wrap,
+					submitLabel: BCK.t('Report'),
+					onSubmit: function () {
+						return fetch(BCK.appBase() + '/pub/m/' + encodeURIComponent(token)
+								+ '/uploads/' + encodeURIComponent(id) + '/report', {
+							method: 'POST', credentials: 'same-origin',
+							headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+							body: JSON.stringify({ reason: ta.value })
+						}).then(function (r) { return r.json(); })
+							.then(function (b) {
+								if (b && b.success) {
+									btn.disabled = true;
+									btn.textContent = BCK.t('Reported');
+								}
+							});
+					}
+				});
+			}
+		});
+	});
+
 	/* --- verified review (manage page, paid orders) --- */
 	document.querySelectorAll('.bck-review-form').forEach(function (form) {
 		form.addEventListener('submit', function (ev) {

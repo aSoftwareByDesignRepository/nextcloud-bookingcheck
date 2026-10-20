@@ -185,6 +185,7 @@
 #app-content.bck-app .bck-label {
 	font-weight: 600;
 	font-size: var(--bck-fs-sm);
+	text-align: start;
 }
 
 #app-content.bck-app .bck-input,
@@ -878,7 +879,7 @@ dialog.bck-dialog--wide {
 	cursor: pointer;
 }
 
-#app-content.bck-app .bck-chip--filter:hover { background: var(--bck-bg-hover, var(--color-background-hover)); }
+#app-content.bck-app .bck-chip--filter:hover { background: var(--color-background-hover); }
 
 @media (max-width: 767.98px) {
 	.bck-dialog__actions { flex-direction: column-reverse; align-items: stretch; }

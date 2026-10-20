@@ -65,10 +65,15 @@ class OrderService
 		private readonly SettingsService $settings,
 		private readonly WaitlistService $waitlist,
 		private readonly IDBConnection $db,
+		private readonly \OCA\BookingCheck\Db\PaymentMapper $payments,
 		private readonly IURLGenerator $url,
 		private readonly ?CrmSyncService $crmSync = null,
 		private readonly ?SellerNotifyService $sellerNotify = null,
 		private readonly ?OutboundWebhookService $webhooks = null,
+		private readonly ?PushService $push = null,
+		private readonly ?PassService $passes = null,
+		private readonly ?LicenseService $license = null,
+		private readonly ?\OCA\BookingCheck\Db\EventMapper $events = null,
 	) {
 	}
 
@@ -94,6 +99,7 @@ class OrderService
 		bool $isTest,
 		string $actor,
 		bool $consented = false,
+		?string $payMethod = null,
 	): array {
 		// ---- idempotency first: same token ⇒ same order, no second hold ----
 		$existing = $this->orders->findByIdemToken($idemToken);
@@ -133,9 +139,12 @@ class OrderService
 				'price_cents' => $offering->getPriceCents(),
 				'currency' => $offering->getCurrency(),
 				'vat_bp' => $offering->getVatBp(),
+				'dyn_bp' => $offering->getDynBp(),
+				'dyn_step_pct' => $offering->getDynStepPct(),
 			];
 			$priced = $this->pricing->price($offeringRow, $seatLines, $addonLines,
-				$promoCode, $voucherCode, !empty($billing['reverse_charge']));
+				$promoCode, $voucherCode, !empty($billing['reverse_charge']),
+				is_array($billing) ? ($billing['country'] ?? null) : null);
 
 			// approval path: cap total approval-held seats when configured
 			$needsApproval = (int)$offering->getApprovalRequired() === 1 && !$isTest;
@@ -177,6 +186,23 @@ class OrderService
 			$order->setPromoCents($priced['promoCents']);
 			$order->setCreatedAt($now);
 			$order->setStatus(self::ST_CREATED);
+			// NH-18/19/27 — payment method + receivable remainder
+			$depositBp = (int)$offering->getDepositBp();
+			$wantsInvoice = $payMethod === 'invoice';
+			if ($wantsInvoice && (int)$offering->getInvoicePay() !== 1) {
+				throw new ValidationException(['pay_method' => 'Payment by invoice is not offered here.']);
+			}
+			if ($wantsInvoice && $priced['total'] > 0) {
+				$order->setPayMethod('invoice');
+				$order->setRemainderCents($priced['total']);
+			} elseif ($depositBp > 0 && $depositBp < 10000 && $priced['total'] > 0) {
+				$charge = intdiv($priced['total'] * $depositBp, 10000);
+				$order->setPayMethod('deposit');
+				$order->setRemainderCents($priced['total'] - $charge);
+			} else {
+				$order->setPayMethod('psp');
+				$order->setRemainderCents(0);
+			}
 			if ($billing !== null) {
 				$order->setBuyerCompany($billing['company'] ?? null);
 				$order->setBillingCountry($billing['country'] ?? null);
@@ -239,7 +265,31 @@ class OrderService
 			} elseif ($priced['total'] === 0) {
 				$manageToken = $this->completePaidLocked($order, $actor === 'public' ? 'guest' : $actor);
 				$action = 'done';
+			} elseif ($order->getPayMethod() === 'invoice') {
+				// NH-19 — the invoice IS the payment claim (receivable);
+				// tickets + GoBD invoice issue now, seller reconciles later
+				$pay = new \OCA\BookingCheck\Db\Payment();
+				$pay->setOrderId((int)$order->getId());
+				$pay->setProvider('invoice');
+				$pay->setStatus('open');
+				$pay->setAmountCents($priced['total']);
+				$pay->setCreatedAt($now);
+				$this->payments->insert($pay);
+				$manageToken = $this->completePaidLocked($order, $actor === 'public' ? 'guest' : $actor);
+				$action = 'done';
 			} else {
+				if ((int)$order->getRemainderCents() > 0) {
+					// deposit: the tranche goes through PSP; the remainder is
+					// a tracked receivable the seller settles via
+					// markRemainderReceived (provider='invoice' row)
+					$pay = new \OCA\BookingCheck\Db\Payment();
+					$pay->setOrderId((int)$order->getId());
+					$pay->setProvider('invoice');
+					$pay->setStatus('open');
+					$pay->setAmountCents((int)$order->getRemainderCents());
+					$pay->setCreatedAt($now);
+					$this->payments->insert($pay);
+				}
 				$this->setStatusLocked($order, [self::ST_CREATED], self::ST_PENDING_PAYMENT,
 					$now->modify('+' . $this->settings->getInt('order_hold_min', 15) . ' minutes'));
 				$action = 'pay';
@@ -260,6 +310,637 @@ class OrderService
 					return ['order' => $winner, 'manageToken' => '', 'action' => 'idempotent-replay'];
 				}
 			}
+			throw $e;
+		}
+	}
+
+	/**
+	 * NH-36 — multi-offering cart: one order, one payment, lines grouped
+	 * across offerings. offering_id stores the FIRST offering (lead);
+	 * every line still carries its own target so per-offering attribution
+	 * stays derivable and roster/entitlement queries keep working.
+	 *
+	 * Rules:
+	 *  - approval required on ANY offering ⇒ whole cart needs approval
+	 *  - terms on ANY offering ⇒ consent required; texts are concatenated
+	 *    onto the order verbatim (never retro-rewritten)
+	 *  - invoice-pay ⇒ only when EVERY offering in the cart allows it
+	 *  - deposit_bp ⇒ evaluated on the lead offering, applied to the sum
+	 *  - voucher ⇒ applied once to the combined charge basis (NN-26 CAS)
+	 *  - promos ⇒ per-offering map, scoped+windowed as usual
+	 *
+	 * @param list<array{offering_id:int,lines:list<array>,addons:list<array>}> $groups
+	 */
+	public function createCartOrder(
+		array $groups,
+		string $buyerName,
+		string $buyerEmail,
+		string $locale,
+		array $promosByOffering,
+		?string $voucherCode,
+		string $idemToken,
+		?array $billing,
+		string $actor,
+		bool $consented = false,
+		?string $payMethod = null,
+	): array {
+		if (count($groups) < 1 || count($groups) > 10) {
+			throw new ValidationException(['cart' => 'Cart must contain between 1 and 10 offerings.']);
+		}
+		$existing = $this->orders->findByIdemToken($idemToken);
+		if ($existing !== null) {
+			return ['order' => $existing, 'manageToken' => '', 'action' => 'idempotent-replay'];
+		}
+		if (!preg_match('/^[A-Za-z0-9_-]{8,36}$/', $idemToken)) {
+			throw new ValidationException(['idem_token' => 'Invalid idempotency token.']);
+		}
+		$this->validateBuyer($buyerName, $buyerEmail, $locale);
+
+		$this->db->beginTransaction();
+		try {
+			$allLines = [];
+			$allHolds = [];
+			$seatSubtotal = 0;
+			$addonSubtotal = 0;
+			$promoCents = 0;
+			$needsApproval = false;
+			$tosTexts = [];
+			$invoiceOk = true;
+			$leadOffering = null;
+			$currency = null;
+			$offeringIds = [];
+
+			foreach ($groups as $g) {
+				$offeringId = (int)($g['offering_id'] ?? 0);
+				if ($offeringId <= 0 || in_array($offeringId, $offeringIds, true)) {
+					throw new ValidationException(['cart' => 'Invalid cart group.']);
+				}
+				$offeringIds[] = $offeringId;
+				$offering = $this->offerings->findForUpdate($offeringId);
+				if ($offering === null || $offering->getStatus() !== 'published') {
+					throw new NotFoundException();
+				}
+				$this->assertSalesWindowOpen($offering);
+				if ((int)$offering->getInvoicePay() !== 1) {
+					$invoiceOk = false;
+				}
+				$tos = trim((string)($offering->getTosText() ?? ''));
+				if ($tos !== '') {
+					$tosTexts[] = $tos;
+				}
+				$seatLines = $g['lines'] ?? [];
+				$addonLines = $g['addons'] ?? [];
+				$this->inventory->assertTargetsOwnedBy($offeringId, $seatLines);
+				$offeringRow = [
+					'id' => $offeringId,
+					'price_cents' => $offering->getPriceCents(),
+					'currency' => $offering->getCurrency(),
+					'vat_bp' => $offering->getVatBp(),
+					'dyn_bp' => $offering->getDynBp(),
+					'dyn_step_pct' => $offering->getDynStepPct(),
+				];
+				$priced = $this->pricing->price($offeringRow, $seatLines, $addonLines,
+					$promosByOffering[$offeringId] ?? null, null,
+					!empty($billing['reverse_charge']),
+					is_array($billing) ? ($billing['country'] ?? null) : null);
+				if ($currency === null) {
+					$currency = $priced['currency'];
+				} elseif ($currency !== $priced['currency']) {
+					throw new ValidationException(['cart' => 'All cart items must share one currency.']);
+				}
+				$seatSubtotal += $priced['seatSubtotal'];
+				$addonSubtotal += $priced['addonSubtotal'];
+				$promoCents += $priced['promoCents'];
+				if ($priced['promoId'] !== null) {
+					if (!$this->promos->incrementUses($priced['promoId'])) {
+						throw new ValidationException(['promo' => 'Promo code could not be applied.']);
+					}
+				}
+				foreach ($priced['lines'] as $l) {
+					$allLines[] = $l;
+					if ($l['line_kind'] === 'seat') {
+						$allHolds[] = [
+							'target_type' => $l['target_type'],
+							'target_id' => $l['target_id'],
+							'seats' => $l['seats'],
+							'resource_id' => $l['resource_id'] ?? null,
+						];
+					}
+				}
+				if ((int)$offering->getApprovalRequired() === 1) {
+					$needsApproval = true;
+					$this->assertApprovalCap($offering, $seatLines);
+				}
+				if ($leadOffering === null) {
+					$leadOffering = $offering;
+				}
+			}
+
+			if ($tosTexts !== [] && !$consented) {
+				throw new ValidationException(['consent' => 'Please accept the terms to continue.']);
+			}
+
+			// combined charge basis: reverse-charge buyers owe net
+			$reverseCharge = !empty($billing['reverse_charge']);
+			$grossRemainder = $seatSubtotal + $addonSubtotal - $promoCents;
+			$chargeBasis = $grossRemainder;
+			if ($reverseCharge) {
+				// per-group net was already embedded via reverse-charge
+				// pricing? No — pricing() zeroed VAT per group but kept
+				// gross basis. Cart charges the summed charge basis.
+				$chargeBasis = $grossRemainder;
+			}
+
+			// aggregate voucher (single redemption across the cart)
+			$voucherId = null;
+			$voucherCents = 0;
+			if ($voucherCode !== null && $voucherCode !== '' && ($this->license === null || $this->license->hasFeature('vouchers'))) {
+				$v = $this->vouchers->findByCode($voucherCode);
+				if ($v !== null && (int)$v->getActive() === 1
+					&& (int)$v->getRemainingCents() > 0
+					&& (int)$v->getUses() < (int)$v->getMaxUses()
+					&& ($v->getCurrency() === null || $v->getCurrency() === $currency)
+					&& ($v->getValidUntil() === null || $v->getValidUntil() >= new \DateTimeImmutable())) {
+					$voucherId = (int)$v->getId();
+					$voucherCents = min((int)$v->getRemainingCents(), $chargeBasis);
+				}
+			}
+			$total = max(0, $chargeBasis - $voucherCents);
+
+			[$manageToken, $manageHash] = $this->tokens->mint();
+			$now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+			$order = new Order();
+			$ref = null;
+			for ($try = 0; $try < 5; $try++) {
+				$cand = $this->tokens->publicRef('BCK', (int)$now->format('Y'));
+				if ($this->orders->findByRef($cand) === null) {
+					$ref = $cand;
+					break;
+				}
+			}
+			if ($ref === null) {
+				throw new StateConflictException('Could not mint a unique order reference', 'RETRY');
+			}
+			$order->setRef($ref);
+			$order->setOfferingId((int)$leadOffering->getId());
+			$order->setBuyerName($buyerName);
+			$order->setBuyerEmail(strtolower(trim($buyerEmail)));
+			$order->setBuyerLocale($locale);
+			$order->setAmountCents($total);
+			$order->setCurrency((string)$currency);
+			$order->setIdemToken($idemToken);
+			$order->setManageTokenHash($manageHash);
+			$order->setIsTest(0);
+			$order->setVoucherId($voucherId);
+			$order->setDiscountCents($voucherCents);
+			$order->setPromoCents($promoCents);
+			$order->setCreatedAt($now);
+			$order->setStatus(self::ST_CREATED);
+			if ($billing !== null) {
+				$order->setBuyerCompany($billing['company'] ?? null);
+				$order->setBillingCountry($billing['country'] ?? null);
+				$order->setVatId($billing['vat_id'] ?? null);
+				$order->setReverseCharge($reverseCharge ? 1 : 0);
+				$order->setViesStatus($billing['vies_status'] ?? 'none');
+			}
+			if ($tosTexts !== []) {
+				$order->setConsentAt($now);
+				$order->setConsentText(implode("\n\n", array_slice(array_unique($tosTexts), 0, 5)));
+			}
+			$wantsInvoice = $payMethod === 'invoice';
+			if ($wantsInvoice) {
+				if (!$invoiceOk || $total <= 0) {
+					throw new ValidationException(['pay_method' => 'Payment by invoice is not available for this cart.']);
+				}
+				$order->setPayMethod('invoice');
+				$order->setRemainderCents($total);
+			} else {
+				$depositBp = (int)$leadOffering->getDepositBp();
+				if ($depositBp > 0 && $depositBp < 10000 && $total > 0) {
+					$charge = intdiv($total * $depositBp, 10000);
+					$order->setPayMethod('deposit');
+					$order->setRemainderCents($total - $charge);
+				} else {
+					$order->setPayMethod('psp');
+					$order->setRemainderCents(0);
+				}
+			}
+			$this->orders->insert($order);
+
+			// global deterministic hold order — cross-offering deadlock safe
+			$this->inventory->prelock($allHolds);
+			foreach ($this->sortedSeatHolds($allHolds) as $h) {
+				$this->inventory->hold($h['target_type'], $h['target_id'], $h['seats'], $h['resource_id'] ?? null);
+			}
+			if ($voucherId !== null && $voucherCents > 0
+				&& !$this->vouchers->redeem($voucherId, $voucherCents)) {
+				throw new ValidationException(['voucher' => 'Voucher could not be applied.']);
+			}
+			foreach ($allLines as $l) {
+				$line = new OrderLine();
+				$line->setOrderId((int)$order->getId());
+				$line->setTargetType($l['target_type']);
+				$line->setTargetId($l['target_id']);
+				$line->setLineKind($l['line_kind']);
+				$line->setResourceId($l['resource_id']);
+				$line->setPriceCatId($l['price_cat_id']);
+				$line->setCatName($l['cat_name']);
+				$line->setSeats($l['seats']);
+				$line->setUnitCents($l['unit_cents']);
+				$line->setLineCents($l['line_cents']);
+				$this->lines->insert($line);
+			}
+
+			if ($needsApproval) {
+				$this->setStatusLocked($order, [self::ST_CREATED], self::ST_PENDING_APPROVAL,
+					$now->modify('+' . $this->settings->getInt('approval_hold_min', 4320) . ' minutes'));
+				$this->email->queue('approval_request', $this->settings->get('seller_email'), 'en',
+					['order_ref' => $order->getRef(), 'offering' => $leadOffering->getTitle()]);
+				$this->email->queue('approval_pending', $order->getBuyerEmail(), $order->getBuyerLocale(),
+					['order_ref' => $order->getRef()]);
+				$action = 'approve';
+			} elseif ($total === 0) {
+				$manageToken = $this->completePaidLocked($order, $actor === 'public' ? 'guest' : $actor);
+				$action = 'done';
+			} elseif ($order->getPayMethod() === 'invoice') {
+				$pay = new \OCA\BookingCheck\Db\Payment();
+				$pay->setOrderId((int)$order->getId());
+				$pay->setProvider('invoice');
+				$pay->setStatus('open');
+				$pay->setAmountCents($total);
+				$pay->setCreatedAt($now);
+				$this->payments->insert($pay);
+				$manageToken = $this->completePaidLocked($order, $actor === 'public' ? 'guest' : $actor);
+				$action = 'done';
+			} else {
+				if ((int)$order->getRemainderCents() > 0) {
+					// deposit: the tranche goes through PSP; the remainder is
+					// a tracked receivable the seller settles via
+					// markRemainderReceived (provider='invoice' row)
+					$pay = new \OCA\BookingCheck\Db\Payment();
+					$pay->setOrderId((int)$order->getId());
+					$pay->setProvider('invoice');
+					$pay->setStatus('open');
+					$pay->setAmountCents((int)$order->getRemainderCents());
+					$pay->setCreatedAt($now);
+					$this->payments->insert($pay);
+				}
+				$this->setStatusLocked($order, [self::ST_CREATED], self::ST_PENDING_PAYMENT,
+					$now->modify('+' . $this->settings->getInt('order_hold_min', 15) . ' minutes'));
+				$action = 'pay';
+			}
+
+			$this->audit->log((int)$order->getId(), (int)$leadOffering->getId(), $actor, 'order.created',
+				null, $order->getStatus(), ['amount' => $total, 'cart' => count($groups)]);
+			$this->emitOrderEvent('order.created', $order);
+			$this->db->commit();
+			return ['order' => $order, 'manageToken' => $manageToken, 'action' => $action];
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			if ($e instanceof DbException && $e->getReason() === DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				$winner = $this->orders->findByIdemToken($idemToken);
+				if ($winner !== null) {
+					return ['order' => $winner, 'manageToken' => '', 'action' => 'idempotent-replay'];
+				}
+			}
+			throw $e;
+		}
+	}
+
+	/**
+	 * NH-28 — pass/membership checkout: qty × flat price, no targets,
+	 * no holds, no approval. Paid mints N bearer passes in
+	 * completePaidLocked. Same money rails as seats (promo/voucher/
+	 * deposit/invoice) — the only thing missing is inventory.
+	 */
+	public function createPassOrder(
+		int $offeringId,
+		string $buyerName,
+		string $buyerEmail,
+		string $locale,
+		int $passQty,
+		?string $promoCode,
+		?string $voucherCode,
+		string $idemToken,
+		?array $billing,
+		string $actor,
+		bool $consented = false,
+		?string $payMethod = null,
+	): array {
+		$existing = $this->orders->findByIdemToken($idemToken);
+		if ($existing !== null) {
+			return ['order' => $existing, 'manageToken' => '', 'action' => 'idempotent-replay'];
+		}
+		if (!preg_match('/^[A-Za-z0-9_-]{8,36}$/', $idemToken)) {
+			throw new ValidationException(['idem_token' => 'Invalid idempotency token.']);
+		}
+		$this->validateBuyer($buyerName, $buyerEmail, $locale);
+		if ($passQty < 1 || $passQty > 50) {
+			throw new ValidationException(['pass_qty' => 'Invalid quantity.']);
+		}
+
+		$this->db->beginTransaction();
+		try {
+			$offering = $this->offerings->findForUpdate($offeringId);
+			if ($offering === null || $offering->getStatus() !== 'published'
+				|| $offering->getType() !== 'pass') {
+				throw new NotFoundException();
+			}
+			$this->assertSalesWindowOpen($offering);
+			$tosText = trim((string)($offering->getTosText() ?? ''));
+			if ($tosText !== '' && !$consented) {
+				throw new ValidationException(['consent' => 'Please accept the terms to continue.']);
+			}
+			$priced = $this->pricing->price([
+				'id' => $offeringId,
+				'price_cents' => $offering->getPriceCents(),
+				'currency' => $offering->getCurrency(),
+				'vat_bp' => $offering->getVatBp(),
+				'dyn_bp' => 0, 'dyn_step_pct' => 0,
+			], [], [], $promoCode, $voucherCode,
+				!empty($billing['reverse_charge']),
+				is_array($billing) ? ($billing['country'] ?? null) : null,
+				$passQty);
+			if ($priced['promoId'] !== null
+				&& !$this->promos->incrementUses($priced['promoId'])) {
+				throw new ValidationException(['promo' => 'Promo code could not be applied.']);
+			}
+
+			[$manageToken, $manageHash] = $this->tokens->mint();
+			$now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+			$order = new Order();
+			$ref = null;
+			for ($try = 0; $try < 5; $try++) {
+				$cand = $this->tokens->publicRef('BCK', (int)$now->format('Y'));
+				if ($this->orders->findByRef($cand) === null) {
+					$ref = $cand;
+					break;
+				}
+			}
+			if ($ref === null) {
+				throw new StateConflictException('Could not mint a unique order reference', 'RETRY');
+			}
+			$order->setRef($ref);
+			$order->setOfferingId($offeringId);
+			$order->setBuyerName($buyerName);
+			$order->setBuyerEmail(strtolower(trim($buyerEmail)));
+			$order->setBuyerLocale($locale);
+			$order->setAmountCents($priced['total']);
+			$order->setCurrency($priced['currency']);
+			$order->setIdemToken($idemToken);
+			$order->setManageTokenHash($manageHash);
+			$order->setIsTest(0);
+			$order->setVoucherId($priced['voucherId']);
+			$order->setDiscountCents($priced['voucherCents']);
+			$order->setPromoId($priced['promoId']);
+			$order->setPromoCode($priced['promoCode']);
+			$order->setPromoCents($priced['promoCents']);
+			$order->setCreatedAt($now);
+			$order->setStatus(self::ST_CREATED);
+			if ($billing !== null) {
+				$order->setBuyerCompany($billing['company'] ?? null);
+				$order->setBillingCountry($billing['country'] ?? null);
+				$order->setVatId($billing['vat_id'] ?? null);
+				$order->setReverseCharge(!empty($billing['reverse_charge']) ? 1 : 0);
+				$order->setViesStatus($billing['vies_status'] ?? 'none');
+			}
+			if ($tosText !== '') {
+				$order->setConsentAt($now);
+				$order->setConsentText($tosText);
+			}
+			$wantsInvoice = $payMethod === 'invoice';
+			if ($wantsInvoice && (int)$offering->getInvoicePay() !== 1) {
+				throw new ValidationException(['pay_method' => 'Payment by invoice is not offered here.']);
+			}
+			if ($wantsInvoice && $priced['total'] > 0) {
+				$order->setPayMethod('invoice');
+				$order->setRemainderCents($priced['total']);
+			} elseif ((int)$offering->getDepositBp() > 0 && (int)$offering->getDepositBp() < 10000
+				&& $priced['total'] > 0) {
+				$charge = intdiv($priced['total'] * (int)$offering->getDepositBp(), 10000);
+				$order->setPayMethod('deposit');
+				$order->setRemainderCents($priced['total'] - $charge);
+			} else {
+				$order->setPayMethod('psp');
+				$order->setRemainderCents(0);
+			}
+			$this->orders->insert($order);
+
+			if ($priced['voucherId'] !== null && $priced['voucherCents'] > 0
+				&& !$this->vouchers->redeem($priced['voucherId'], $priced['voucherCents'])) {
+				throw new ValidationException(['voucher' => 'Voucher could not be applied.']);
+			}
+			foreach ($priced['lines'] as $l) {
+				$line = new OrderLine();
+				$line->setOrderId((int)$order->getId());
+				$line->setTargetType($l['target_type']);
+				$line->setTargetId($l['target_id']);
+				$line->setLineKind($l['line_kind']);
+				$line->setResourceId($l['resource_id']);
+				$line->setPriceCatId($l['price_cat_id']);
+				$line->setCatName($l['cat_name']);
+				$line->setSeats($l['seats']);
+				$line->setUnitCents($l['unit_cents']);
+				$line->setLineCents($l['line_cents']);
+				$this->lines->insert($line);
+			}
+			if ($priced['total'] === 0) {
+				$manageToken = $this->completePaidLocked($order, $actor === 'public' ? 'guest' : $actor);
+				$action = 'done';
+			} elseif ($order->getPayMethod() === 'invoice') {
+				$pay = new \OCA\BookingCheck\Db\Payment();
+				$pay->setOrderId((int)$order->getId());
+				$pay->setProvider('invoice');
+				$pay->setStatus('open');
+				$pay->setAmountCents($priced['total']);
+				$pay->setCreatedAt($now);
+				$this->payments->insert($pay);
+				$manageToken = $this->completePaidLocked($order, $actor === 'public' ? 'guest' : $actor);
+				$action = 'done';
+			} else {
+				if ((int)$order->getRemainderCents() > 0) {
+					// deposit: the tranche goes through PSP; the remainder is
+					// a tracked receivable the seller settles via
+					// markRemainderReceived (provider='invoice' row)
+					$pay = new \OCA\BookingCheck\Db\Payment();
+					$pay->setOrderId((int)$order->getId());
+					$pay->setProvider('invoice');
+					$pay->setStatus('open');
+					$pay->setAmountCents((int)$order->getRemainderCents());
+					$pay->setCreatedAt($now);
+					$this->payments->insert($pay);
+				}
+				$this->setStatusLocked($order, [self::ST_CREATED], self::ST_PENDING_PAYMENT,
+					$now->modify('+' . $this->settings->getInt('order_hold_min', 15) . ' minutes'));
+				$action = 'pay';
+			}
+			$this->audit->log((int)$order->getId(), $offeringId, $actor, 'order.created',
+				null, $order->getStatus(), ['amount' => $priced['total'], 'passes' => $passQty]);
+			$this->emitOrderEvent('order.created', $order);
+			$this->db->commit();
+			return ['order' => $order, 'manageToken' => $manageToken, 'action' => $action];
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			if ($e instanceof DbException && $e->getReason() === DbException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				$winner = $this->orders->findByIdemToken($idemToken);
+				if ($winner !== null) {
+					return ['order' => $winner, 'manageToken' => '', 'action' => 'idempotent-replay'];
+				}
+			}
+			throw $e;
+		}
+	}
+
+	/**
+	 * NH-12 — door walk-up sale: instant paid order, hold+confirm in one
+	 * transaction, no buyer contact, no email, no manage link exposure.
+	 * Idempotent via idem_token (device retries must not double-sell).
+	 */
+	public function createWalkupOrder(
+		int $offeringId,
+		string $targetType,
+		int $targetId,
+		int $seats,
+		string $actor,
+		?string $idemToken = null,
+	): array {
+		$idemToken = $idemToken ?? ('wu-' . bin2hex(random_bytes(16)));
+		$existing = $this->orders->findByIdemToken($idemToken);
+		if ($existing !== null) {
+			return ['order' => $existing, 'manageToken' => '', 'action' => 'idempotent-replay'];
+		}
+		if ($seats < 1 || $seats > 50) {
+			throw new ValidationException(['seats' => 'Invalid seat count.']);
+		}
+		$this->db->beginTransaction();
+		try {
+			$offering = $this->offerings->findForUpdate($offeringId);
+			if ($offering === null || $offering->getStatus() !== 'published') {
+				throw new NotFoundException();
+			}
+			$seatLines = [['target_type' => $targetType, 'target_id' => $targetId, 'seats' => $seats]];
+			$this->inventory->assertTargetsOwnedBy($offeringId, $seatLines);
+			$this->inventory->prelock($seatLines);
+			$priced = $this->pricing->price([
+				'id' => $offeringId,
+				'price_cents' => $offering->getPriceCents(),
+				'currency' => $offering->getCurrency(),
+				'vat_bp' => $offering->getVatBp(),
+				'dyn_bp' => $offering->getDynBp(),
+				'dyn_step_pct' => $offering->getDynStepPct(),
+			], $seatLines);
+
+			$now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+			$order = new Order();
+			$ref = null;
+			for ($try = 0; $try < 5; $try++) {
+				$cand = $this->tokens->publicRef('BCK', (int)$now->format('Y'));
+				if ($this->orders->findByRef($cand) === null) {
+					$ref = $cand;
+					break;
+				}
+			}
+			if ($ref === null) {
+				throw new StateConflictException('Could not mint a unique order reference', 'RETRY');
+			}
+			$order->setRef($ref);
+			$order->setOfferingId($offeringId);
+			$order->setBuyerName('Walk-up guest');
+			$order->setBuyerEmail('');
+			$order->setBuyerLocale('en');
+			$order->setAmountCents($priced['total']);
+			$order->setCurrency($priced['currency']);
+			$order->setIdemToken($idemToken);
+			[, $manageHash] = $this->tokens->mint(); // token never leaves the door
+			$order->setManageTokenHash($manageHash);
+			$order->setIsTest(0);
+			$order->setPayMethod('walkup');
+			$order->setRemainderCents(0);
+			$order->setCreatedAt($now);
+			$order->setStatus(self::ST_CREATED);
+			$this->orders->insert($order);
+
+			foreach ($this->sortedSeatHolds($seatLines) as $h) {
+				$this->inventory->hold($h['target_type'], $h['target_id'], $h['seats'], $h['resource_id'] ?? null);
+			}
+			foreach ($priced['lines'] as $l) {
+				$line = new OrderLine();
+				$line->setOrderId((int)$order->getId());
+				$line->setTargetType($l['target_type']);
+				$line->setTargetId($l['target_id']);
+				$line->setLineKind($l['line_kind']);
+				$line->setResourceId($l['resource_id']);
+				$line->setPriceCatId($l['price_cat_id']);
+				$line->setCatName($l['cat_name']);
+				$line->setSeats($l['seats']);
+				$line->setUnitCents($l['unit_cents']);
+				$line->setLineCents($l['line_cents']);
+				$this->lines->insert($line);
+			}
+			$this->emitOrderEvent('order.created', $order);
+			$this->completePaidLocked($order, $actor);
+			$this->audit->log((int)$order->getId(), $offeringId, $actor, 'order.walkup',
+				null, $order->getStatus(), ['amount' => $priced['total'], 'seats' => $seats]);
+			$this->db->commit();
+			return ['order' => $order, 'manageToken' => '', 'action' => 'done'];
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
+			throw $e;
+		}
+	}
+
+	/**
+	 * Companion write API — create a minimal published event offering +
+	 * its single occurrence in one transaction.
+	 * @return array{0:int,1:int} [offeringId, eventId]
+	 */
+	public function createQuickOffering(
+		string $title,
+		int $priceCents,
+		int $capacity,
+		\DateTimeImmutable $startsAt,
+		int $durationMin,
+		string $actor,
+	): array {
+		$this->db->beginTransaction();
+		try {
+			$slug = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '-', $title), '-'));
+			if ($slug === '') {
+				$slug = 'offering';
+			}
+			$slug = substr($slug . '-' . bin2hex(random_bytes(4)), 0, 190);
+			$now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+			$o = new \OCA\BookingCheck\Db\Offering();
+			$o->setSlug($slug);
+			$o->setTitle($title);
+			$o->setType('event');
+			$o->setPriceCents($priceCents);
+			$o->setCurrency('EUR');
+			$o->setVatBp(0);
+			$o->setStatus('published');
+			$o->setApprovalRequired(0);
+			$o->setBookSeries(0);
+			$o->setListInDirectory(0);
+			$o->setWaitlistMode('none');
+			$o->setCreatedBy($actor);
+			$o->setCreatedAt($now);
+			$o->setUpdatedAt($now);
+			$this->offerings->insert($o);
+
+			$ev = new \OCA\BookingCheck\Db\Event();
+			$ev->setOfferingId((int)$o->getId());
+			$ev->setStartsAt($startsAt);
+			$ev->setEndsAt($startsAt->modify('+' . $durationMin . ' minutes'));
+			$ev->setCapacity($capacity);
+			$ev->setSold(0);
+			$ev->setHeld(0);
+			$ev->setStatus('scheduled');
+			$this->events->insert($ev);
+			$this->audit->log(null, (int)$o->getId(), $actor, 'offering.created', null, 'published');
+			$this->db->commit();
+			return [(int)$o->getId(), (int)$ev->getId()];
+		} catch (\Throwable $e) {
+			$this->db->rollBack();
 			throw $e;
 		}
 	}
@@ -436,9 +1117,37 @@ class OrderService
 			$this->inventory->releaseSold(
 				$line->getTargetType(), (int)$line->getTargetId(), (int)$line->getSeats(),
 				$line->getResourceId() !== null ? (int)$line->getResourceId() : null,
-				fn (string $tt, int $tid) => $this->waitlist->offerSeat($tt, $tid),
+				fn (string $tt, int $tid, ?int $rid = null) => $this->waitlist->offerSeat($tt, $tid, $rid),
 			);
 		}
+	}
+
+	/** NH-18/19: seller marks an open receivable (invoice/deposit) as received. */
+	public function markRemainderReceived(int $orderId, string $actor, ?int $cents = null): Order
+	{
+		return $this->withLock($orderId, function (Order $order) use ($actor, $cents) {
+			if ($order->getStatus() !== self::ST_PAID) {
+				throw new StateConflictException('Order is not paid', 'ILLEGAL_TRANSITION');
+			}
+			$open = (int)$order->getRemainderCents();
+			if ($open <= 0) {
+				throw new StateConflictException('No open remainder', 'ILLEGAL_TRANSITION');
+			}
+			if ($cents !== null && $cents !== $open) {
+				throw new ValidationException(['amount' => 'Amount does not match the open remainder.']);
+			}
+			$order->setRemainderCents(0);
+			$this->orders->update($order);
+			$qb = $this->db->getQueryBuilder();
+			$qb->update('bc_payment')->set('status', $qb->createNamedParameter('paid'))
+				->where($qb->expr()->eq('order_id', $qb->createNamedParameter($orderId)))
+				->andWhere($qb->expr()->eq('provider', $qb->createNamedParameter('invoice')))
+				->andWhere($qb->expr()->eq('status', $qb->createNamedParameter('open')));
+			$qb->executeStatement();
+			$this->audit->log($orderId, (int)$order->getOfferingId(), $actor, 'order.remainder_received',
+				null, null, ['cents' => $open]);
+			return $order;
+		});
 	}
 
 	public function transitionToCancelled(int $orderId, string $actor): Order
@@ -452,6 +1161,12 @@ class OrderService
 			}
 			$this->releaseSoldSeatsLocked($o);
 			$this->tickets->revokeForOrder((int)$o->getId());
+			if ($this->passes !== null) {
+				$this->passes->revokeForOrder((int)$o->getId());
+			}
+			if ($this->push !== null) {
+				$this->push->notifyManagers('order.cancelled', ['order_ref' => $o->getRef()]);
+			}
 			$this->setStatusLocked($o, [self::ST_PAID], self::ST_CANCELLED);
 			$this->audit->log((int)$o->getId(), (int)$o->getOfferingId(), $actor, 'order.cancelled', self::ST_PAID, self::ST_CANCELLED);
 			$this->emitOrderEvent('order.cancelled', $o, self::ST_PAID);
@@ -588,7 +1303,7 @@ class OrderService
 			$this->invoices->issueForOrder($order);
 		}
 		$this->tickets->issueForOrder($order);
-		$off = ($this->crmSync !== null || $this->sellerNotify !== null)
+		$off = ($this->crmSync !== null || $this->sellerNotify !== null || $this->passes !== null)
 			? $this->offerings->find((int)$order->getOfferingId()) : null;
 		if ($this->crmSync !== null && $off !== null) {
 			$seatCount = 0;
@@ -613,8 +1328,18 @@ class OrderService
 			$wasApproved ? self::ST_APPROVED : self::ST_PENDING_PAYMENT, self::ST_PAID);
 		$this->emitOrderEvent('order.paid', $order,
 			$wasApproved ? self::ST_APPROVED : self::ST_PENDING_PAYMENT);
-		$this->email->queue('order_confirmed', $order->getBuyerEmail(), $order->getBuyerLocale(),
-			['order_ref' => $order->getRef(), 'manage_url' => $manageUrl]);
+		if ($order->getBuyerEmail() !== '') {
+			$this->email->queue('order_confirmed', $order->getBuyerEmail(), $order->getBuyerLocale(),
+				['order_ref' => $order->getRef(), 'manage_url' => $manageUrl]);
+		}
+		// NH-28: pass offerings mint bearer passes on payment
+		if ($this->passes !== null && $off !== null && $off->getType() === 'pass') {
+			$this->passes->issueForOrder($order);
+		}
+		// NH-21: courtesy push to manager devices (never authoritative)
+		if ($this->push !== null) {
+			$this->push->notifyManagers('order.paid', ['order_ref' => $order->getRef()]);
+		}
 		return $manageToken;
 	}
 
@@ -635,8 +1360,13 @@ class OrderService
 			if ($line->getLineKind() !== 'seat') {
 				continue;
 			}
-			$this->inventory->releaseHold($line->getTargetType(), (int)$line->getTargetId(),
-				(int)$line->getSeats(), $line->getResourceId() !== null ? (int)$line->getResourceId() : null);
+			// freed held seats go through the same waitlist offer path as
+			// sold seats — expiry/payment-failure releases must notify too
+			$this->inventory->releaseHoldWithOffer(
+				$line->getTargetType(), (int)$line->getTargetId(), (int)$line->getSeats(),
+				$line->getResourceId() !== null ? (int)$line->getResourceId() : null,
+				fn (string $tt, int $tid, ?int $rid = null) => $this->waitlist->offerSeat($tt, $tid, $rid),
+			);
 		}
 	}
 

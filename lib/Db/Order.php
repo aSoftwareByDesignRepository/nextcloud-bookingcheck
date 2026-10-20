@@ -42,6 +42,8 @@ class Order extends Entity
 	protected $paidAt;
 	protected $expiresAt;
 	protected $staffNote;
+	protected $payMethod;
+	protected $remainderCents;
 
 	public function __construct()
 	{
@@ -56,6 +58,8 @@ class Order extends Entity
 		$this->addType('promoCents', 'integer');
 		$this->addType('approvedAt', 'datetime_immutable');
 		$this->addType('consentAt', 'datetime_immutable');
+		$this->addType('payMethod', 'string');
+		$this->addType('remainderCents', 'integer');
 		$this->addType('createdAt', 'datetime_immutable');
 		$this->addType('paidAt', 'datetime_immutable');
 		$this->addType('expiresAt', 'datetime_immutable');
@@ -85,6 +89,8 @@ class Order extends Entity
 			'promoId' => $this->promoId === null ? null : (int)$this->promoId,
 			'promoCode' => $this->promoCode,
 			'promoCents' => (int)$this->promoCents,
+			'payMethod' => $this->payMethod,
+			'remainderCents' => (int)$this->remainderCents,
 			'approvedBy' => $this->approvedBy,
 			'approvedAt' => $this->approvedAt === null ? null : $this->approvedAt->format(\DateTimeInterface::ATOM),
 			'consentAt' => $this->consentAt === null ? null : $this->consentAt->format(\DateTimeInterface::ATOM),

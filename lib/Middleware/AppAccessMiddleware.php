@@ -60,10 +60,12 @@ class AppAccessMiddleware extends Middleware
 
 		// Public + machine surfaces have their own guards — segment-exact
 		// match so an admin route like /publish or /public-x can never
-		// accidentally share the /pub exemption. /scan is NOT public — it
-		// is the staff door page and stays behind the role.
+		// accidentally share the /pub exemption. /scan is exempt so
+		// anonymous door tablets can reach the token-entry page — the
+		// ScanController itself asserts admin-or-door-session on every
+		// endpoint, and a door session unlocks nothing else.
 		$rest = substr($path, strlen($appPrefix)); // e.g. '/pub/api/orders'
-		foreach (['/pub', '/psp', '/capi'] as $open) {
+		foreach (['/pub', '/psp', '/capi', '/scan', '/api/scan'] as $open) {
 			if ($rest === $open || str_starts_with($rest, $open . '/')) {
 				return;
 			}

@@ -18,7 +18,7 @@ $url = \OCP\Server::get(\OCP\IURLGenerator::class);
 			</div>
 			<div class="bck-card__body bck-ticket__body">
 				<?php if (!empty($ticket['revoked'])): ?>
-					<p class="bck-callout"><?php p($l->t('This ticket was cancelled or refunded and is no longer valid for entry.')); ?></p>
+					<p class="bck-callout" role="alert"><?php p($l->t('This ticket was cancelled or refunded and is no longer valid for entry.')); ?></p>
 				<?php elseif ($qrSvg !== null): ?>
 					<div class="bck-ticket__qr" aria-label="<?php p($l->t('Check-in code')); ?>"><?php print_unescaped($qrSvg); ?></div>
 				<?php else: ?>

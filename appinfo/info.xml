@@ -25,7 +25,7 @@ Teilnehmer-Portal per E-Mail-Code.
 
 Souveränes Ticketing ohne Ticketprovision — Kundendaten bleiben auf Ihrem Server.
 	]]></description>
-	<version>0.9.9</version>
+	<version>0.10.0</version>
 	<licence>agpl</licence>
 	<author>Alexander Mäule</author>
 	<namespace>BookingCheck</namespace>
@@ -51,6 +51,7 @@ Souveränes Ticketing ohne Ticketprovision — Kundendaten bleiben auf Ihrem Ser
 		<job>OCA\BookingCheck\BackgroundJob\AuditChainVerifyJob</job>
 		<job>OCA\BookingCheck\BackgroundJob\CrmSyncJob</job>
 		<job>OCA\BookingCheck\BackgroundJob\SlotMaterializeJob</job>
+		<job>OCA\BookingCheck\BackgroundJob\AttendeeReminderJob</job>
 	</background-jobs>
 	<!-- Navigation is registered dynamically via NavGate in Application::boot()
 	     so the app entry never advertises itself to users without the role. -->

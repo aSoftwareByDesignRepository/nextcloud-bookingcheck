@@ -273,7 +273,11 @@ class OfferingController extends Controller
 		if ($title === '' || mb_strlen($title) > 190) {
 			$fields['title'] = 'Title is required.';
 		}
-		if (!in_array($type, ['event', 'course', 'timeslot'], true)) {
+		$allowedTypes = ['event', 'course', 'timeslot'];
+		if ($this->license->hasFeature('passes')) {
+			$allowedTypes[] = 'pass';
+		}
+		if (!in_array($type, $allowedTypes, true)) {
 			$fields['type'] = 'Pick a booking type.';
 		}
 		// strict digit check — is_numeric accepts "2.9"/"2e3" and (int)
@@ -304,11 +308,78 @@ class OfferingController extends Controller
 			'list_in_directory' => $this->bool($in, 'list_in_directory'),
 			'tos_text' => $this->strOrNull($in['tos_text'] ?? null),
 		];
+		// NH-20 attendee reminder (free): single days-before value,
+		// 0 = off — consumed by AttendeeReminderJob as an integer.
+		if (array_key_exists('reminder_days', $in)) {
+			$v = $in['reminder_days'];
+			if (!is_scalar($v) || !preg_match('/^\d{1,3}$/', (string)$v) || (int)$v > 365) {
+				$fields['reminder_days'] = 'Days must be 0–365.';
+			} else {
+				$d['reminder_days'] = (int)$v;
+			}
+		}
+		// Pro: dynamic pricing markup in bp + step, deposit bp, invoice pay
+		// dyn markup: the form sends percent (dyn_pct), the API may send bp (dyn_bp)
+		if (array_key_exists('dyn_pct', $in) || array_key_exists('dyn_bp', $in)) {
+			$v = $in['dyn_pct'] ?? $in['dyn_bp'];
+			$isPct = array_key_exists('dyn_pct', $in);
+			$max = $isPct ? 100 : 10000;
+			if (!is_scalar($v) || !preg_match('/^\d{1,5}$/', (string)$v) || (int)$v > $max) {
+				$fields['dyn_bp'] = 'Dynamic markup 0–10000 bp.';
+			} else {
+				$d['dyn_bp'] = $isPct ? (int)$v * 100 : (int)$v;
+			}
+		}
+		if (array_key_exists('dyn_step_pct', $in)) {
+			$v = $in['dyn_step_pct'];
+			if (!is_scalar($v) || !preg_match('/^\d{1,3}$/', (string)$v) || (int)$v > 100) {
+				$fields['dyn_step_pct'] = 'Step must be 0–100 percent.';
+			} else {
+				$d['dyn_step_pct'] = (int)$v;
+			}
+		}
+		// deposit: form sends percent (deposit_pct), API may send bp (deposit_bp)
+		if (array_key_exists('deposit_pct', $in) || array_key_exists('deposit_bp', $in)) {
+			$v = $in['deposit_pct'] ?? $in['deposit_bp'];
+			$isPct = array_key_exists('deposit_pct', $in);
+			$max = $isPct ? 100 : 10000;
+			if (!is_scalar($v) || !preg_match('/^\d{1,5}$/', (string)$v) || (int)$v >= $max) {
+				$fields['deposit_bp'] = 'Deposit must be 0–9999 bp.';
+			} else {
+				$d['deposit_bp'] = $isPct ? (int)$v * 100 : (int)$v;
+			}
+		}
+		if (array_key_exists('invoice_pay', $in)) {
+			$d['invoice_pay'] = $this->bool($in, 'invoice_pay');
+		}
+		if (array_key_exists('pass_scope', $in)) {
+			$scope = [];
+			foreach (preg_split('/[\s,]+/', (string)$in['pass_scope']) as $p0) {
+				if ($p0 === '') {
+					continue;
+				}
+				if (!preg_match('/^\d+$/', $p0)) {
+					$fields['pass_scope'] = 'Offering ids only.';
+					break;
+				}
+				if ($this->offerings->find((int)$p0) === null) {
+					$fields['pass_scope'] = 'Unknown offering in scope.';
+					break;
+				}
+				$scope[] = (int)$p0;
+			}
+			$d['pass_scope'] = $scope === [] ? null : json_encode(array_values(array_unique($scope)));
+		}
 		// Pro fields are only writable while licensed — an unlicensed save
 		// (or a hand-crafted request) leaves the stored values untouched.
-		if ($this->license->hasFeature('waitlist')) {
-			$d['waitlist_mode'] = in_array($in['waitlist_mode'] ?? '', ['none', 'notify', 'allocate'], true)
+		// notify-mode waitlist is free tier; 'allocate' is Pro — a free-tier
+		// (or forged) allocate write degrades to notify, never silently kept.
+		// Absent key = leave the stored mode alone (partial saves).
+		if (array_key_exists('waitlist_mode', $in)) {
+			$wlMode = in_array($in['waitlist_mode'], ['none', 'notify', 'allocate'], true)
 				? $in['waitlist_mode'] : 'none';
+			$d['waitlist_mode'] = ($wlMode === 'allocate' && !$this->license->hasFeature('waitlist'))
+				? 'notify' : $wlMode;
 		}
 		if ($this->license->hasFeature('reviews')) {
 			$d['review_display'] = $this->bool($in, 'review_display');
@@ -390,6 +461,24 @@ class OfferingController extends Controller
 		}
 		if (array_key_exists('embed_domains', $d)) {
 			$o->setEmbedDomains($d['embed_domains']);
+		}
+		if (array_key_exists('reminder_days', $d)) {
+			$o->setReminderDays($d['reminder_days']);
+		}
+		if (array_key_exists('dyn_bp', $d)) {
+			$o->setDynBp($d['dyn_bp']);
+		}
+		if (array_key_exists('dyn_step_pct', $d)) {
+			$o->setDynStepPct($d['dyn_step_pct']);
+		}
+		if (array_key_exists('deposit_bp', $d)) {
+			$o->setDepositBp($d['deposit_bp']);
+		}
+		if (array_key_exists('invoice_pay', $d)) {
+			$o->setInvoicePay($d['invoice_pay']);
+		}
+		if (array_key_exists('pass_scope', $d)) {
+			$o->setPassScope($d['pass_scope']);
 		}
 		$o->setListInDirectory($d['list_in_directory']);
 		$o->setTosText($d['tos_text']);

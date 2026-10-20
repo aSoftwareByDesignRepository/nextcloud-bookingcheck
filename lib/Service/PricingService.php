@@ -32,6 +32,9 @@ class PricingService
 		private readonly PromoScopeMapper $promoScopes,
 		private readonly VoucherMapper $vouchers,
 		private readonly LicenseService $license,
+		private readonly \OCA\BookingCheck\Db\EventMapper $events,
+		private readonly \OCP\IDBConnection $db,
+		private readonly SettingsService $settings,
 	) {
 	}
 
@@ -50,7 +53,7 @@ class PricingService
 	 *   netCents:int, vatCents:int, vatBp:int, currency:string
 	 * }
 	 */
-	public function price(array $offering, array $seatLines, array $addonLines = [], ?string $promoCode = null, ?string $voucherCode = null, bool $reverseCharge = false): array
+	public function price(array $offering, array $seatLines, array $addonLines = [], ?string $promoCode = null, ?string $voucherCode = null, bool $reverseCharge = false, ?string $billingCountry = null, ?int $passQty = null): array
 	{
 		$offeringId = (int)$offering['id'];
 		$fields = [];
@@ -74,6 +77,14 @@ class PricingService
 					$fields["lines.$i.price_cat_id"] = 'Unknown price category.';
 					continue;
 				}
+				// NH-23 early-bird: a windowed category sells only inside
+				// its sale window — a stale price must never be honored
+				$now = new \DateTimeImmutable();
+				if (($cat->getSaleFrom() !== null && $cat->getSaleFrom() > $now)
+					|| ($cat->getSaleTo() !== null && $cat->getSaleTo() < $now)) {
+					$fields["lines.$i.price_cat_id"] = 'This price category is not on sale now.';
+					continue;
+				}
 				if ($cat->getMaxPerOrder() !== null && $seats > (int)$cat->getMaxPerOrder()) {
 					$fields["lines.$i.seats"] = 'Too many seats for this category.';
 					continue;
@@ -81,7 +92,17 @@ class PricingService
 				$catId = (int)$cat->getId();
 				$catName = $cat->getName();
 				$unit = (int)$cat->getPriceCents();
+			} elseif (($l['target_type'] ?? '') === 'event') {
+				// NH-07 per-occurrence pricing — the event row overrides
+				// the offering base only when no category was picked
+				$ev = $this->events->find((int)$l['target_id']);
+				if ($ev !== null && $ev->getPriceCents() !== null) {
+					$unit = (int)$ev->getPriceCents();
+				}
 			}
+			// NH-25 dynamic pricing — server-computed markup on the fill
+			// ratio of THIS target; never client-influenced
+			$unit = $this->dynamicPrice($offering, $unit, (string)$l['target_type'], (int)$l['target_id']);
 			$lineCents = $unit * $seats;
 			$seatSubtotal += $lineCents;
 			$lines[] = [
@@ -118,6 +139,24 @@ class PricingService
 				'seats' => $qty, 'unit_cents' => (int)$addon->getPriceCents(),
 				'line_cents' => $lineCents,
 			];
+		}
+
+		// ---- pass line (NH-28): a 'pass' offering sells flat-price
+		// memberships — no target, no inventory, qty = passes minted. ----
+		if ($passQty !== null) {
+			if ($passQty < 1 || $passQty > 50) {
+				$fields['pass_qty'] = 'Invalid quantity.';
+			} else {
+				$unit = (int)$offering['price_cents'];
+				$seatSubtotal += $unit * $passQty;
+				$lines[] = [
+					'line_kind' => 'pass', 'target_type' => 'offering',
+					'target_id' => $offeringId, 'resource_id' => null,
+					'price_cat_id' => null, 'cat_name' => null,
+					'seats' => $passQty, 'unit_cents' => $unit,
+					'line_cents' => $unit * $passQty,
+				];
+			}
 		}
 
 		if ($fields !== []) {
@@ -162,7 +201,7 @@ class PricingService
 		// §13b reverse-charge buyers owe the NET of the remainder, so their
 		// voucher credit is net-denominated: burning it against the gross
 		// remainder would over-charge them by the VAT fraction.
-		$vatBp = (int)$offering['vat_bp'];
+		$vatBp = $this->vatBpFor($offering, $reverseCharge, $billingCountry);
 		$grossRemainder = $seatSubtotal + $addonSubtotal - $promoCents;
 		[$chargeBasis] = $reverseCharge ? self::splitVat($grossRemainder, $vatBp)
 			: [$grossRemainder];
@@ -227,6 +266,75 @@ class PricingService
 		// which strict_types rejects as an intdiv argument (TypeError).
 		$net = intdiv($grossCents * 10000 + intdiv(10000 + $vatBp, 2), 10000 + $vatBp);
 		return [$net, $grossCents - $net];
+	}
+
+	/**
+	 * NH-25 — price rises as the target fills. dyn_step_pct % of capacity
+	 * consumed adds dyn_bp basis points to the unit price (cap 10 steps).
+	 * Returns $unit unchanged when the feature is off or data is missing.
+	 */
+	private function dynamicPrice(array $offering, int $unit, string $targetType, int $targetId): int
+	{
+		$dynBp = (int)($offering['dyn_bp'] ?? 0);
+		$stepPct = (int)($offering['dyn_step_pct'] ?? 0);
+		if ($dynBp <= 0 || $stepPct <= 0 || $unit <= 0) {
+			return $unit;
+		}
+		[$capacity, $used] = $this->targetFill($targetType, $targetId);
+		if ($capacity <= 0) {
+			return $unit;
+		}
+		$fillPct = (int)floor($used * 100 / $capacity);
+		$steps = min(10, intdiv($fillPct, $stepPct));
+		if ($steps <= 0) {
+			return $unit;
+		}
+		return (int)round($unit * (10000 + $dynBp * $steps) / 10000);
+	}
+
+	/** @return array{0:int,1:int} capacity, sold+held for the target */
+	private function targetFill(string $targetType, int $targetId): array
+	{
+		$table = match ($targetType) {
+			'event' => 'bc_event', 'slot' => 'bc_slot', 'series' => 'bc_series',
+			default => null,
+		};
+		if ($table === null) {
+			return [0, 0];
+		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('capacity', 'sold', 'held')->from($table)
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($targetId)));
+		$row = $qb->executeQuery()->fetch();
+		if ($row === false) {
+			return [0, 0];
+		}
+		return [(int)$row['capacity'], (int)$row['sold'] + (int)($row['held'] ?? 0)];
+	}
+
+	/**
+	 * NH-01 — OSS VAT map {CC: bp} replaces the offering rate for B2C
+	 * orders whose billing country differs from the seller's. Reverse
+	 * charge and disabled OSS both return the offering rate untouched.
+	 */
+	private function vatBpFor(array $offering, bool $reverseCharge, ?string $billingCountry): int
+	{
+		if ($reverseCharge || !$this->settings->getBool('oss_enabled')) {
+			return (int)$offering['vat_bp'];
+		}
+		$cc = strtoupper(trim((string)$billingCountry));
+		$home = strtoupper($this->settings->get('seller_country') ?: 'DE');
+		if ($cc === '' || $cc === $home) {
+			return (int)$offering['vat_bp'];
+		}
+		$map = json_decode($this->settings->get('oss_vat_map') ?: '', true);
+		if (is_array($map) && isset($map[$cc]) && is_numeric($map[$cc])) {
+			$bp = (int)$map[$cc];
+			if ($bp >= 0 && $bp <= 10000) {
+				return $bp;
+			}
+		}
+		return (int)$offering['vat_bp'];
 	}
 
 	/**

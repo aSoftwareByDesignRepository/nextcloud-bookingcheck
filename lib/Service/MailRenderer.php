@@ -9,80 +9,109 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Service;
 
+use OCP\L10N\IFactory;
+
 /**
  * Transactional email bodies — one obvious action per email.
  * Header-interpolated values are CRLF-stripped (§9.9).
+ * Strings resolve in the BUYER's locale (the $locale the mail was
+ * queued with) — never the seller's or the instance default.
  */
 class MailRenderer
 {
+	public function __construct(
+		private readonly IFactory $l10nFactory,
+	) {
+	}
+
 	/** @return array{0:string,1:string} subject + plaintext body */
 	public function render(string $kind, array $p, string $locale): array
 	{
+		$l = $this->l10nFactory->get('bookingcheck', $locale);
 		$ref = self::head($p['order_ref'] ?? '');
 		return match ($kind) {
 			'order_confirmed' => [
-				'Booking confirmed — ' . $ref,
-				"Your booking is confirmed.\n\nOrder: {$ref}\n\n" .
-					"Manage your booking (cancel, downloads, calendar): " .
-					self::head($p['manage_url'] ?? '') . "\n\n" .
-					"Your tickets are attached to this email.\n",
+				$l->t('Booking confirmed — %s', [$ref]),
+				$l->t("Your booking is confirmed.\n\nOrder: %s\n\n"
+					. "Manage your booking (cancel, downloads, calendar): %s\n\n"
+					. "Your tickets are attached to this email.\n",
+					[$ref, self::head($p['manage_url'] ?? '')]),
 			],
 			'payment_link' => [
-				'Your booking was approved — complete payment — ' . $ref,
-				"Good news — your booking request was approved.\n\nComplete payment here: " .
-					self::head($p['pay_url'] ?? '') . "\n",
+				$l->t('Your booking was approved — complete payment — %s', [$ref]),
+				$l->t("Good news — your booking request was approved.\n\nComplete payment here: %s\n",
+					[self::head($p['pay_url'] ?? '')]),
 			],
 			'payment_failed' => [
-				'Payment did not complete — ' . $ref,
-				"Your payment for order {$ref} did not complete. The seats were released.\nYou can book again any time.\n",
+				$l->t('Payment did not complete — %s', [$ref]),
+				$l->t("Your payment for order %s did not complete. The seats were released.\nYou can book again any time.\n",
+					[$ref]),
 			],
 			'order_expired' => [
-				'Booking expired — ' . $ref,
-				"Order {$ref} expired because payment was not completed in time.\n",
+				$l->t('Booking expired — %s', [$ref]),
+				$l->t("Order %s expired because payment was not completed in time.\n", [$ref]),
 			],
 			'order_declined' => [
-				'Booking request declined — ' . $ref,
-				"Unfortunately your booking request {$ref} was declined. No charge was made.\n",
+				$l->t('Booking request declined — %s', [$ref]),
+				$l->t("Unfortunately your booking request %s was declined. No charge was made.\n", [$ref]),
 			],
 			'approval_request' => [
-				'New booking request — ' . $ref,
-				"A new booking request {$ref} needs your approval.\nOpen BookingCheck → Orders.\n",
+				$l->t('New booking request — %s', [$ref]),
+				$l->t("A new booking request %s needs your approval.\nOpen BookingCheck → Orders.\n",
+					[$ref]),
 			],
 			'approval_pending' => [
-				'Booking request received — ' . $ref,
-				"We received your booking request {$ref} — you'll hear from us shortly.\n",
+				$l->t('Booking request received — %s', [$ref]),
+				$l->t("We received your booking request %s — you'll hear from us shortly.\n", [$ref]),
 			],
 			'otp' => [
-				'Your sign-in code',
-				"Your code: " . self::head($p['code'] ?? '') .
-					"\n\nOr sign in directly: " . self::head($p['magic_url'] ?? '') . "\n",
+				$l->t('Your sign-in code'),
+				$l->t("Your code: %s\n\nOr sign in directly: %s\n",
+					[self::head($p['code'] ?? ''), self::head($p['magic_url'] ?? '')]),
 			],
 			'waitlist_offer' => [
-				'A seat opened up',
-				"A seat is held for you — claim it here: " .
-					self::head($p['claim_url'] ?? '') . "\n",
+				$l->t('A seat opened up'),
+				$l->t("A seat is held for you — claim it here: %s\n",
+					[self::head($p['claim_url'] ?? '')]),
+			],
+			'waitlist_notify' => [
+				!empty($p['title'])
+					? $l->t('A seat opened up — %s', [self::head((string)$p['title'])])
+					: $l->t('A seat opened up'),
+				$l->t("A seat just became available — first to book gets it.\n\nBook here: %s\n",
+					[self::head($p['offering_url'] ?? '')]),
 			],
 			'manage_link' => [
-				'Your booking link — ' . $ref,
-				"Here is your manage link for order {$ref}:\n" .
-					self::head($p['manage_url'] ?? '') . "\n",
+				$l->t('Your booking link — %s', [$ref]),
+				$l->t("Here is your manage link for order %s:\n%s\n",
+					[$ref, self::head($p['manage_url'] ?? '')]),
 			],
 			'broadcast' => [
-				self::head($p['subject'] ?? 'Update'),
+				self::head($p['subject'] ?? $l->t('Update')),
 				// seller-authored plaintext — no HTML interpretation, ever
 				(string)($p['body'] ?? '') . "\n",
 			],
+			'rescheduled' => [
+				$l->t('Your booking moved to a new time — %s', [$ref]),
+				$l->t("The time of your booking changed.\n")
+					. (!empty($p['title']) ? $l->t("Offering: %s\n", [self::head((string)$p['title'])]) : '')
+					. $l->t("New time: %s – %s\n", [
+						self::head((string)($p['new_start'] ?? '')),
+						self::head((string)($p['new_end'] ?? ''))])
+					. $l->t("Order: %s\n", [$ref]),
+			],
 			'seller_order_paid' => [
-				'New paid booking — ' . $ref,
-				"Order {$ref} was paid.\n" .
-					(!empty($p['offering']) ? 'Offering: ' . self::head((string)$p['offering']) . "\n" : '') .
-					(isset($p['amount']) ? 'Amount: ' . number_format((float)$p['amount'], 2) . ' ' .
-						self::head((string)($p['currency'] ?? '')) . "\n" : '') .
-					"Open BookingCheck → Orders.\n",
+				$l->t('New paid booking — %s', [$ref]),
+				$l->t("Order %s was paid.\n", [$ref])
+					. (!empty($p['offering']) ? $l->t("Offering: %s\n", [self::head((string)$p['offering'])]) : '')
+					. (isset($p['amount']) ? $l->t("Amount: %s %s\n", [
+						number_format((float)$p['amount'], 2),
+						self::head((string)($p['currency'] ?? ''))]) : '')
+					. $l->t("Open BookingCheck → Orders.\n"),
 			],
 			default => [
-				'BookingCheck',
-				"Notification for order {$ref}.\n",
+				$l->t('BookingCheck'),
+				$l->t("Notification for order %s.\n", [$ref]),
 			],
 		};
 	}

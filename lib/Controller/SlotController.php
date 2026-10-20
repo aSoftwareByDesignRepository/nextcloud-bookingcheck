@@ -40,6 +40,7 @@ class SlotController extends Controller
 		private readonly \OCA\BookingCheck\Service\SlotMaterializer $materializer,
 		private readonly \OCA\BookingCheck\Db\ResourceMapper $resources,
 		private readonly \OCA\BookingCheck\Db\SlotResourceMapper $slotRes,
+		private readonly \OCA\BookingCheck\Service\EmailService $email,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -277,6 +278,102 @@ class SlotController extends Controller
 			throw $t;
 		}
 		return $this->ok(['series_id' => (int)$series->getId(), 'events' => $created], 201);
+	}
+
+	/**
+	 * Full update of one occurrence — slot (timeslot offering) or event.
+	 * PUT semantics: starts_at, ends_at and capacity are all required.
+	 * Capacity may shrink only down to the live sold+held count, and is
+	 * rejected entirely for pooled slots — pool capacity is managed on
+	 * the resource, never per-occurrence. A moved occurrence notifies
+	 * paid buyers (see notifyRescheduled).
+	 */
+	#[NoAdminRequired]
+	public function update(int $id): JSONResponse
+	{
+		$start = $this->parseDt('starts_at');
+		$end = $this->parseDt('ends_at');
+		$cap = $this->strictId($this->request->getParam('capacity'));
+		if ($cap === null || $cap < 1 || $cap > 100000) {
+			throw new ValidationException(['capacity' => 'Capacity must be 1 or more.']);
+		}
+		if ($end <= $start) {
+			throw new ValidationException(['ends_at' => 'End must be after start.']);
+		}
+
+		$s = $this->slots->find($id);
+		if ($s !== null) {
+			$booked = (int)$s->getSold() + (int)$s->getHeld();
+			if ($this->slotRes->hasRows($id)) {
+				// pooled slot: bc_slot_res rows own the counters — a row-level
+				// cap edit would silently desync from pool capacity
+				if ($cap !== (int)$s->getCapacity()) {
+					throw new ValidationException(['capacity' => 'Capacity is managed on the resource pools for this slot.']);
+				}
+			} elseif ($cap < $booked) {
+				throw new ValidationException(['capacity' => 'Below sold+held (' . $booked . ').']);
+			}
+			$moved = $s->getStartsAt() != $start || $s->getEndsAt() != $end;
+			$s->setStartsAt($start);
+			$s->setEndsAt($end);
+			$s->setCapacity($cap);
+			$this->slots->update($s);
+			if ($moved) {
+				$this->notifyRescheduled('slot', $id, $start, $end);
+			}
+			return $this->ok(['id' => $id]);
+		}
+
+		$e = $this->events->find($id);
+		if ($e !== null) {
+			$booked = (int)$e->getSold() + (int)$e->getHeld();
+			if ($cap < $booked) {
+				throw new ValidationException(['capacity' => 'Below sold+held (' . $booked . ').']);
+			}
+			$moved = $e->getStartsAt() != $start || $e->getEndsAt() != $end;
+			$e->setStartsAt($start);
+			$e->setEndsAt($end);
+			$e->setCapacity($cap);
+			$this->events->update($e);
+			if ($moved) {
+				$this->notifyRescheduled('event', $id, $start, $end);
+			}
+			return $this->ok(['id' => $id]);
+		}
+		throw new NotFoundException();
+	}
+
+	/**
+	 * Queue a reschedule notice to every paid buyer holding a seat on the
+	 * moved occurrence. Paid-only: in-flight carts revalidate at pay time
+	 * and approved-pending orders render fresh times on the pay link.
+	 */
+	private function notifyRescheduled(string $targetType, int $targetId,
+		\DateTimeImmutable $start, \DateTimeImmutable $end): void
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->selectDistinct('o.id')->addSelect('o.ref', 'o.buyer_email', 'o.buyer_locale', 'o.offering_id')
+			->from('bc_order', 'o')
+			->innerJoin('o', 'bc_order_line', 'l', $qb->expr()->andX(
+				$qb->expr()->eq('l.order_id', 'o.id'),
+				$qb->expr()->eq('l.target_type', $qb->createNamedParameter($targetType)),
+				$qb->expr()->eq('l.target_id', $qb->createNamedParameter($targetId))
+			))
+			->where($qb->expr()->eq('o.status', $qb->createNamedParameter('paid')))
+			->setMaxResults(2000);
+		$title = '';
+		foreach ($qb->executeQuery()->fetchAll() as $r) {
+			if ($title === '') {
+				$off = $this->offerings->find((int)$r['offering_id']);
+				$title = $off === null ? '' : (string)$off->getTitle();
+			}
+			$this->email->queue('rescheduled', (string)$r['buyer_email'], (string)$r['buyer_locale'], [
+				'order_ref' => (string)$r['ref'],
+				'title' => $title,
+				'new_start' => $start->format('Y-m-d H:i'),
+				'new_end' => $end->format('Y-m-d H:i'),
+			]);
+		}
 	}
 
 	#[NoAdminRequired]

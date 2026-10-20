@@ -30,7 +30,6 @@ class CatalogService
 		private readonly PriceCatMapper $priceCats,
 		private readonly AddonMapper $addons,
 		private readonly ReservationService $inventory,
-		private readonly LicenseService $license,
 		private readonly \OCA\BookingCheck\Db\SlotResourceMapper $slotRes,
 		private readonly \OCA\BookingCheck\Db\ResourceMapper $resources,
 	) {
@@ -55,8 +54,9 @@ class CatalogService
 	public function occurrenceList(Offering $o): array
 	{
 		$out = [];
-		$waitlistable = in_array((string)$o->getWaitlistMode(), ['notify', 'allocate'], true)
-			&& $this->license->hasFeature('waitlist');
+		// notify-mode waitlist is free tier; allocate degrades to notify
+		// on unlicensed instances — the join UI shows whenever a mode is set
+		$waitlistable = in_array((string)$o->getWaitlistMode(), ['notify', 'allocate'], true);
 		if ($o->getType() === 'timeslot') {
 			$slotRows = $this->slots->findUpcoming((int)$o->getId());
 			// resource pools per slot — the buyer picks one (room, trainer)

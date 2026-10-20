@@ -77,6 +77,57 @@ class MaterialService
 		return $resp;
 	}
 
+	/**
+	 * NH-14 — inline preview. Only magic-byte-verified PDF/JPEG/PNG/
+	 * GIF/WEBP render inline; everything else (incl. SVG/HTML — script
+	 * vectors) falls back to the attachment disposition.
+	 */
+	public function streamPreview(int $materialId): StreamResponse|DataDownloadResponse
+	{
+		$m = $this->materials->find($materialId);
+		if ($m === null) {
+			throw new NotFoundException();
+		}
+		$ref = $m->getFileRef();
+		$title = $m->getTitle();
+		if ($m->getLibraryId() !== null) {
+			$lib = $this->library->find((int)$m->getLibraryId());
+			if ($lib === null || $lib->getFileRef() === null) {
+				throw new NotFoundException();
+			}
+			$ref = $lib->getFileRef();
+			$title = $lib->getTitle();
+		}
+		if ($ref === null) {
+			throw new NotFoundException();
+		}
+		$dir = $this->materialsDir();
+		if (!$dir->fileExists($ref)) {
+			throw new NotFoundException();
+		}
+		$file = $dir->getFile($ref);
+		$head = $file->fopen('rb');
+		$magic = fread($head, 12);
+		fclose($head);
+		$mime = match (true) {
+			str_starts_with($magic, "%PDF-") => 'application/pdf',
+			str_starts_with($magic, "\xFF\xD8\xFF") => 'image/jpeg',
+			str_starts_with($magic, "\x89PNG\x0D\x0A\x1A\x0A") => 'image/png',
+			str_starts_with($magic, 'GIF87a') || str_starts_with($magic, 'GIF89a') => 'image/gif',
+			str_starts_with($magic, 'RIFF') && substr($magic, 8, 4) === 'WEBP' => 'image/webp',
+			default => null,
+		};
+		if ($mime === null) {
+			return $this->stream($materialId); // not previewable → download
+		}
+		$resp = new StreamResponse($file->fopen('rb'));
+		$resp->addHeader('Content-Type', $mime);
+		$resp->addHeader('X-Content-Type-Options', 'nosniff');
+		$resp->addHeader('Content-Disposition', 'inline; filename="preview"');
+		$resp->addHeader('Cache-Control', 'private, max-age=300');
+		return $resp;
+	}
+
 	public function delete(string $fileRef): void
 	{
 		try {

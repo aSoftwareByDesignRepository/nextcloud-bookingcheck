@@ -163,6 +163,30 @@ class ManageController extends Controller
 		return $resp;
 	}
 
+	/** NH-17 — EN16931 e-invoice (CII XML) for the buyer. */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function einvoice(string $token)
+	{
+		$order = $this->resolve($token);
+		if ($order === null) {
+			throw new NotFoundException();
+		}
+		$svc = \OCP\Server::get(\OCA\BookingCheck\Service\EInvoiceService::class);
+		if (!$svc->isAvailable()) {
+			throw new NotFoundException();
+		}
+		$invoice = \OCP\Server::get(\OCA\BookingCheck\Db\InvoiceMapper::class)
+			->findByOrderAndType((int)$order->getId(), 'invoice');
+		if ($invoice === null) {
+			throw new NotFoundException();
+		}
+		return new \OCP\AppFramework\Http\DataDownloadResponse(
+			$svc->ciiXml($invoice, $order),
+			'einvoice-' . $order->getRef() . '.xml', 'application/xml');
+	}
+
 	/**
 	 * Printable invoice — the frozen GoBD document for a paid order.
 	 * Test orders never allocate numbers, so they have nothing to print.
@@ -355,6 +379,64 @@ class ManageController extends Controller
 		}
 		$this->uploadService->delete($u, $order);
 		return $this->ok(['deleted' => true]);
+	}
+
+	/** NH-15 — thumbnail for a shared upload (same entitlement funnel). */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function uploadThumb(string $token, int $id)
+	{
+		$order = $this->resolve($token);
+		$u = $order !== null ? $this->uploads->find($id) : null;
+		if ($order === null || $u === null
+			|| (int)$u->getOfferingId() !== (int)$order->getOfferingId()) {
+			throw new NotFoundException();
+		}
+		$offering = $this->offerings->find((int)$u->getOfferingId());
+		return $this->uploadService->thumbFor($u, $order, $offering);
+	}
+
+	/**
+	 * NH-31 — report a shared upload as abusive. The reporter is the
+	 * buyer behind this manage link; dedupe per reporter+upload keeps
+	 * the queue clean, foreign upload ids collapse to 404.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function reportAbuse(string $token, int $id): JSONResponse
+	{
+		$order = $this->resolve($token);
+		$u = $order !== null ? $this->uploads->find($id) : null;
+		if ($order === null || $u === null
+			|| (int)$u->getOfferingId() !== (int)$order->getOfferingId()) {
+			throw new NotFoundException();
+		}
+		$offering = $this->offerings->find((int)$u->getOfferingId());
+		// same viewability gate as the download route — invisible ⇒ 404
+		$this->uploadService->assertViewable($u, $order, $offering);
+		$reason = trim((string)$this->request->getParam('reason', ''));
+		if (mb_strlen($reason) > 500) {
+			return $this->fail(400, 'VALIDATION', 'Reason is limited to 500 characters.');
+		}
+		$mapper = \OCP\Server::get(\OCA\BookingCheck\Db\AbuseReportMapper::class);
+		$reporter = strtolower((string)$order->getBuyerEmail());
+		foreach ($mapper->listForUpload((int)$u->getId()) as $r) {
+			if ($r->getReporter() === $reporter && $r->getStatus() === 'open') {
+				return $this->ok(['reported' => true, 'duplicate' => true]);
+			}
+		}
+		$r = new \OCA\BookingCheck\Db\AbuseReport();
+		$r->setUploadId((int)$u->getId());
+		$r->setReporter($reporter);
+		$r->setReason($reason === '' ? 'no reason given' : $reason);
+		$r->setStatus('open');
+		$r->setCreatedAt(new \DateTimeImmutable());
+		$mapper->insert($r);
+		\OCP\Server::get(\OCA\BookingCheck\Service\PushService::class)
+			->notifyManagers('abuse.reported', []);
+		return $this->ok(['reported' => true], 201);
 	}
 
 	/** "Pay now" for approved/ttl-extended orders — fresh PSP session. */

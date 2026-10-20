@@ -99,6 +99,18 @@
 			.catch(function (e) { fail(e); btn.disabled = false; });
 	});
 
+	// abuse report moderation — POST /api/abuse/{id}/resolve {action}
+	document.addEventListener('click', function (ev) {
+		var btn = ev.target.closest('[data-bck-abuse]');
+		if (!btn) { return; }
+		btn.disabled = true;
+		BCK.api('/abuse/' + btn.getAttribute('data-bck-abuse') + '/resolve', {
+			method: 'POST',
+			json: { action: btn.getAttribute('data-bck-action') }
+		}).then(reload)
+			.catch(function (e) { fail(e); btn.disabled = false; });
+	});
+
 	// waitlist remove
 	document.addEventListener('click', function (ev) {
 		var btn = ev.target.closest('[data-bck-waitlist-remove]');
@@ -144,6 +156,31 @@
 		});
 	}
 
+	// scan-page check-in — QR-token bound, works for admin and door sessions
+	document.addEventListener('click', function (ev) {
+		var btn = ev.target.closest('[data-bck-scan-checkin]');
+		if (!btn) { return; }
+		btn.disabled = true;
+		BCK.api('/scan/check-in', { method: 'POST', json: { code: btn.getAttribute('data-bck-scan-checkin') } })
+			.then(function (d) {
+				// AC-2: a second scan is a warning, never a silent green
+				var mark = (d && d.already) ? ' — ALREADY IN' : ' — in';
+				var li = btn.closest('li');
+				if (li) {
+					var s = li.querySelector('span');
+					if (s) { s.textContent = s.textContent + mark; }
+				}
+				var p = btn.parentElement && btn.parentElement.querySelector('.bck-callout__text');
+				if (p && !li) {
+					p.textContent = (d && d.already)
+						? (d.attendee_name || 'Ticket') + ' — already checked in earlier'
+						: (d.attendee_name || 'Ticket') + ' — checked in';
+				}
+				btn.remove();
+			})
+			.catch(function (e) { fail(e); btn.disabled = false; });
+	});
+
 	// check-in / undo (roster + scan share this)
 	document.addEventListener('click', function (ev) {
 		var btn = ev.target.closest('[data-bck-checkin]');
@@ -169,6 +206,37 @@
 			.catch(function (e) { fail(e); btn.disabled = false; });
 	});
 
+	// door entry — a companion token mints a least-privileged scan session
+	var doorForm = document.getElementById('bck-door-form');
+	if (doorForm) {
+		doorForm.addEventListener('submit', function (ev) {
+			ev.preventDefault();
+			var err = document.getElementById('bck-door-error');
+			var token = String(new FormData(doorForm).get('token') || '').trim();
+			if (!token) { return; }
+			var btn = doorForm.querySelector('button[type="submit"]');
+			if (btn) { btn.disabled = true; }
+			BCK.api('/scan/session', { method: 'POST', json: { token: token } })
+				.then(function () { window.location.reload(); })
+				.catch(function (e) {
+					if (err) {
+						err.textContent = (e && e.message) || 'Invalid device token.';
+						err.hidden = false;
+					}
+					if (btn) { btn.disabled = false; }
+				});
+		});
+	}
+	var doorOut = document.getElementById('bck-door-out');
+	if (doorOut) {
+		doorOut.addEventListener('click', function () {
+			doorOut.disabled = true;
+			BCK.api('/scan/session-close', { method: 'POST', json: {} })
+				.then(function () { window.location.reload(); })
+				.catch(function () { doorOut.disabled = false; });
+		});
+	}
+
 	// scan form — lookup then one-tap check-in
 	var scanForm = document.getElementById('bck-scan-form');
 	var scanResult = document.getElementById('bck-scan-result');
@@ -180,11 +248,13 @@
 			BCK.api('/scan/lookup', { method: 'POST', json: { code: code } })
 				.then(function (d) {
 					scanResult.innerHTML = '';
-					var mkBtn = function (ticketId) {
+					// check-in re-posts the ticket's QR token (never an
+					// enumerable id) through the door-safe scan endpoint
+					var mkBtn = function (qr) {
 						var btn = document.createElement('button');
 						btn.type = 'button';
 						btn.className = 'bck-btn bck-btn--primary';
-						btn.setAttribute('data-bck-checkin', String(ticketId));
+						btn.setAttribute('data-bck-scan-checkin', String(qr));
 						btn.textContent = 'Check in';
 						return btn;
 					};
@@ -204,7 +274,7 @@
 								+ (t.seat_no ? ' · seat ' + t.seat_no : '')
 								+ (t.checked_in_at ? ' — in' : '');
 							li.appendChild(span);
-							if (!t.checked_in_at) { li.appendChild(mkBtn(t.id)); }
+							if (!t.checked_in_at && t.qr) { li.appendChild(mkBtn(t.qr)); }
 							ul.appendChild(li);
 						});
 						scanResult.appendChild(ul);
@@ -214,7 +284,7 @@
 						p.className = 'bck-callout__text';
 						p.textContent = (d.attendee_name || 'Ticket') + ' — ' + (d.checked_in ? 'already checked in' : 'valid');
 						scanResult.appendChild(p);
-						if (!d.checked_in) { scanResult.appendChild(mkBtn(d.ticket_id)); }
+						if (!d.checked_in && d.qr) { scanResult.appendChild(mkBtn(d.qr)); }
 					}
 					scanResult.hidden = false;
 				})
@@ -497,9 +567,13 @@
 					var del = (parseInt(e.sold, 10) === 0 && parseInt(e.held, 10) === 0)
 						? '<button class="bck-btn bck-btn--small" data-bck-del-occ="' + e.id + '">'
 							+ BCK.t('Delete') + '</button>' : '';
+					var edit = '<button class="bck-btn bck-btn--small" data-bck-edit-occ="' + e.id
+						+ '" data-starts="' + esc(e.startsAt) + '" data-ends="' + esc(e.endsAt)
+						+ '" data-cap="' + parseInt(e.capacity, 10) + '">'
+						+ BCK.t('Edit') + '</button>';
 					rows.push('<tr><td>' + esc(dt(e.startsAt)) + '</td><td>' + esc(dt(e.endsAt))
 						+ '</td><td>' + e.sold + '/' + e.capacity + '</td><td>'
-						+ esc(e.status || '') + '</td><td>' + del + '</td></tr>');
+						+ esc(e.status || '') + '</td><td>' + edit + del + '</td></tr>');
 				});
 				occList.innerHTML = tableBox(
 					[BCK.t('Starts'), BCK.t('Ends'), BCK.t('Sold/Seats'), BCK.t('Status'), ''],
@@ -799,8 +873,43 @@
 			});
 		});
 
-		// shared delete dispatch (occ + sub-entities)
+		// shared delete/edit dispatch (occ + sub-entities)
 		document.addEventListener('click', function (ev) {
+			var editBtn = ev.target.closest('[data-bck-edit-occ]');
+			if (editBtn) {
+				var occId = editBtn.getAttribute('data-bck-edit-occ');
+				var body = BCK.el('div', {});
+				body.appendChild(field(BCK.t('Starts'),
+					input('occ_starts', { type: 'datetime-local', required: 'required' })));
+				body.appendChild(field(BCK.t('Ends'),
+					input('occ_ends', { type: 'datetime-local', required: 'required' })));
+				body.appendChild(field(BCK.t('Seats'),
+					input('occ_cap', { type: 'number', min: '1', max: '100000',
+						inputmode: 'numeric', required: 'required' }),
+					BCK.t('Cannot go below the seats already sold.')));
+				body.querySelector('#bck-dlg-occ_starts').value =
+					String(editBtn.getAttribute('data-starts') || '').slice(0, 16);
+				body.querySelector('#bck-dlg-occ_ends').value =
+					String(editBtn.getAttribute('data-ends') || '').slice(0, 16);
+				body.querySelector('#bck-dlg-occ_cap').value =
+					editBtn.getAttribute('data-cap') || '';
+				BCK.openDialog({
+					title: BCK.t('Edit date'),
+					body: body,
+					submitLabel: BCK.t('Save'),
+					onSubmit: function (fd) {
+						return BCK.api('/slots/' + occId, {
+							method: 'PUT',
+							json: {
+								starts_at: fd.get('occ_starts'),
+								ends_at: fd.get('occ_ends'),
+								capacity: fd.get('occ_cap')
+							}
+						}).then(function () { loadOcc(); });
+					}
+				});
+				return;
+			}
 			var occBtn = ev.target.closest('[data-bck-del-occ]');
 			if (occBtn) {
 				occBtn.disabled = true;

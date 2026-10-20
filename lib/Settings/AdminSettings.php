@@ -54,6 +54,28 @@ class AdminSettings implements ISettings
 			'notifyPaid' => $this->userId !== null
 				? $this->serverConfig->getUserValue($this->userId, 'bookingcheck', 'notify_paid', '1')
 				: '1',
+			// NH-02 alternative PSPs — IDs plain, secrets flag-only
+			'hasSumupKey' => $this->config->getAppValue('sumup_api_key_enc', '') !== '',
+			'sumupMerchant' => $this->config->getAppValue('sumup_merchant_code', ''),
+			'paypalClientId' => $this->config->getAppValue('paypal_client_id', ''),
+			'hasPaypalSecret' => $this->config->getAppValue('paypal_client_secret_enc', '') !== '',
+			'paypalSandbox' => $this->config->getAppValue('paypal_sandbox', '1'),
+			'klarnaUid' => $this->config->getAppValue('klarna_api_uid', ''),
+			'hasKlarnaSecret' => $this->config->getAppValue('klarna_api_password_enc', '') !== '',
+			'klarnaSandbox' => $this->config->getAppValue('klarna_sandbox', '1'),
+			// NH-01 OSS + NH-05 DATEV
+			'ossEnabled' => $this->config->getAppValue('oss_enabled', '0'),
+			'ossVatMap' => $this->config->getAppValue('oss_vat_map', ''),
+			'datevConsultant' => $this->config->getAppValue('datev_consultant_no', ''),
+			'datevClient' => $this->config->getAppValue('datev_client_no', ''),
+			// NH-22 feed + NH-13 AV
+			'icalFeedToken' => $this->config->getAppValue('ical_feed_token', ''),
+			'icalFeedUrl' => $this->config->getAppValue('ical_feed_token', '') !== ''
+				? \OCP\Server::get(\OCP\IURLGenerator::class)->linkToRouteAbsolute(
+					'bookingcheck.ical.seller', ['token' => $this->config->getAppValue('ical_feed_token', '')])
+				: '',
+			'avEnabled' => $this->config->getAppValue('av_enabled', '0'),
+			'avIcapEndpoint' => $this->config->getAppValue('av_icap_endpoint', ''),
 		]);
 	}
 

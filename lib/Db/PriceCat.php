@@ -19,6 +19,8 @@ class PriceCat extends Entity
 	protected $sort;
 	protected $maxPerOrder;
 	protected $active;
+	protected $saleFrom;
+	protected $saleTo;
 
 	public function __construct()
 	{
@@ -28,6 +30,8 @@ class PriceCat extends Entity
 		$this->addType('sort', 'integer');
 		$this->addType('maxPerOrder', 'integer');
 		$this->addType('active', 'integer');
+		$this->addType('saleFrom', 'datetime_immutable');
+		$this->addType('saleTo', 'datetime_immutable');
 	}
 
 	public function jsonSerialize(): array

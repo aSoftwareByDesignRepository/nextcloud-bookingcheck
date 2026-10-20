@@ -26,6 +26,8 @@ class Upload extends Entity
 	protected $sizeBytes;
 	protected $mime;
 	protected $sha256;
+	protected $thumbRef;
+	protected $avState;
 	protected $createdAt;
 	protected $deletedAt;
 
@@ -37,6 +39,8 @@ class Upload extends Entity
 		$this->addType('sizeBytes', 'integer');
 		$this->addType('createdAt', 'datetime_immutable');
 		$this->addType('deletedAt', 'datetime_immutable');
+		$this->addType('thumbRef', 'string');
+		$this->addType('avState', 'string');
 	}
 
 	public function jsonSerialize(): array
@@ -48,6 +52,8 @@ class Upload extends Entity
 			'sizeBytes' => (int)$this->sizeBytes,
 			'mime' => $this->mime,
 			'createdAt' => $this->createdAt?->format(\DateTimeInterface::ATOM),
+			'thumbRef' => $this->thumbRef,
+			'avState' => $this->avState,
 		];
 	}
 }

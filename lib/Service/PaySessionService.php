@@ -35,7 +35,7 @@ class PaySessionService
 	{
 		$provider = $this->settings->get('psp_provider');
 		$session = $this->psp->forCheckout()->createCheckout(
-			$order,
+			$this->chargeOrder($order),
 			$this->url->linkToRouteAbsolute('bookingcheck.pubCheckout.return',
 				['publicRef' => $order->getRef()]),
 			$this->url->linkToRouteAbsolute('bookingcheck.psp.' . $provider),
@@ -45,9 +45,32 @@ class PaySessionService
 		$pay->setProvider($provider);
 		$pay->setPspRef($session->pspRef);
 		$pay->setStatus('open');
-		$pay->setAmountCents((int)$order->getAmountCents());
+		$pay->setAmountCents(self::chargeCents($order));
 		$pay->setCreatedAt(new \DateTimeImmutable());
 		$this->payments->insert($pay);
 		return $session;
+	}
+
+	/**
+	 * NH-18 deposit: the PSP collects amount−remainder now; the rest is
+	 * a receivable. The order row itself keeps the FULL sale amount
+	 * (that is what the invoice must show) — only the charge differs.
+	 */
+	private function chargeOrder(Order $order): Order
+	{
+		$charge = self::chargeCents($order);
+		if ($charge === (int)$order->getAmountCents()) {
+			return $order;
+		}
+		$clone = clone $order;
+		$clone->setAmountCents($charge);
+		return $clone;
+	}
+
+	public static function chargeCents(Order $order): int
+	{
+		$remainder = (int)$order->getRemainderCents();
+		$total = (int)$order->getAmountCents();
+		return $remainder > 0 && $remainder < $total ? $total - $remainder : $total;
 	}
 }

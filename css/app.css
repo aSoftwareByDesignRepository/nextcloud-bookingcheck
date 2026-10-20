@@ -683,6 +683,7 @@
 .bck-pub .bck-field__label {
 	font-weight: 600;
 	font-size: var(--bck-fs-md);
+	text-align: start;
 }
 .bck-pub .bck-label__opt {
 	font-weight: 400;
@@ -1016,3 +1017,25 @@
 	border-bottom: 1px solid var(--color-border-dark);
 }
 .bck-scan-list li:last-child { border-bottom: none; }
+
+/* WCAG 2.5.8 (24px AA target) at every viewport: bare text links in dense
+ * table cells and card titles rendered ~19–23px tall. Cell padding keeps the
+ * row height unchanged; the ≤768px block below raises the floor to the 44px
+ * WCAG 2.5.5 touch target. */
+#app-content.bck-app .bck-table a,
+#app-content.bck-app .bck-card__title a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 24px;
+	/* Short texts ("42", "BCK-1") stay under 24px wide — 2.5.8 needs both axes. */
+	min-width: 24px;
+}
+
+/* WCAG 2.5.5 touch floor at tablet/phone widths (mobile side owns 768px). */
+@media (max-width: 768.98px) {
+	#app-content.bck-app .bck-table a,
+	#app-content.bck-app .bck-card__title a {
+		min-height: 44px;
+		min-width: 44px;
+	}
+}

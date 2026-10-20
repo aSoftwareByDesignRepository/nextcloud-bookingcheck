@@ -71,6 +71,16 @@ class SlotResourceMapper extends QBMapper
 		return $qb->executeQuery()->fetch() !== false;
 	}
 
+	/** True when the slot is backed by at least one resource-pool row. */
+	public function hasRows(int $slotId): bool
+	{
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('id')->from($this->getTableName())
+			->where($qb->expr()->eq('slot_id', $qb->createNamedParameter($slotId)))
+			->setMaxResults(1);
+		return $qb->executeQuery()->fetch() !== false;
+	}
+
 	/** @return list<SlotResource> active pools for the given slot ids */
 	public function forSlots(array $slotIds): array
 	{

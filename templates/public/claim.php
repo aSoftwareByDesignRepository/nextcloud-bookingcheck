@@ -14,7 +14,7 @@ $action = \OCP\Server::get(\OCP\IURLGenerator::class)->linkToRoute('bookingcheck
 			<p class="bck-pub__lead">
 				<?php p($l->t('We are holding it for') . ' ' . $email . '.'); ?>
 			</p>
-			<div class="bck-callout bck-callout--warning">
+			<div class="bck-callout bck-callout--warning" role="status">
 				<p class="bck-callout__text"><?php p($l->t('Claim it now — the hold expires soon.')); ?></p>
 			</div>
 			<form method="post" action="<?php p($action); ?>" data-bck-claim>

@@ -93,6 +93,9 @@ $token = (string)($_['token'] ?? '');
 					<a class="bck-btn bck-btn--secondary"
 						href="<?php p($url->linkToRoute('bookingcheck.manage.invoice', ['token' => $token])); ?>">
 						<?php p($l->t('Invoice')); ?></a>
+					<a class="bck-btn bck-btn--flat"
+						href="<?php p($url->linkToRoute('bookingcheck.manage.einvoice', ['token' => $token])); ?>">
+						<?php p($l->t('E-invoice (XML)')); ?></a>
 				<?php endif; ?>
 				<?php if (in_array('cancel', $actions, true)): ?>
 					<form method="post" action="<?php p($url->linkToRoute('bookingcheck.manage.cancel', ['token' => $token])); ?>">
@@ -116,17 +119,25 @@ $token = (string)($_['token'] ?? '');
 			<ul class="bck-upload-list">
 				<?php foreach ($_['uploads'] as $up): ?>
 				<li class="bck-upload-item" data-upload-id="<?php p((int)$up['id']); ?>">
+					<?php if (!empty($up['thumbRef'])): ?>
+					<img class="bck-upload-item__thumb" loading="lazy" decoding="async"
+						src="<?php p($url->linkToRoute('bookingcheck.manage.uploadThumb', ['token' => $token, 'id' => (int)$up['id']])); ?>"
+						alt="" width="48" height="48">
+					<?php endif; ?>
 					<a class="bck-upload-item__name"
 						href="<?php p($url->linkToRoute('bookingcheck.manage.uploadDownload', ['token' => $token, 'id' => (int)$up['id']])); ?>">
-						<?php p($l->t('File #%d', [(int)$up['id']])); ?></a>
+						<?php p((string)$up['displayName']); ?></a>
 					<span class="bck-upload-item__meta">
-						<?php p((string)$up['displayName']); ?> ·
 						<?php p(number_format((int)$up['sizeBytes'] / 1048576, 1) . ' MB'); ?>
 					</span>
 					<?php if (!empty($up['own'])): ?>
 					<button type="button" class="bck-btn bck-btn--flat bck-upload-del"
 						data-upload-id="<?php p((int)$up['id']); ?>"
 						data-manage-token="<?php p($token); ?>"><?php p($l->t('Remove')); ?></button>
+					<?php else: ?>
+					<button type="button" class="bck-btn bck-btn--flat bck-upload-report"
+						data-upload-id="<?php p((int)$up['id']); ?>"
+						data-manage-token="<?php p($token); ?>"><?php p($l->t('Report')); ?></button>
 					<?php endif; ?>
 				</li>
 				<?php endforeach; ?>

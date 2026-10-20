@@ -14,6 +14,7 @@
 	if (!form || !window.BCK) { return; }
 	var offeringId = parseInt(form.getAttribute('data-bck-offering-id'), 10);
 	var approval = form.getAttribute('data-bck-approval') === '1';
+	var isPass = form.getAttribute('data-bck-pass') === '1';
 	var unitCents = parseInt(form.getAttribute('data-bck-unit'), 10) || 0;
 	var currency = form.getAttribute('data-bck-currency') || 'EUR';
 	var submitBtn = document.getElementById('bck-pay-btn');
@@ -116,7 +117,7 @@
 		var consentEl = form.querySelector('[name="consent"]');
 		// pooled slots arrive as "slot:<id>:<resource>" — the pool pick
 		// IS the seat target (capacity lives on bc_slot_res)
-		var line = occ.length >= 2 ? {
+		var line = !isPass && occ.length >= 2 ? {
 			target_type: occ[0],
 			target_id: parseInt(occ[1], 10),
 			seats: parseInt(fd.get('qty'), 10) || 1,
@@ -129,6 +130,8 @@
 			buyer_email: String(fd.get('buyer_email') || ''),
 			locale: document.documentElement.lang || 'en',
 			lines: line ? [line] : [],
+			pass_qty: isPass ? (parseInt(fd.get('qty'), 10) || 1) : null,
+			pay_method: String(fd.get('pay_method') || '') || null,
 			addons: [],
 			buyer_company: String(fd.get('buyer_company') || '').trim() || null,
 			billing_country: String(fd.get('billing_country') || '').trim() || null,

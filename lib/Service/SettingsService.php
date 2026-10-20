@@ -44,12 +44,38 @@ class SettingsService
 		'crm_sync_enabled'   => '0',
 		'crm_sync_token'     => '',
 		'vies_online'        => '0',       // '1' = live VIES REST verdicts; '0' = format-only
+
+		// NH-01 OSS VAT — JSON {CC: basis-points} applied to B2C orders by
+		// billing country when enabled; seller-home rate stays the default
+		'oss_enabled'        => '0',
+		'oss_vat_map'        => '',
+		// NH-06 DATEV
+		'datev_consultant_no' => '0',
+		'datev_client_no'    => '0',
+		'datev_revenue_account' => '8400',
+		'datev_receivable_account' => '1400',
+		// NH-13 AV
+		'av_enabled'         => '0',
+		'av_icap_endpoint'   => '',
+		// NH-30 wallet
+		'wallet_google_issuer' => '',
+		'wallet_google_sa_email' => '',
+		'wallet_apple_pass_type_id' => '',
+		'wallet_apple_team_id' => '',
+		// NH-02 PSP config
+		'sumup_merchant_code' => '',
+		'paypal_sandbox'     => '0',
+		'klarna_sandbox'     => '0',
+		// NH-22 public iCal feeds — random token enables the seller feed
+		'ical_feed_token'    => '',
 	];
 
 	// Keys that must only ever be written/read through the crypto pair.
 	public const SECRET_KEYS = [
 		'mollie_api_key', 'mollie_test_key', 'stripe_secret_key',
 		'stripe_webhook_secret', 'mollie_webhook_secret', 'crm_sync_token',
+		'sumup_api_key', 'paypal_client_secret', 'klarna_api_password',
+		'wallet_google_secret', 'wallet_apple_cert_pem', 'wallet_apple_key_pem',
 	];
 
 	public function __construct(

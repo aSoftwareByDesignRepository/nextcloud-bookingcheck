@@ -59,7 +59,8 @@ final class OrderFlowIntegrationTest extends TestCase
 		if ($this->created['order'] !== []) {
 			$ids = $this->created['order'];
 			foreach (['bc_order_line' => 'order_id', 'bc_payment' => 'order_id',
-				'bc_invoice' => 'order_id', 'bc_audit' => 'order_id'] as $t => $col) {
+				'bc_invoice' => 'order_id', 'bc_audit' => 'order_id',
+				'bc_pass' => 'order_id', 'bc_reminder' => 'order_id'] as $t => $col) {
 				$qb = $this->db->getQueryBuilder();
 				$qb->delete($t)->where($qb->expr()->in($col,
 					$qb->createNamedParameter($ids, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)))->executeStatement();
@@ -72,6 +73,10 @@ final class OrderFlowIntegrationTest extends TestCase
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete('bc_ticket')->where($qb->expr()->in('line_id',
 				$qb->createFunction('(SELECT id FROM *PREFIX*bc_order_line WHERE order_id IN ('
+					. implode(',', array_map('intval', $ids)) . '))')))->executeStatement();
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_pass_use')->where($qb->expr()->in('pass_id',
+				$qb->createFunction('(SELECT id FROM *PREFIX*bc_pass WHERE order_id IN ('
 					. implode(',', array_map('intval', $ids)) . '))')))->executeStatement();
 		}
 		foreach ($this->created['waitlist'] as $email) {
@@ -497,7 +502,8 @@ final class OrderFlowIntegrationTest extends TestCase
 			$this->db,
 			\OC::$server->get(\OCA\BookingCheck\Service\SlotMaterializer::class),
 			\OC::$server->get(\OCA\BookingCheck\Db\ResourceMapper::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\SlotResourceMapper::class));
+			\OC::$server->get(\OCA\BookingCheck\Db\SlotResourceMapper::class),
+			\OC::$server->get(\OCA\BookingCheck\Service\EmailService::class));
 		$r = $ctrl->templateDestroy($tplId)->getData()['data'];
 		self::assertTrue($r['deleted']);
 		self::assertSame(1, $r['slots_removed']);
@@ -1038,11 +1044,13 @@ final class OrderFlowIntegrationTest extends TestCase
 		$pricing = \OC::$server->get(\OCA\BookingCheck\Service\PricingService::class);
 		$f = $this->seedOffering(2);
 
-		// waitlist joins silently refuse on the free tier
+		// free tier: waitlist joins still accept — an allocate offering on
+		// a lapsed tier degrades to a notify mail instead of dropping the
+		// guest. What Pro gates is the claim-token seat hold, not the queue.
 		$email = 'wl-' . bin2hex(random_bytes(4)) . '@x.test';
 		$this->created['waitlist'][] = $email;
-		self::assertFalse($wl->join('event', $f['event'], $email, 'en'));
-		self::assertSame(0, $this->waitlistCount('event', $f['event']));
+		self::assertTrue($wl->join('event', $f['event'], $email, 'en'));
+		self::assertSame(1, $this->waitlistCount('event', $f['event']));
 
 		// a valid voucher code is priced as if absent — never discounted
 		$ins = $this->db->getQueryBuilder();
@@ -2010,4 +2018,170 @@ final class OrderFlowIntegrationTest extends TestCase
 		$this->expectException(\InvalidArgumentException::class);
 		\OCA\BookingCheck\Service\SlotMaterializer::parseRrule("MO 25:00");
 	}
+
+
+	public function testWalkupOrderIsPaidIdempotentAndConsumesSeats(): void
+	{
+		$f = $this->seedOffering(2);
+		$idem = $this->idem('wu');
+		$r = $this->orders->createWalkupOrder($f['offering'], 'event', $f['event'], 2,
+			'device:door1', $idem);
+		$this->created['order'][] = (int)$r['order']->getId();
+		self::assertSame('done', $r['action']);
+		self::assertSame('paid', $r['order']->getStatus());
+		self::assertSame('walkup', $r['order']->getPayMethod());
+
+		// replay — same idem token returns the SAME order, no second sale
+		$r2 = $this->orders->createWalkupOrder($f['offering'], 'event', $f['event'], 2,
+			'device:door1', $idem);
+		self::assertSame('idempotent-replay', $r2['action']);
+		self::assertSame((int)$r['order']->getId(), (int)$r2['order']->getId());
+
+		// capacity consumed — the third seat must refuse
+		$this->expectException(CapacityException::class);
+		try {
+			$this->orders->createWalkupOrder($f['offering'], 'event', $f['event'], 1,
+				'device:door1', $this->idem('wu-over'));
+		} finally {
+			$qb = $this->db->getQueryBuilder();
+			self::assertSame(2, (int)$qb->select('sold')->from('bc_event')
+				->where($qb->expr()->eq('id', $qb->createNamedParameter($f['event'])))
+				->executeQuery()->fetchOne());
+		}
+	}
+
+	public function testWalkupRejectsUnpublishedOffering(): void
+	{
+		$f = $this->seedOffering(2, ['status' => 'draft']);
+		$this->expectException(\OCA\BookingCheck\Exception\NotFoundException::class);
+		$this->orders->createWalkupOrder($f['offering'], 'event', $f['event'], 1,
+			'device:door1', $this->idem('wu-draft'));
+	}
+
+	public function testPassOrderMintsPassesOnPayment(): void
+	{
+		$f = $this->seedOffering(5, ['type' => 'pass', 'price_cents' => 0]);
+		$idem = $this->idem('pass');
+		$r = $this->orders->createPassOrder($f['offering'], 'P Buyer', 'pb@x.test',
+			'en', 2, null, null, $idem, null, 'itest');
+		$this->created['order'][] = (int)$r['order']->getId();
+		self::assertSame('done', $r['action']);
+		self::assertSame('paid', $r['order']->getStatus());
+
+		$qb = $this->db->getQueryBuilder();
+		$passes = $qb->select('id', 'status', 'uses')->from('bc_pass')
+			->where($qb->expr()->eq('order_id',
+				$qb->createNamedParameter((int)$r['order']->getId())))
+			->executeQuery()->fetchAll();
+		self::assertCount(2, $passes);
+		foreach ($passes as $p) {
+			self::assertSame('active', $p['status']);
+			self::assertSame(0, (int)$p['uses']);
+		}
+	}
+
+	public function testPassAdmissionIsSingleUsePerTarget(): void
+	{
+		$f = $this->seedOffering(5, ['type' => 'pass', 'price_cents' => 0]);
+		$r = $this->orders->createPassOrder($f['offering'], 'P Buyer', 'pb2@x.test',
+			'en', 1, null, null, $this->idem('pass2'), null, 'itest');
+		$this->created['order'][] = (int)$r['order']->getId();
+
+		// plant a second event on the SAME offering as the admission target
+		$starts = (new \DateTimeImmutable('+40 days'))->format('Y-m-d H:i:s');
+		$ends = (new \DateTimeImmutable('+40 days +2 hours'))->format('Y-m-d H:i:s');
+		$this->db->getQueryBuilder()->insert('bc_event')->values([
+			'offering_id' => (string)$f['offering'], 'starts_at' => "'$starts'",
+			'ends_at' => "'$ends'", 'capacity' => '10', 'status' => "'scheduled'",
+		])->executeStatement();
+		$eventId = (int)$this->db->lastInsertId('oc_bc_event');
+		$this->created['event'][] = $eventId;
+
+		$svc = \OCP\Server::get(\OCA\BookingCheck\Service\PassService::class);
+		// the minted token is never stored plaintext — exercise admit() with a
+		// token whose hash we insert directly (same code path as the door)
+		$token = 'BCK1P-' . bin2hex(random_bytes(24));
+		$uq = $this->db->getQueryBuilder();
+		$uq->update('bc_pass')
+			->set('token_hash', $uq->createNamedParameter(hash('sha256', $token)))
+			->where($uq->expr()->eq('order_id',
+				$uq->createNamedParameter((int)$r['order']->getId())))
+			->executeStatement();
+
+		$res = $svc->admit($token, 'event', $eventId, $f['offering'], 'device:t');
+		self::assertTrue($res['ok'], 'first admission must succeed');
+
+		$res2 = $svc->admit($token, 'event', $eventId, $f['offering'], 'device:t');
+		self::assertFalse($res2['ok']);
+		self::assertSame('already_admitted', $res2['reason']);
+
+		// revocation kills future admissions on other targets
+		$svc->revokeForOrder((int)$r['order']->getId());
+		$res3 = $svc->admit($token, 'event', $eventId, $f['offering'], 'device:t');
+		self::assertFalse($res3['ok']);
+	}
+
+	public function testPassOrderRejectsNonPassOffering(): void
+	{
+		$f = $this->seedOffering(5); // type event
+		$this->expectException(\OCA\BookingCheck\Exception\NotFoundException::class);
+		$this->orders->createPassOrder($f['offering'], 'P Buyer', 'pb3@x.test',
+			'en', 1, null, null, $this->idem('pass3'), null, 'itest');
+	}
+
+	public function testDepositOrderTracksAndSettlesRemainder(): void
+	{
+		$f = $this->seedOffering(5, ['price_cents' => 10000]);
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_offering')->set('deposit_bp', $qb->createNamedParameter(2500))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($f['offering'])))
+			->executeStatement();
+
+		$r = $this->create($f['offering'], $f['event'], 1, $this->idem('dep'));
+		$this->created['order'][] = (int)$r['order']->getId();
+		$order = $r['order'];
+		self::assertSame('deposit', $order->getPayMethod());
+		self::assertSame(7500, (int)$order->getRemainderCents());
+
+		$this->orders->markPaid((int)$order->getId(), 'itest');
+
+		// a partial amount must not settle the remainder
+		try {
+			$this->orders->markRemainderReceived((int)$order->getId(), 'itest', 100);
+			self::fail('partial remainder must be rejected');
+		} catch (ValidationException) {
+		}
+		$this->orders->markRemainderReceived((int)$order->getId(), 'itest', 7500);
+		$re = \OCP\Server::get(OrderMapper::class)->find((int)$order->getId());
+		self::assertSame(0, (int)$re->getRemainderCents());
+
+		// settled remainder refuses a second settlement
+		$this->expectException(StateConflictException::class);
+		$this->orders->markRemainderReceived((int)$order->getId(), 'itest');
+	}
+
+	public function testViewerOrderIdForOfferingMatchesViewerNotUploader(): void
+	{
+		$f = $this->seedOffering(5);
+		// two distinct buyers on the same offering
+		$up = $this->create($f['offering'], $f['event'], 1, $this->idem('up'));
+		$this->created['order'][] = (int)$up['order']->getId();
+		$co = $this->create($f['offering'], $f['event'], 1, $this->idem('co'));
+		$this->created['order'][] = (int)$co['order']->getId();
+		$this->orders->markPaid((int)$up['order']->getId(), 'itest');
+		$this->orders->markPaid((int)$co['order']->getId(), 'itest');
+
+		$ent = \OCP\Server::get(\OCA\BookingCheck\Service\EntitlementService::class);
+		// emails were minted as buyer-<idem>@x.test — recover via order rows
+		$om = \OCP\Server::get(OrderMapper::class);
+		$coOrder = $om->find((int)$co['order']->getId());
+		$upOrder = $om->find((int)$up['order']->getId());
+		self::assertSame((int)$co['order']->getId(),
+			$ent->viewerOrderIdForOffering((string)$coOrder->getBuyerEmail(), $f['offering']));
+		self::assertSame((int)$up['order']->getId(),
+			$ent->viewerOrderIdForOffering((string)$upOrder->getBuyerEmail(), $f['offering']));
+		// a stranger gets nothing
+		self::assertNull($ent->viewerOrderIdForOffering('nobody@x.test', $f['offering']));
+	}
+
 }

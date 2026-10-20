@@ -23,7 +23,7 @@ include __DIR__ . '/../common/page-start.php';
 					<button type="submit" class="bck-btn bck-btn--primary"><?php p($l->t('Look up')); ?></button>
 				</div>
 			</form>
-			<div id="bck-scan-result" class="bck-callout" hidden></div>
+			<div id="bck-scan-result" class="bck-callout" role="status" aria-live="polite" hidden></div>
 		</div>
 	</section>
 </div>

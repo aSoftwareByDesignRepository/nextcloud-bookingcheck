@@ -92,16 +92,21 @@ class PspEventService
 	private function applyPaid($order, $payment, VerifiedEvent $event): void
 	{
 		// amount/currency sanity: a paid event quoting a different amount
-		// than the order expects is an alert, not an auto-complete.
-		if ($event->amountCents !== null && (int)$order->getAmountCents() !== $event->amountCents) {
+		// than THIS payment session charged is an alert, not an
+		// auto-complete. Compare against the session's amount — for a
+		// deposit order that is the tranche (total−remainder), not the
+		// order total, so checking the order amount would reject every
+		// legitimate deposit settlement.
+		$expected = (int)$payment->getAmountCents();
+		if ($event->amountCents !== null && $expected !== $event->amountCents) {
 			$this->logger->error('paid webhook amount mismatch', [
 				'order' => $order->getRef(),
-				'expected' => (int)$order->getAmountCents(),
+				'expected' => $expected,
 				'got' => $event->amountCents,
 			]);
 			$this->audit->log((int)$order->getId(), (int)$order->getOfferingId(), 'webhook',
 				'payment.amount_mismatch', null, null,
-				['expected' => (int)$order->getAmountCents(), 'got' => $event->amountCents]);
+				['expected' => $expected, 'got' => $event->amountCents]);
 			return;
 		}
 		// double-settlement detection: two checkout sessions can both be
@@ -157,18 +162,22 @@ class PspEventService
 	{
 		$this->payments->updateStatus((int)$payment->getId(), 'refunded', $event->rawStatus, $event->eventId);
 		// credit note inside the refund txn — GoBD requires the negative
-		// document for every money reversal, PSP-initiated included.
-		$amount = $event->amountCents ?? (int)$order->getAmountCents();
+		// document for every money reversal, PSP-initiated included. The
+		// note covers the FULL invoiced amount (order total) even when the
+		// settled tranche was smaller (deposit orders): the invoice being
+		// reversed was for the complete sale. The meta keeps the actually
+		// moved amount for the audit trail.
+		$amount = $event->amountCents ?? (int)$payment->getAmountCents();
 		$this->orderService->transitionToRefunded((int)$order->getId(), 'webhook:psp_refund',
-			['amount' => $amount], $amount);
+			['amount' => $amount], (int)$order->getAmountCents());
 	}
 
 	private function applyDispute($order, $payment, VerifiedEvent $event): void
 	{
 		// chargeback: money is gone — reflect it (§9.14 dispute mapping)
 		$this->payments->markDisputed((int)$payment->getId());
-		$amount = $event->amountCents ?? (int)$order->getAmountCents();
+		$amount = $event->amountCents ?? (int)$payment->getAmountCents();
 		$this->orderService->transitionToRefunded((int)$order->getId(), 'psp_dispute',
-			['raw' => $event->rawStatus, 'amount' => $amount], $amount);
+			['raw' => $event->rawStatus, 'amount' => $amount], (int)$order->getAmountCents());
 	}
 }

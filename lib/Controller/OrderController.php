@@ -127,12 +127,19 @@ class OrderController extends Controller
 	public function refundQuote(int $id): JSONResponse
 	{
 		$order = $this->mustExist($id);
-		if ($order->getStatus() !== 'paid') {
+		if ($order->getStatus() !== 'paid' && $order->getStatus() !== 'cancelled') {
 			throw new ValidationException(['order' => 'Only paid orders can be refunded.']);
 		}
-		// policy: full amount in v1 (partial refunds come with policy engine)
+		// The quote is what the PSP can actually move: the settled tranche
+		// on the paid payment row. For a deposit order that is
+		// amount−remainder, not the order total — refunding the total
+		// would try to return money never collected (PSP rejects) or, if
+		// accepted, hand back more than the buyer ever paid.
+		$payment = $this->payments->findPaidByOrder($id);
 		return $this->ok([
-			'amount_cents' => (int)$order->getAmountCents(),
+			'amount_cents' => $payment !== null
+				? (int)$payment->getAmountCents()
+				: (int)$order->getAmountCents(),
 			'currency' => $order->getCurrency(),
 		]);
 	}
@@ -144,17 +151,19 @@ class OrderController extends Controller
 		if ($order->getStatus() !== 'paid' && $order->getStatus() !== 'cancelled') {
 			throw new ValidationException(['order' => 'Only paid orders can be refunded.']);
 		}
+		$payment = $this->payments->findPaidByOrder($id);
+		if ($payment === null || $payment->getPspRef() === null) {
+			throw new ValidationException(['order' => 'No payment to refund.']);
+		}
 		$amount = $this->strictId($this->request->getParam('amount_cents'));
 		// v1 is full-refund only — a partial amount would still release ALL
 		// seats and revoke ALL tickets (the transition is terminal). The
 		// quote must be echoed back exactly; partials arrive with the
 		// refund-policy engine, never as a silent semantic mismatch.
-		if ($amount === null || $amount !== (int)$order->getAmountCents()) {
+		// "Full" means the settled tranche on this payment row — on a
+		// deposit order the PSP only captured amount−remainder.
+		if ($amount === null || $amount !== (int)$payment->getAmountCents()) {
 			throw new ValidationException(['amount_cents' => 'Only full refunds are supported — echo the quoted amount.']);
-		}
-		$payment = $this->payments->findPaidByOrder($id);
-		if ($payment === null || $payment->getPspRef() === null) {
-			throw new ValidationException(['order' => 'No payment to refund.']);
 		}
 		$refundRef = $payment->getRefundRef();
 		if ($refundRef === null || $refundRef === '') {
@@ -174,7 +183,10 @@ class OrderController extends Controller
 		// the credit note mints inside the refund transaction — allocate()'s
 		// FOR UPDATE only serializes while a transaction is open; minting in
 		// autocommit here could duplicate invoice numbers under a race.
-		$this->orders->transitionToRefunded($id, $this->uid(), ['amount' => $amount], $amount);
+		// GoBD: the Storno must negate the FULL invoiced document — that is
+		// the order total, not the refunded tranche (a deposit order's open
+		// remainder is written off by the reversal, never collected).
+		$this->orders->transitionToRefunded($id, $this->uid(), ['amount' => $amount], (int)$order->getAmountCents());
 		return $this->ok(['refunded_cents' => $amount, 'refund_ref' => $refundRef]);
 	}
 
@@ -199,6 +211,63 @@ class OrderController extends Controller
 			->queue('order_confirmed', $order->getBuyerEmail(), $order->getBuyerLocale(),
 				['order_ref' => $order->getRef(), 'manage_url' => $manageUrl]);
 		return $this->ok(['queued' => true]);
+	}
+
+	/**
+	 * NH-19 — seller marks the open receivable (invoice-pay or deposit
+	 * remainder) as received. CAS-locked inside the service.
+	 */
+	#[NoAdminRequired]
+	public function markPaid(int $id): JSONResponse
+	{
+		$this->mustExist($id);
+		$raw = $this->request->getParam('amount_cents');
+		$cents = ($raw !== null && $raw !== '' && preg_match('/^\d+$/', (string)$raw))
+			? (int)$raw : null;
+		try {
+			$this->orders->markRemainderReceived($id, $this->uid(), $cents);
+		} catch (\OCA\BookingCheck\Exception\StateConflictException $e) {
+			return $this->fail(409, $e->getCodeName(), $e->getMessage());
+		}
+		return $this->ok(['received' => true]);
+	}
+
+	/** NH-31 — open abuse reports queue. */
+	#[NoAdminRequired]
+	public function abuseList(): JSONResponse
+	{
+		$mapper = \OCP\Server::get(\OCA\BookingCheck\Db\AbuseReportMapper::class);
+		return $this->ok(['reports' => array_map(
+			fn ($r) => $r->jsonSerialize(), $mapper->listOpen())]);
+	}
+
+	/** NH-31 — resolve a report (action: keep|purge). */
+	#[NoAdminRequired]
+	public function resolveAbuse(int $id): JSONResponse
+	{
+		$mapper = \OCP\Server::get(\OCA\BookingCheck\Db\AbuseReportMapper::class);
+		$r = $mapper->find($id);
+		if ($r === null) {
+			return $this->notFound();
+		}
+		$action = (string)$this->request->getParam('action', 'keep');
+		if ($action === 'purge' && $r->getUploadId() !== null) {
+			$uploads = \OCP\Server::get(\OCA\BookingCheck\Db\UploadMapper::class);
+			$u = $uploads->find((int)$r->getUploadId());
+			if ($u !== null) {
+				\OCP\Server::get(\OCA\BookingCheck\Service\UploadService::class)->purge($u);
+			}
+		}
+		// schema vocab is open|resolved|dismissed: purging the upload
+		// resolves the report; keeping it dismisses the accusation
+		$r->setStatus($action === 'purge' ? 'resolved' : 'dismissed');
+		$r->setResolvedAt(new \DateTimeImmutable());
+		$r->setResolvedBy($this->uid());
+		$mapper->update($r);
+		\OCP\Server::get(\OCA\BookingCheck\Service\AuditService::class)
+			->log(null, null, $this->uid(), 'abuse.resolved', null, null,
+				['report' => $id, 'action' => $action]);
+		return $this->ok(['resolved' => true]);
 	}
 
 	#[NoAdminRequired]

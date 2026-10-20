@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\AppInfo;
 
+use OCP\Files\IRootFolder;
 use OCA\BookingCheck\Middleware\AppAccessMiddleware;
 use OCA\BookingCheck\Middleware\CompanionAuthMiddleware;
 use OCA\BookingCheck\Middleware\PortalSessionMiddleware;

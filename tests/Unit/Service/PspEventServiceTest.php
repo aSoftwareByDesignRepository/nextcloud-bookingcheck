@@ -43,7 +43,7 @@ final class PspEventServiceTest extends TestCase
 		);
 	}
 
-	private function payment(): Payment
+	private function payment(int $amountCents = 2500): Payment
 	{
 		$p = new Payment();
 		$p->setId(9);
@@ -51,6 +51,9 @@ final class PspEventServiceTest extends TestCase
 		$p->setProvider('test');
 		$p->setPspRef('test_pay_1');
 		$p->setStatus('open');
+		// the session's charged amount — for a deposit order this is the
+		// tranche (total−remainder), smaller than the order total
+		$p->setAmountCents($amountCents);
 		return $p;
 	}
 
@@ -113,6 +116,22 @@ final class PspEventServiceTest extends TestCase
 		$this->orderService->expects($this->never())->method('markPaid');
 
 		$this->assertSame('ok', $this->svc->process('test', $this->event(VerifiedEvent::KIND_PAID, 999)));
+	}
+
+	public function testDepositTrancheSettlementMarksOrderPaid(): void
+	{
+		// deposit order: total 2500, remainder 1900 receivable — the PSP
+		// session charged only the 600 tranche. The sanity check must
+		// compare against the SESSION amount, not the order total,
+		// otherwise every legitimate deposit settlement is rejected.
+		$this->events->method('claim')->willReturn(true);
+		$this->payments->method('findByPspRef')->willReturn($this->payment(600));
+		$this->orders->method('find')->willReturn($this->order(2500));
+		$this->orderService->expects($this->once())->method('markPaid')
+			->willReturn($this->order());
+
+		$this->assertSame('ok', $this->svc->process('test',
+			$this->event(VerifiedEvent::KIND_PAID, 600)));
 	}
 
 	public function testPaidWithNullAmountSkipsSanityCheckAndMarksPaid(): void
