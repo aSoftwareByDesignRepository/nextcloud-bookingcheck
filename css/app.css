@@ -524,9 +524,31 @@
 /* Public guest pages — single centred column, huge tap targets.
    #body-public renders #content as NC's two-column app grid
    (nav 280px + content 1fr): a bare .bck-pub child lands in the nav
-   column and renders ~280px wide on desktop. Span the full grid. */
+   column and renders ~280px wide on desktop. Span the full grid.
+
+   #body-public pins body (position:fixed) and sizes #content to
+   --body-height with overflow:clip — the document itself never
+   scrolls. The guest surface must scroll internally or bottom
+   controls are clipped behind the fixed NC footer. #content's
+   padding-block-end (--footer-height) reserves the footer band, so
+   scrolling inside this box keeps content clear of it. */
 #content > .bck-pub,
-#content > .bck-embed { grid-column: 1 / -1; width: 100%; }
+#content > .bck-embed {
+	grid-column: 1 / -1;
+	width: 100%;
+	min-height: 0;
+	overflow-y: auto;
+	/* The scroller fills #content's whole border box (flex stretch ignores
+	   the padding-block-end reserve), so re-reserve the fixed footer's
+	   height as scroll end padding — bottom content must be scrollable
+	   fully clear of it. --footer-height is set by core's public JS. */
+	padding-block-end: calc(var(--footer-height, 0px) + var(--bck-space-5));
+}
+/* Flex children of the scroll surface must size to content — a
+   shrinkable child with overflow:hidden (e.g. .bck-card) would clip
+   its own body instead of extending the scroll range. */
+#content > .bck-pub > *,
+#content > .bck-embed > * { flex-shrink: 0; }
 
 .bck-pub {
 	/* Text must never sit directly on --image-background (theming

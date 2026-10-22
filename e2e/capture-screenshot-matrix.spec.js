@@ -152,10 +152,21 @@ async function appConfigGet(
 /**
  * `#app-content` scrolls internally — a viewport-height shot only captures
  * the fold. Grow the viewport to full content height before shooting.
+ * Public guest surfaces scroll inside fixed-height containers instead:
+ * #body-public pins body and clips #content, and .bck-pub/.bck-embed are
+ * the internal scrollers — documentElement.scrollHeight can't see that
+ * overflow, so measure every candidate scroller's top + scrollHeight.
  */
 async function shot(/** @type {import('@playwright/test').Page} */ page, /** @type {string} */ name, /** @type {number} */ vpHeight) {
-	const contentH = await page.evaluate(() =>
-		(document.querySelector('#app-content') || document.documentElement).scrollHeight)
+	const contentH = await page.evaluate(() => {
+		let h = (document.querySelector('#app-content') || document.documentElement).scrollHeight
+		for (const sel of ['#content', '.bck-pub', '.bck-embed']) {
+			const el = document.querySelector(sel)
+			if (!el) { continue }
+			h = Math.max(h, Math.ceil(el.getBoundingClientRect().top) + el.scrollHeight)
+		}
+		return h
+	})
 	const shotH = Math.min(Math.max(contentH + 60, vpHeight), 8192)
 	if (shotH !== vpHeight) {
 		await page.setViewportSize({ width: page.viewportSize()?.width || 1280, height: shotH })
