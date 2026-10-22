@@ -570,7 +570,7 @@
 	max-width: min(400px, calc(100vw - 2 * var(--bck-space-4, 16px)));
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
 	.bck-toasts {
 		inset-inline-start: auto;
 		inset-inline-end: calc(var(--bck-space-4, 16px) + env(safe-area-inset-right, 0px));

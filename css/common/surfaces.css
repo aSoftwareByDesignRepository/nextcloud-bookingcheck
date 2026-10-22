@@ -22,7 +22,7 @@
 	margin-block: var(--bck-space-4);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
 	#app-content.bck-app .bck-card-grid {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
@@ -69,7 +69,7 @@
 	margin-block: var(--bck-space-4);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 769px) {
 	#app-content.bck-app .bck-stat-row {
 		grid-template-columns: repeat(4, minmax(0, 1fr));
 	}
@@ -880,7 +880,7 @@ dialog.bck-dialog--wide {
 
 #app-content.bck-app .bck-chip--filter:hover { background: var(--bck-bg-hover, var(--color-background-hover)); }
 
-@media (max-width: 767.98px) {
+@media (max-width: 768.98px) {
 	.bck-dialog__actions { flex-direction: column-reverse; align-items: stretch; }
 	.bck-dialog__actions .bck-btn { width: 100%; }
 }
