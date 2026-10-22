@@ -39,7 +39,7 @@ class EmbedController extends Controller
 		$o = $this->offerings->findBySlug($slug);
 		$domains = $o !== null ? json_decode((string)$o->getEmbedDomains(), true) : null;
 		if ($o === null || $o->getStatus() !== 'published' || !is_array($domains) || $domains === []) {
-			$resp = new PublicTemplateResponse($this->appName, 'public/not-found', []);
+			$resp = \OCA\BookingCheck\Support\PublicNotFound::render([]);
 			$resp->addHeader('X-Frame-Options', 'DENY');
 			return $resp;
 		}
@@ -57,6 +57,29 @@ class EmbedController extends Controller
 		// CSP frame-ancestors is the enforceable boundary
 		$resp->addHeader('Content-Security-Policy',
 			"frame-ancestors " . implode(' ', array_map([self::class, 'origin'], $domains)));
+		return $resp;
+	}
+
+	/**
+	 * NH-05 — serve the WebComponent SDK (`<bck-booking>`). Public static
+	 * asset: anonymous, cacheable, read from the app bundle at request
+	 * time so a shipped file fix propagates on the next cache window.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function sdk(): \OCP\AppFramework\Http\DataDisplayResponse
+	{
+		$file = __DIR__ . '/../../js/sdk/bck-embed.js';
+		$js = is_file($file) ? file_get_contents($file) : false;
+		if ($js === false) {
+			throw new \OCA\BookingCheck\Exception\NotFoundException();
+		}
+		$resp = new \OCP\AppFramework\Http\DataDisplayResponse($js);
+		$resp->addHeader('Content-Type', 'application/javascript; charset=utf-8');
+		// short cache — the SDK may need hotfixes; embed sites must pick them up
+		$resp->addHeader('Cache-Control', 'public, max-age=300');
+		$resp->addHeader('X-Content-Type-Options', 'nosniff');
 		return $resp;
 	}
 

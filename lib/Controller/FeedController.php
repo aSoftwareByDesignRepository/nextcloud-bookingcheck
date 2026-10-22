@@ -55,14 +55,20 @@ class FeedController extends Controller
 			];
 		}
 		$resp = $this->ok(['v' => 1, 'offerings' => $out]);
-		// CORS allowlist from settings — a configured '*' or a non-https
-		// origin is rejected, never echoed back
+		// CORS allowlist from settings — reflect the REQUESTER'S origin and
+		// only when it is allowlisted. Emitting the first configured origin
+		// unconditionally is both wrong (b.com gets ACAO:a.com → blocked)
+		// and echoes an origin the requester may not be.
+		$requestOrigin = trim($this->request->getHeader('Origin'));
 		foreach (array_filter(array_map('trim', explode(',', $this->settings->get('cors_origins')))) as $origin) {
 			if ($origin === '*' || !str_starts_with($origin, 'https://')) {
 				continue;
 			}
-			$resp->addHeader('Access-Control-Allow-Origin', $origin);
-			break; // single origin only
+			if ($requestOrigin !== '' && strcasecmp($requestOrigin, $origin) === 0) {
+				$resp->addHeader('Access-Control-Allow-Origin', $origin);
+				$resp->addHeader('Vary', 'Origin');
+				break;
+			}
 		}
 		return $resp;
 	}

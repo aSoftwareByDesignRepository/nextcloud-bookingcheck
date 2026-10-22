@@ -68,10 +68,10 @@ document.querySelector('[data-bck-claim]').addEventListener('submit', async func
 			if (input) { input.setAttribute('aria-invalid', 'true'); }
 			if (el) { el.textContent = fields[k]; el.hidden = false; shown = true; }
 		});
-		if (!shown && window.BCK && BCK.toast) { BCK.toast.error(data.message || 'Could not claim this seat.'); }
+		if (!shown && window.BCK && BCK.toast) { BCK.toast.error(data.message || BCK.t('Could not claim this seat.')); }
 	} catch (err) {
 		btn.disabled = false;
-		if (window.BCK && BCK.toast) { BCK.toast.error('Could not claim this seat.'); }
+		if (window.BCK && BCK.toast) { BCK.toast.error(BCK.t('Could not claim this seat.')); }
 	}
 });
 </script>

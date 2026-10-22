@@ -1,0 +1,7 @@
+# Reviewed sv vocabulary — not dictionary bleed.
+# One token per line, lowercase; marker words: loanword|proper|abbrev|shared|reviewed
+bookingchecks # proper — product-name genitive ("BookingChecks inställningar")
+drop # loanword — established Swedish "drop-in"
+webhookhemlighet # reviewed — valid sv compound webhook + hemlighet
+vouchrar # reviewed — established sv plural of loanword "voucher"
+mailar # loanword — verb "maila" (att maila), established sv

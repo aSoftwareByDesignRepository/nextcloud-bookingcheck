@@ -141,6 +141,27 @@
 	font-size: var(--bck-fs-sm);
 }
 
+#app-content.bck-app .bck-list-cards {
+	list-style: none;
+	margin: var(--bck-space-3) 0 0;
+	padding: 0;
+	border-top: 1px solid var(--bck-border);
+}
+
+#app-content.bck-app .bck-list-cards > li {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: var(--bck-space-2) var(--bck-space-4);
+	padding: var(--bck-space-3) var(--bck-space-1);
+	border-bottom: 1px solid var(--bck-border);
+}
+
+#app-content.bck-app .bck-list-cards > li > :first-child {
+	flex: 1 1 16rem;
+	min-width: 0;
+}
+
 #app-content.bck-app .bck-btn-row {
 	display: flex;
 	flex-wrap: wrap;
@@ -737,11 +758,13 @@ dialog.bck-dialog form {
 
 /* ── Responsive: tables scroll; hero + toolbar stack on phones ── */
 
-@media (max-width: 767.98px) {
+@media (max-width: 768.98px) {
 	/* ≤768px (Nextcloud mobile boundary): row-action buttons get the same
 	   44px touch floor as primary controls — 36px is a desktop-pointer
 	   compromise, unusable on touchscreens. */
 	.bck-btn--small { min-height: var(--bck-touch, 44px); min-width: var(--bck-touch, 44px); }
+	/* Filter chips are buttons too — same 44px floor on touch. */
+	.bck-chip--filter { min-height: var(--bck-touch, 44px); }
 
 	#app-content.bck-app .bck-hero { flex-direction: column; }
 	#app-content.bck-app .bck-hero__deadline { width: 100%; }

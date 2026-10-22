@@ -42,7 +42,7 @@ class DatevExportService
 
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('i.number', 'i.type', 'i.net_cents', 'i.vat_cents', 'i.issued_at',
-			'o.ref', 'o.buyer_name', 'o.buyer_company', 'o.currency', 'o.vat_bp')
+			'o.ref', 'o.buyer_name', 'o.buyer_company', 'o.currency')
 			->from('bc_invoice', 'i')
 			->innerJoin('i', 'bc_order', 'o', $qb->expr()->eq('o.id', 'i.order_id'))
 			->where($qb->expr()->gte('i.issued_at', $qb->createNamedParameter($from, 'datetime_immutable')))
@@ -80,7 +80,10 @@ class DatevExportService
 				'', '', '',
 				$this->q($receivable),
 				$this->q($account),
-				((int)$r['vat_bp'] === 0 ? '' : '9'), // BU 9 = VSt
+				// the invoice's recorded VAT is the truth — reverse-charge,
+				// §19 and 0%-rated documents all carry vat_cents=0 and must
+				// not get a tax posting key from a guessed rate
+				((int)$r['vat_cents'] === 0 ? '' : '9'), // BU 9 = VSt
 				$issued,
 				$this->q((string)$r['number']),
 				'',

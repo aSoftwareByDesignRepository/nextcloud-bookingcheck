@@ -115,6 +115,29 @@ class OrderMapper extends QBMapper
 		return $this->findEntities($qb);
 	}
 
+	/**
+	 * Recent orders for the companion manager surface — scope-filtered.
+	 * null = unscoped device sees all; an empty array = malformed/empty
+	 * scope sees nothing (fail closed, never widen).
+	 *
+	 * @param list<int>|null $offeringIds
+	 * @return list<Order>
+	 */
+	public function findRecentScoped(?array $offeringIds, int $limit = 50): array
+	{
+		if ($offeringIds !== null && $offeringIds === []) {
+			return [];
+		}
+		$qb = $this->db->getQueryBuilder();
+		$qb->select('*')->from($this->getTableName());
+		if ($offeringIds !== null) {
+			$qb->where($qb->expr()->in('offering_id', $qb->createNamedParameter(
+				$offeringIds, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)));
+		}
+		$qb->orderBy('id', 'DESC')->setMaxResults($limit);
+		return $this->findEntities($qb);
+	}
+
 	public function findLatestLiveForEmail(string $email): ?Order
 	{
 		$qb = $this->db->getQueryBuilder();

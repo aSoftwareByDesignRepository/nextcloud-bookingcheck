@@ -84,9 +84,13 @@ class EInvoiceService
 		$w->endElement(); // IssueDateTime
 		$w->endElement(); // ExchangedDocument
 
-		// VAT rate lives on the offering — Order carries no vatBp attribute.
-		$offering = $this->offerings->find((int)$order->getOfferingId());
-		$vatBp = $offering !== null ? (int)$offering->getVatBp() : 0;
+		// the order carries the rate resolved at pricing (OSS-aware); -1 =
+		// legacy row — fall back to the offering's current rate, as before
+		$vatBp = (int)$order->getVatBp();
+		if ($vatBp < 0) {
+			$offering = $this->offerings->find((int)$order->getOfferingId());
+			$vatBp = $offering !== null ? (int)$offering->getVatBp() : 0;
+		}
 
 		// ---- supply chain trade transaction -------------------------
 		$w->startElementNs('rsm', 'SupplyChainTradeTransaction', null);

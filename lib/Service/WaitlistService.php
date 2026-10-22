@@ -11,6 +11,7 @@ namespace OCA\BookingCheck\Service;
 
 use OCA\BookingCheck\Db\WaitlistEntry;
 use OCA\BookingCheck\Db\WaitlistEntryMapper;
+use OCA\BookingCheck\Support\Locales;
 use OCP\DB\Exception as DbException;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
@@ -109,7 +110,7 @@ class WaitlistService
 		$e->setTargetType($targetType);
 		$e->setTargetId($targetId);
 		$e->setEmail($email);
-		$e->setLocale($locale);
+		$e->setLocale(Locales::canonicalize($locale));
 		$e->setState('waiting');
 		$e->setCreatedAt(new \DateTimeImmutable());
 		try {

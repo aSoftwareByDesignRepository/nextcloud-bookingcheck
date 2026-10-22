@@ -135,6 +135,10 @@ button.bck-stat-tile:hover, button.bck-stat-tile:focus-visible {
 }
 .bck-filter-bar { display: flex; gap: var(--bck-space-1, 4px); flex-wrap: wrap; }
 #app-content .bck-filter {
+	/* inline-flex is load-bearing: an <a>/<button> stays inline without it
+	   and the 44px min-height silently dies (WCAG 2.5.8 target size). */
+	display: inline-flex;
+	align-items: center;
 	min-height: var(--bck-touch, 44px);
 	padding: var(--bck-space-1, 4px) var(--bck-space-3, 12px);
 	border: 1px solid var(--bck-form-border, var(--color-border-maxcontrast));
@@ -146,7 +150,10 @@ button.bck-stat-tile:hover, button.bck-stat-tile:focus-visible {
 	cursor: pointer;
 }
 .bck-filter:hover { background: var(--color-background-hover); }
-.bck-filter[aria-pressed='true'] {
+/* anchors must not carry aria-pressed (axe aria-allowed-attr) — link
+   pills mark the active item with aria-current instead */
+.bck-filter[aria-pressed='true'],
+.bck-filter[aria-current='true'] {
 	background: var(--bck-tint-info, var(--color-primary-element-light));
 	border-color: var(--color-primary-element);
 	color: var(--bck-text, var(--color-main-text));

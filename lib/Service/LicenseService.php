@@ -28,6 +28,12 @@ class LicenseService
 		'companion', 'reports_csv', 'passes',
 	];
 
+	/** Explicitly-free features — anything not in either list is denied. */
+	public const FREE_FEATURES = [
+		'catalog', 'checkout', 'payment', 'invoices', 'tickets',
+		'manage_links', 'orders', 'roster', 'scan',
+	];
+
 	private const STATE_FREE = 'free';
 	private const STATE_PRO = 'pro';
 	private const STATE_EXPIRED = 'expired';
@@ -70,7 +76,9 @@ class LicenseService
 	public function hasFeature(string $feature): bool
 	{
 		if (!in_array($feature, self::PRO_FEATURES, true)) {
-			return true; // unknown feature = not gated (free path)
+			// unknown name = fail CLOSED — a typo'd gate must never
+			// silently open a paid feature; whitelist stays free
+			return in_array($feature, self::FREE_FEATURES, true);
 		}
 		if ($this->isPro()) {
 			return true;

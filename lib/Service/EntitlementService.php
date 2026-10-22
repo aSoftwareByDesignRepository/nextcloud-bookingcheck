@@ -47,6 +47,9 @@ class EntitlementService
 			->innerJoin('t', 'bc_order_line', 'ol', $qb->expr()->eq('ol.id', 't.line_id'))
 			->innerJoin('ol', 'bc_order', 'o', $qb->expr()->eq('o.id', 'ol.order_id'))
 			->where($qb->expr()->eq('o.status', $qb->createNamedParameter('paid')))
+			// a revoked ticket must not keep portal entitlement alive —
+			// orderScope() already treats revocation as access loss
+			->andWhere($qb->expr()->isNull('t.revoked_at'))
 			->andWhere($qb->expr()->eq('t.attendee_email', $qb->createNamedParameter($email)));
 		$ids = array_merge($ids, array_map('intval', $qb->executeQuery()->fetchAll(\PDO::FETCH_COLUMN)));
 
@@ -85,7 +88,10 @@ class EntitlementService
 			->where($qb->expr()->eq('o.status', $qb->createNamedParameter('paid')))
 			->andWhere($qb->expr()->orX(
 				$qb->expr()->eq('o.buyer_email', $qb->createNamedParameter($email)),
-				$qb->expr()->eq('t.attendee_email', $qb->createNamedParameter($email)),
+				$qb->expr()->andX(
+					$qb->expr()->eq('t.attendee_email', $qb->createNamedParameter($email)),
+					$qb->expr()->isNull('t.revoked_at'),
+				),
 			))
 			->andWhere($qb->expr()->orX(
 				$qb->expr()->isNull('m.avail_from'),
@@ -107,7 +113,10 @@ class EntitlementService
 			->andWhere($qb2->expr()->isNull('m.target_id'))
 			->andWhere($qb2->expr()->orX(
 				$qb2->expr()->eq('o.buyer_email', $qb2->createNamedParameter($email)),
-				$qb2->expr()->eq('t.attendee_email', $qb2->createNamedParameter($email)),
+				$qb2->expr()->andX(
+					$qb2->expr()->eq('t.attendee_email', $qb2->createNamedParameter($email)),
+					$qb2->expr()->isNull('t.revoked_at'),
+				),
 			))
 			->andWhere($qb2->expr()->orX(
 				$qb2->expr()->isNull('m.avail_from'),

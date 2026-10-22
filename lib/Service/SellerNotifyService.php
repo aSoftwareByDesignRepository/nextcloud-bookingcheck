@@ -11,6 +11,8 @@ namespace OCA\BookingCheck\Service;
 
 use OCA\BookingCheck\Db\Order;
 use OCP\IConfig;
+use OCP\IUserManager;
+use OCP\L10N\IFactory as IL10NFactory;
 use OCP\Notification\IManager as INotificationManager;
 use Psr\Log\LoggerInterface;
 
@@ -35,6 +37,8 @@ class SellerNotifyService
 		private readonly SettingsService $settings,
 		private readonly AuditService $audit,
 		private readonly IConfig $config,
+		private readonly IUserManager $users,
+		private readonly IL10NFactory $l10nFactory,
 		private readonly LoggerInterface $logger,
 	) {
 	}
@@ -61,7 +65,10 @@ class SellerNotifyService
 				$this->audit->log((int)$order->getId(), (int)$order->getOfferingId(), $sellerUid,
 					'notify.sent', null, 'paid', ['channel' => 'nc']);
 			}
-			$this->email->queue('seller_order_paid', $this->settings->get('seller_email'), 'en', [
+			// the seller reads mail in THEIR configured UI language, not
+			// the buyer's and not hardcoded English
+			$this->email->queue('seller_order_paid', $this->settings->get('seller_email'),
+				$this->l10nFactory->getUserLanguage($this->users->get($sellerUid)), [
 				'order_ref' => (string)$order->getRef(),
 				'offering' => $offeringTitle,
 				'amount' => (int)$order->getAmountCents() / 100,

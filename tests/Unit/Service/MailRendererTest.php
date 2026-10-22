@@ -67,4 +67,41 @@ class MailRendererTest extends TestCase
 		self::assertSame('Your sign-in code', $subject);
 		self::assertStringNotContainsString("\n\n\n", $body);
 	}
+
+	public function testReminderCarriesTitleAndStartsAt(): void
+	{
+		[$subject, $body] = $this->renderer(null)->render('reminder', [
+			'order_ref' => 'BCK-42',
+			'title' => 'Pottery class',
+			'starts_at' => '2026-11-02 18:00',
+		], 'en');
+		self::assertStringContainsString('Pottery class', $subject);
+		self::assertStringContainsString('2026-11-02 18:00', $subject);
+		self::assertStringContainsString('coming up', $body);
+		self::assertStringContainsString('Pottery class', $body);
+		self::assertStringContainsString('2026-11-02 18:00', $body);
+		self::assertStringContainsString('BCK-42', $body);
+		self::assertStringNotContainsString('Notification for order', $body,
+			'reminder must not fall through to the generic default arm');
+	}
+
+	public function testReminderWithoutTitleFallsBackToRef(): void
+	{
+		[$subject, $body] = $this->renderer(null)
+			->render('reminder', ['order_ref' => 'BCK-7', 'starts_at' => '2026-11-02 18:00'], 'en');
+		self::assertStringContainsString('BCK-7', $subject);
+		self::assertStringContainsString('2026-11-02 18:00', $body);
+	}
+
+	public function testReminderTitleCannotInjectHeaders(): void
+	{
+		[$subject, $body] = $this->renderer(null)->render('reminder', [
+			'order_ref' => 'BCK-1',
+			'title' => "Yoga\r\nBcc: evil@x",
+			'starts_at' => "now\nCc: a@b",
+		], 'en');
+		self::assertSame('Reminder: YogaBcc: evil@x — nowCc: a@b', $subject,
+			'CR/LF must be stripped from every header-bound value');
+		self::assertStringContainsString('YogaBcc: evil@x', $body);
+	}
 }

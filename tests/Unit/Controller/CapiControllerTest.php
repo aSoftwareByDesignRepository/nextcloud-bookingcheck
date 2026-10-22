@@ -79,4 +79,198 @@ final class CapiControllerTest extends TestCase
 		$this->ctrl->companionDevice = $this->device(null, 'door');
 		self::assertSame(403, $this->ctrl->stats()->getStatus());
 	}
+
+	// ---- manager orders + quick refund (NH-04) ----------------------
+
+	private \OCA\BookingCheck\Service\OrderService&MockObject $orderSvc;
+	private \OCA\BookingCheck\Db\PaymentMapper&MockObject $payments;
+	private \OCA\BookingCheck\Psp\PspManager&MockObject $psp;
+
+	/**
+	 * Controller wired with a REAL RefundService over mocked
+	 * collaborators — the manager endpoints must be proven against the
+	 * actual money path, not a stand-in that can drift from it.
+	 */
+	private function mgrCtrl(?\OCA\BookingCheck\Db\OrderMapper $orders = null): CapiController
+	{
+		$this->orderSvc = $this->createMock(\OCA\BookingCheck\Service\OrderService::class);
+		$this->payments = $this->createMock(\OCA\BookingCheck\Db\PaymentMapper::class);
+		$this->psp = $this->createMock(\OCA\BookingCheck\Psp\PspManager::class);
+		$refunds = new \OCA\BookingCheck\Service\RefundService(
+			$this->orderSvc, $this->payments, $this->psp);
+		return new CapiController(
+			'bookingcheck', $this->request, $this->tickets, $this->db,
+			null, null, null, $refunds, $orders);
+	}
+
+	private function paymentFixture(int $amountCents = 5000, string $refundRef = ''): \OCA\BookingCheck\Db\Payment
+	{
+		$p = new \OCA\BookingCheck\Db\Payment();
+		$p->setId(7);
+		$p->setAmountCents($amountCents);
+		$p->setPspRef('psp-live-1');
+		$p->setProvider('test');
+		$p->setRefundRef($refundRef);
+		return $p;
+	}
+
+	private function orderFixture(int $offeringId): \OCA\BookingCheck\Db\Order
+	{
+		$o = new \OCA\BookingCheck\Db\Order();
+		$o->setId(9);
+		$o->setRef('BCK-9');
+		$o->setOfferingId($offeringId);
+		$o->setBuyerName('Ada');
+		$o->setBuyerEmail('ada@example.org');
+		$o->setStatus('paid');
+		$o->setAmountCents(5000);
+		$o->setCurrency('EUR');
+		$o->setIsTest(0);
+		$o->setCreatedAt(new \DateTimeImmutable('2026-10-01T10:00:00+00:00'));
+		return $o;
+	}
+
+	public function testDoorRoleCannotListOrders(): void
+	{
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$orders->expects(self::never())->method('findRecentScoped');
+		$ctrl = $this->mgrCtrl($orders);
+		$ctrl->companionDevice = $this->device(null, 'door');
+		self::assertSame(403, $ctrl->orders()->getStatus());
+	}
+
+	public function testDoorRoleCannotRefund(): void
+	{
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$orders->expects(self::never())->method('find');
+		$ctrl = $this->mgrCtrl($orders);
+		$ctrl->companionDevice = $this->device(null, 'door');
+		self::assertSame(403, $ctrl->orderRefund(9)->getStatus());
+	}
+
+	public function testManagerOrdersListPassesScopeAndClampsLimit(): void
+	{
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$this->request->method('getParam')->willReturnCallback(
+			fn (string $k, $d = null) => $k === 'limit' ? '9999' : $d);
+		$orders->expects(self::once())->method('findRecentScoped')
+			->with([1, 2], 100)
+			->willReturn([$this->orderFixture(1)]);
+		$ctrl = $this->mgrCtrl($orders);
+		$ctrl->companionDevice = $this->device('[1,2]', 'manager');
+		$res = $ctrl->orders();
+		self::assertSame(200, $res->getStatus());
+		$payload = $res->getData()['data']['orders'];
+		self::assertCount(1, $payload);
+		self::assertSame('BCK-9', $payload[0]['ref']);
+		// trimmed payload — internals must not ride the companion wire
+		self::assertArrayNotHasKey('staff_note', $payload[0]);
+	}
+
+	public function testManagerMalformedScopeSeesNoOrders(): void
+	{
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$orders->expects(self::once())->method('findRecentScoped')
+			->with([], self::anything())->willReturn([]);
+		$ctrl = $this->mgrCtrl($orders);
+		$ctrl->companionDevice = $this->device('{broken', 'manager');
+		$res = $ctrl->orders();
+		self::assertSame(200, $res->getStatus());
+		self::assertSame([], $res->getData()['data']['orders']);
+	}
+
+	public function testManagerOrderForeignScopeIsNotFound(): void
+	{
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$orders->method('find')->with(9)->willReturn($this->orderFixture(77));
+		$ctrl = $this->mgrCtrl($orders);
+		$ctrl->companionDevice = $this->device('[1,2]', 'manager');
+		self::assertSame(404, $ctrl->order(9)->getStatus());
+	}
+
+	public function testManagerRefundForeignOrderIs404AndNeverMovesMoney(): void
+	{
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$orders->method('find')->willReturn($this->orderFixture(77));
+		$ctrl = $this->mgrCtrl($orders);
+		$ctrl->companionDevice = $this->device('[1,2]', 'manager');
+		$this->payments->expects(self::never())->method('claimRefund');
+		$this->payments->expects(self::never())->method('findPaidByOrder');
+		$this->orderSvc->expects(self::never())->method('transitionToRefunded');
+		self::assertSame(404, $ctrl->orderRefund(9)->getStatus());
+		self::assertSame(404, $ctrl->orderRefundQuote(9)->getStatus());
+	}
+
+	public function testManagerRefundMovesMoneyWithDeviceActor(): void
+	{
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$orders->method('find')->with(9)->willReturn($this->orderFixture(1));
+		$this->request->method('getParam')->willReturnCallback(
+			fn (string $k, $d = null) => $k === 'amount_cents' ? '5000' : $d);
+		$provider = $this->createMock(\OCA\BookingCheck\Psp\PaymentProviderInterface::class);
+		$provider->method('refund')->willReturn(
+			new \OCA\BookingCheck\Psp\RefundResult(true, 'ref-1'));
+		$ctrl = $this->mgrCtrl($orders);
+		$this->payments->method('findPaidByOrder')->willReturn($this->paymentFixture(5000));
+		$this->payments->method('claimRefund')->willReturn(true);
+		$this->psp->method('byName')->willReturn($provider);
+		$this->orderSvc->expects(self::once())->method('transitionToRefunded')
+			->with(9, 'device:test-device', ['amount' => 5000], 5000);
+		$ctrl->companionDevice = $this->device('[1,2]', 'manager');
+		$res = $ctrl->orderRefund(9);
+		self::assertSame(200, $res->getStatus());
+		self::assertSame('ref-1', $res->getData()['data']['refund_ref']);
+	}
+
+	public function testManagerRefundQuoteReturnsSettledTranche(): void
+	{
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$orders->method('find')->willReturn($this->orderFixture(1));
+		$ctrl = $this->mgrCtrl($orders);
+		$this->payments->method('findPaidByOrder')->willReturn($this->paymentFixture(2500));
+		$ctrl->companionDevice = $this->device('[1,2]', 'manager');
+		$res = $ctrl->orderRefundQuote(9);
+		self::assertSame(200, $res->getStatus());
+		self::assertSame(2500, $res->getData()['data']['amount_cents']);
+	}
+
+	public function testManagerRefundMapsValidationConflictAndPspErrors(): void
+	{
+		$this->request->method('getParam')->willReturnCallback(
+			fn (string $k, $d = null) => $k === 'amount_cents' ? '5000' : $d);
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+
+		// 400 — a non-refundable status refuses before money logic
+		$pending = $this->orderFixture(1);
+		$pending->setStatus('pending_payment');
+		$orders->method('find')->willReturn($pending);
+		$ctrl = $this->mgrCtrl($orders);
+		$ctrl->companionDevice = $this->device(null, 'manager');
+		self::assertSame(400, $ctrl->orderRefund(9)->getStatus());
+		self::assertSame(400, $ctrl->orderRefundQuote(9)->getStatus());
+
+		// 409 — claim lost to an in-flight refund
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$orders->method('find')->willReturn($this->orderFixture(1));
+		$ctrl = $this->mgrCtrl($orders);
+		$this->payments->method('findPaidByOrder')->willReturn($this->paymentFixture());
+		$this->payments->method('claimRefund')->willReturn(false);
+		$this->payments->method('find')->willReturn($this->paymentFixture(5000, 'pending:abc'));
+		$ctrl->companionDevice = $this->device(null, 'manager');
+		self::assertSame(409, $ctrl->orderRefund(9)->getStatus());
+
+		// 502 — the PSP refused; the claim must be released so a retry works
+		$orders = $this->createMock(\OCA\BookingCheck\Db\OrderMapper::class);
+		$orders->method('find')->willReturn($this->orderFixture(1));
+		$ctrl = $this->mgrCtrl($orders);
+		$this->payments->method('findPaidByOrder')->willReturn($this->paymentFixture());
+		$this->payments->method('claimRefund')->willReturn(true);
+		$this->payments->expects(self::once())->method('releaseRefundClaim');
+		$provider = $this->createMock(\OCA\BookingCheck\Psp\PaymentProviderInterface::class);
+		$provider->method('refund')->willReturn(
+			new \OCA\BookingCheck\Psp\RefundResult(false, '', 'card_declined'));
+		$this->psp->method('byName')->willReturn($provider);
+		$ctrl->companionDevice = $this->device(null, 'manager');
+		self::assertSame(502, $ctrl->orderRefund(9)->getStatus());
+	}
 }

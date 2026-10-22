@@ -10,6 +10,8 @@ use OCA\BookingCheck\Service\EmailService;
 use OCA\BookingCheck\Service\SellerNotifyService;
 use OCA\BookingCheck\Service\SettingsService;
 use OCP\IConfig;
+use OCP\IUserManager;
+use OCP\L10N\IFactory as IL10NFactory;
 use OCP\Notification\IManager as INotificationManager;
 use OCP\Notification\INotification;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -31,13 +33,17 @@ final class SellerNotifyServiceTest extends TestCase
 		$this->config = $this->createMock(IConfig::class);
 	}
 
-	private function svc(): SellerNotifyService
+	private function svc(?IL10NFactory $l10n = null, ?IUserManager $users = null): SellerNotifyService
 	{
 		$settings = $this->createMock(SettingsService::class);
 		$settings->method('get')->willReturnCallback(
 			fn (string $k, $d = '') => $k === 'seller_email' ? 'shop@x.test' : ($d ?? ''));
+		$l10n ??= $this->createMock(IL10NFactory::class);
+		$l10n->method('getUserLanguage')->willReturn('en');
 		return new SellerNotifyService($this->nm, $this->email, $settings,
-			$this->audit, $this->config, $this->createMock(LoggerInterface::class));
+			$this->audit, $this->config,
+			$users ?? $this->createMock(IUserManager::class),
+			$l10n, $this->createMock(LoggerInterface::class));
 	}
 
 	private function order(int $isTest = 0): Order
@@ -83,6 +89,23 @@ final class SellerNotifyServiceTest extends TestCase
 				$this->callback(fn ($p) => $p['amount'] === 25 && $p['test'] === false), true);
 
 		$this->svc()->orderPaid($this->order(), 'seller1', 'Yoga');
+	}
+
+	public function testPaidEmailUsesSellerUiLanguage(): void
+	{
+		// a German-speaking seller must get German order notifications,
+		// not hardcoded English and not the buyer's locale
+		$this->config->method('getUserValue')->willReturn('1');
+		$this->audit->method('countRecentActions')->willReturn(25); // NC ping capped away
+		$user = $this->createMock(\OCP\IUser::class);
+		$users = $this->createMock(IUserManager::class);
+		$users->method('get')->with('seller1')->willReturn($user);
+		$l10n = $this->createMock(IL10NFactory::class);
+		$l10n->method('getUserLanguage')->with($user)->willReturn('de');
+		$this->email->expects($this->once())->method('queue')
+			->with('seller_order_paid', 'shop@x.test', 'de',
+				$this->anything(), true);
+		$this->svc($l10n, $users)->orderPaid($this->order(), 'seller1', 'Yoga');
 	}
 
 	public function testRateCapSkipsNcPingButKeepsEmail(): void

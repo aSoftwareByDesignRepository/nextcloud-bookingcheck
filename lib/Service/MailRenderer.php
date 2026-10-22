@@ -25,7 +25,7 @@ class MailRenderer
 		'order_confirmed', 'payment_link', 'payment_failed', 'order_expired',
 		'order_declined', 'approval_request', 'approval_pending', 'otp',
 		'waitlist_offer', 'waitlist_notify', 'manage_link', 'broadcast',
-		'rescheduled', 'seller_order_paid',
+		'rescheduled', 'reminder', 'seller_order_paid',
 	];
 
 	public function __construct(
@@ -107,6 +107,16 @@ class MailRenderer
 					. $l->t("New time: %s – %s\n", [
 						self::head((string)($p['new_start'] ?? '')),
 						self::head((string)($p['new_end'] ?? ''))])
+					. $l->t("Order: %s\n", [$ref]),
+			],
+			'reminder' => [
+				!empty($p['title'])
+					? $l->t('Reminder: %s — %s', [self::head((string)$p['title']),
+						self::head((string)($p['starts_at'] ?? ''))])
+					: $l->t('Your booking is coming up — %s', [$ref]),
+				$l->t("Your booking is coming up.\n")
+					. (!empty($p['title']) ? $l->t("Offering: %s\n", [self::head((string)$p['title'])]) : '')
+					. (!empty($p['starts_at']) ? $l->t("Starts: %s\n", [self::head((string)$p['starts_at'])] ) : '')
 					. $l->t("Order: %s\n", [$ref]),
 			],
 			'seller_order_paid' => [

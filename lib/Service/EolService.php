@@ -96,7 +96,7 @@ class EolService
 		$tomb = fn (string $v) => 'gdpr:' . substr(hash('sha256', $v), 0, 16);
 
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('id', 'buyer_name', 'buyer_email')->from('bc_order')
+		$qb->select('id', 'ref', 'buyer_name', 'buyer_email')->from('bc_order')
 			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)));
 		$orders = $qb->executeQuery()->fetchAll();
 		$emails = array_values(array_unique(array_map(
@@ -104,8 +104,8 @@ class EolService
 
 		// queued + dead queue mail still carries the real address — kill it
 		// BEFORE the tombstone lands (to_email keys are plaintext). Portal
-		// sessions are email-keyed — the buyer's portal login dies with the
-		// offering's data too.
+		// sessions AND otp codes are email-keyed — killing only the session
+		// leaves the portal re-entry path alive.
 		if ($emails !== []) {
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete('bc_email')->where($qb->expr()->in('to_email',
@@ -114,6 +114,23 @@ class EolService
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete('bc_portal_sess')->where($qb->expr()->in('email',
 				$qb->createNamedParameter($emails, IQueryBuilder::PARAM_STR_ARRAY)))
+				->executeStatement();
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_otp')->where($qb->expr()->in('email',
+				$qb->createNamedParameter($emails, IQueryBuilder::PARAM_STR_ARRAY)))
+				->executeStatement();
+		}
+
+		// queued CRM sync payloads carry buyer name/email/company —
+		// delivering them after the tombstone would leak the purged PII.
+		// The task payload stores the plain order ref (the 'bck-' prefix
+		// is only applied at delivery) — match on the ref itself.
+		foreach ($orders as $o) {
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_sync_task')
+				->where($qb->expr()->eq('kind', $qb->createNamedParameter('crm_buyer')))
+				->andWhere($qb->expr()->like('payload_json',
+					$qb->createNamedParameter('%' . (string)$o['ref'] . '%')))
 				->executeStatement();
 		}
 
@@ -154,6 +171,15 @@ class EolService
 					. (int)$o['id'] . ')')))->executeStatement();
 		}
 
+		// passes carry holder PII — tombstone like the order's buyer fields
+		// (columns are NOT NULL — a hash marker, not NULL)
+		$u = $this->db->getQueryBuilder();
+		$u->update('bc_pass')
+			->set('holder_name', $u->createNamedParameter($tomb('pass')))
+			->set('holder_email', $u->createNamedParameter($tomb('pass')))
+			->where($u->expr()->eq('offering_id', $u->createNamedParameter($offeringId)))
+			->executeStatement();
+
 		// waitlist rows hold plaintext emails for this offering's targets
 		foreach (['event' => 'bc_event', 'series' => 'bc_series', 'slot' => 'bc_slot'] as $tt => $ttbl) {
 			$d = $this->db->getQueryBuilder();
@@ -164,7 +190,13 @@ class EolService
 					. $offeringId . ')')))->executeStatement();
 		}
 
-		// uploads: the BLOB is the PII — purge appdata before the row
+		// uploads: the BLOB is the PII — purge appdata before the row.
+		// abuse reports hold the reporter's plaintext email and FK onto the
+		// upload — they must go first or they outlive the purge orphaned.
+		$d = $this->db->getQueryBuilder();
+		$d->delete('bc_abuse')->where($d->expr()->in('upload_id',
+			$d->createFunction('(SELECT id FROM *PREFIX*bc_upload WHERE offering_id = '
+				. $offeringId . ')')))->executeStatement();
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('file_ref')->from('bc_upload')
 			->where($qb->expr()->eq('offering_id', $qb->createNamedParameter($offeringId)));

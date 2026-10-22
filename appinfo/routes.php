@@ -23,6 +23,9 @@ return [
 		['name' => 'page#needsRole',    'url' => '/needs-role',                    'verb' => 'GET'],
 		['name' => 'page#supportUs',    'url' => '/support-us',                    'verb' => 'GET'],
 		['name' => 'page#pro',          'url' => '/pro',                           'verb' => 'GET'],
+		['name' => 'page#settings',     'url' => '/settings',                      'verb' => 'GET'],
+		['name' => 'page#settingsSection', 'url' => '/settings/{section}',         'verb' => 'GET',
+			'requirements' => ['section' => 'access|payments|invoicing|flow|portal|integrations|emails|license']],
 
 		// Overview / dashboard
 		['name' => 'dashboard#index',   'url' => '/overview',                      'verb' => 'GET'],
@@ -139,6 +142,7 @@ return [
 		['name' => 'settings#mailTplPut',   'url' => '/api/settings/mailtpl',        'verb' => 'PUT'],
 		['name' => 'settings#mailTplDelete','url' => '/api/settings/mailtpl/{id}',   'verb' => 'DELETE', 'requirements' => ['id' => '\\d+']],
 		['name' => 'settings#get',      'url' => '/api/settings/{section}',        'verb' => 'GET'],
+		['name' => 'settings#searchUsers', 'url' => '/api/settings/directory/users', 'verb' => 'GET'],
 		['name' => 'settings#devices',  'url' => '/api/settings/devices/list',     'verb' => 'GET'],
 		['name' => 'settings#issueDevice','url' => '/api/settings/devices',        'verb' => 'POST'],
 		['name' => 'settings#revokeDevice','url' => '/api/settings/devices/{id}',  'verb' => 'DELETE', 'requirements' => ['id' => '\\d+']],
@@ -197,8 +201,10 @@ return [
 		// Public reviews
 		['name' => 'pubReview#store',    'url' => '/pub/api/reviews',              'verb' => 'POST'],
 
-		// Embed (iframe-safe)
+		// Embed (iframe-safe) + NH-05 SDK/WebComponent alternative
 		['name' => 'embed#offering',     'url' => '/pub/embed/o/{slug}',           'verb' => 'GET'],
+		['name' => 'embed#sdk',          'url' => '/pub/sdk.js',                   'verb' => 'GET'],
+		['name' => 'pubCatalog#offeringJson','url' => '/pub/api/o/{slug}',         'verb' => 'GET'],
 
 		// Public directory feed (JSON, no checkout)
 		['name' => 'feed#directory',     'url' => '/pub/feed/directory.json',      'verb' => 'GET'],
@@ -239,6 +245,10 @@ return [
 		['name' => 'capi#walkup',        'url' => '/capi/v1/walkup',             'verb' => 'POST'],
 		['name' => 'capi#registerPush',  'url' => '/capi/v1/push',               'verb' => 'POST'],
 		['name' => 'capi#createOffering','url' => '/capi/v1/offerings',          'verb' => 'POST'],
+		['name' => 'capi#orders',        'url' => '/capi/v1/orders',             'verb' => 'GET'],
+		['name' => 'capi#order',         'url' => '/capi/v1/orders/{id}',        'verb' => 'GET',  'requirements' => ['id' => '\d+']],
+		['name' => 'capi#orderRefundQuote', 'url' => '/capi/v1/orders/{id}/refund-quote', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
+		['name' => 'capi#orderRefund',   'url' => '/capi/v1/orders/{id}/refund', 'verb' => 'POST', 'requirements' => ['id' => '\d+']],
 
 		// ---------------------------------------------------------------
 		// OCS API (admin, for integrations)

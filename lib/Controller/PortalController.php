@@ -122,7 +122,7 @@ class PortalController extends Controller
 	{
 		$email = $this->otp->consumeMagic($token);
 		if ($email === null) {
-			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
+			return \OCA\BookingCheck\Support\PublicNotFound::render([]);
 		}
 		[$sessionToken] = $this->sessions->create($email, (string)$this->request->getHeader('User-Agent'));
 		$resp = new RedirectResponse($this->urlGenerator->linkToRoute('bookingcheck.portal.home'));

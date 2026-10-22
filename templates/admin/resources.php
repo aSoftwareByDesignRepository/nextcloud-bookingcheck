@@ -32,10 +32,10 @@ $items = $_['resources'] ?? [];
 				<tbody>
 				<?php foreach ($items as $r): ?>
 					<tr>
-						<td data-label="<?php p($l->t('Name')); ?>"><?php p((string)$r['name']); ?></td>
-						<td data-label="<?php p($l->t('Offering')); ?>"><?php p((string)($_['offerings'][(int)$r['offeringId']] ?? '#' . (int)$r['offeringId'])); ?></td>
-						<td data-label="<?php p($l->t('Capacity')); ?>" class="bck-num"><?php p((string)(int)$r['capacity']); ?></td>
-						<td data-label="<?php p($l->t('Status')); ?>">
+						<td data-cell="<?php p($l->t('Name')); ?>"><?php p((string)$r['name']); ?></td>
+						<td data-cell="<?php p($l->t('Offering')); ?>"><?php p((string)($_['offerings'][(int)$r['offeringId']] ?? '#' . (int)$r['offeringId'])); ?></td>
+						<td data-cell="<?php p($l->t('Capacity')); ?>" class="bck-num"><?php p((string)(int)$r['capacity']); ?></td>
+						<td data-cell="<?php p($l->t('Status')); ?>">
 							<span class="bck-badge <?php p((int)$r['active'] === 1 ? 'bck-badge--success' : 'bck-badge--neutral'); ?>">
 								<?php p((int)$r['active'] === 1 ? $l->t('active') : $l->t('off')); ?></span>
 						</td>

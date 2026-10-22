@@ -12,6 +12,8 @@ namespace OCA\BookingCheck\Service;
 use OCA\BookingCheck\Db\AuditEntry;
 use OCA\BookingCheck\Db\AuditEntryMapper;
 use OCP\IDBConnection;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
 
 /**
  * Append-only, hash-chained audit log.
@@ -21,6 +23,9 @@ use OCP\IDBConnection;
  *  - meta diffs carry field NAMES + "[changed]" for PII values — the audit
  *    trail must never become a shadow copy of erased personal data.
  *  - Append inside the same transaction as the state change it records.
+ *  - Appends serialize on a named lock; UNIQUE(prev_hash) is the DB-level
+ *    backstop for the lock-miss case (one child per node — a forked
+ *    chain is indistinguishable from tampering on verify).
  */
 class AuditService
 {
@@ -31,11 +36,12 @@ class AuditService
 		'uploader_email', 'email', 'ip', 'user_agent', 'code', 'token',
 	];
 
-	private string $lastHash = '0';
+	private const CHAIN_LOCK = 'bookingcheck/audit-chain';
 
 	public function __construct(
 		private readonly AuditEntryMapper $mapper,
 		private readonly IDBConnection $db,
+		private readonly ILockingProvider $locking,
 	) {
 	}
 
@@ -52,22 +58,34 @@ class AuditService
 		array $meta = [],
 	): void {
 		$meta = $this->sanitizeMeta($meta);
-		$prev = $this->chainHead();
 		$now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
 
-		$e = new AuditEntry();
-		$e->setOrderId($orderId);
-		$e->setOfferingId($offeringId);
-		$e->setActor(mb_substr($actor, 0, 64));
-		$e->setAction(mb_substr($action, 0, 48));
-		$e->setFromState($fromState);
-		$e->setToState($toState);
-		$e->setMeta($meta === [] ? null : (json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: null));
-		$e->setPrevHash($prev);
-		$e->setCreatedAt($now);
-		$e->setRowHash($this->rowHash($prev, $orderId, $offeringId, $actor, $action, $fromState, $toState, $meta, $now));
+		// head read + append must serialize — two txns that read the same
+		// head write twin children (a fork verifyChain flags as tampering).
+		// The named lock makes that window near-impossible; when contention
+		// outlasts the retry budget we proceed anyway — UNIQUE(prev_hash)
+		// turns a residual race into a transaction abort, never a fork.
+		$locked = $this->acquireChainLock();
+		try {
+			$prev = $this->chainHead();
+			$e = new AuditEntry();
+			$e->setOrderId($orderId);
+			$e->setOfferingId($offeringId);
+			$e->setActor(mb_substr($actor, 0, 64));
+			$e->setAction(mb_substr($action, 0, 48));
+			$e->setFromState($fromState);
+			$e->setToState($toState);
+			$e->setMeta($meta === [] ? null : (json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: null));
+			$e->setPrevHash($prev);
+			$e->setCreatedAt($now);
+			$e->setRowHash($this->rowHash($prev, $orderId, $offeringId, $actor, $action, $fromState, $toState, $meta, $now));
 
-		$this->mapper->insert($e);
+			$this->mapper->insert($e);
+		} finally {
+			if ($locked) {
+				$this->locking->releaseLock(self::CHAIN_LOCK, ILockingProvider::LOCK_EXCLUSIVE);
+			}
+		}
 	}
 
 	/** Verify the whole chain; returns first broken row id or 0 = intact. */
@@ -122,16 +140,31 @@ class AuditService
 		return $out;
 	}
 
+	/**
+	 * Fresh head, every call — never cached. Under UNIQUE(prev_hash) a
+	 * cached head that another writer has already consumed turns the next
+	 * append into a constraint violation that aborts a legitimate txn.
+	 */
 	private function chainHead(): string
 	{
-		if ($this->lastHash !== '0') {
-			return $this->lastHash;
-		}
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('row_hash')->from('bc_audit')->orderBy('id', 'DESC')->setMaxResults(1);
 		$hash = $qb->executeQuery()->fetchOne();
-		$this->lastHash = $hash === false ? '0' : (string)$hash;
-		return $this->lastHash;
+		return $hash === false ? '0' : (string)$hash;
+	}
+
+	/** Brief retry — the lock is held for microseconds (head read + insert). */
+	private function acquireChainLock(): bool
+	{
+		for ($i = 0; $i < 6; $i++) {
+			try {
+				$this->locking->acquireLock(self::CHAIN_LOCK, ILockingProvider::LOCK_EXCLUSIVE);
+				return true;
+			} catch (LockedException) {
+				usleep(15000);
+			}
+		}
+		return false;
 	}
 
 	/** @param array<string,mixed> $meta */
@@ -150,8 +183,6 @@ class AuditService
 			json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
 			$at->format('Y-m-d H:i:s'),
 		]);
-		$hash = hash('sha256', $payload);
-		$this->lastHash = $hash;
-		return $hash;
+		return hash('sha256', $payload);
 	}
 }

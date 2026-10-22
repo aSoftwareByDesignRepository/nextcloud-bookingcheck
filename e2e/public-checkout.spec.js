@@ -51,6 +51,35 @@ test.describe('public checkout', () => {
 		await ctx.close();
 	});
 
+	test('cancel booking asks before it destroys', async ({ browser }) => {
+		const ctx = await browser.newContext({ storageState: undefined });
+		const page = await ctx.newPage();
+		await page.goto(`/apps/bookingcheck/pub/o/${seeded.slug}/checkout`);
+		await page.fill('#bck-name', 'E2E Canceller');
+		await page.fill('#bck-email', 'e2e-cancel@example.test');
+		const consent = page.locator('input[name="consent"]');
+		if (await consent.count()) { await consent.check(); }
+		await page.locator('#bck-pay-btn').click();
+		await page.waitForURL(/\/pub\/m\//, { timeout: 30_000 });
+
+		// one stray tap must NOT cancel — the dialog owns the destructive act
+		const cancelBtn = page.locator('form[data-bck-cancel-confirm] button[type=submit]');
+		await expect(cancelBtn).toBeVisible();
+		await cancelBtn.click();
+		const dlg = page.locator('dialog[open]');
+		await expect(dlg).toBeVisible();
+		// dismiss → booking survives untouched
+		await dlg.locator('.bck-dialog__actions .bck-btn--secondary').click();
+		await expect(dlg).toBeHidden();
+		await expect(cancelBtn).toBeVisible();
+		// confirm → the booking is really cancelled
+		await cancelBtn.click();
+		await dlg.locator('.bck-dialog__actions button[type=submit]').click();
+		await page.waitForLoadState('domcontentloaded');
+		await expect(page.locator('main, #content')).toContainText(/cancelled/i);
+		await ctx.close();
+	});
+
 	test('checkout is usable at 320px', async ({ browser }) => {
 		const ctx = await browser.newContext({
 			storageState: undefined,

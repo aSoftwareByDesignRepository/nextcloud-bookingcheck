@@ -36,7 +36,14 @@ class LicenseGateMiddleware extends Middleware
 		\OCA\BookingCheck\Controller\WaitlistController::class   => 'waitlist',
 		\OCA\BookingCheck\Controller\ClaimController::class      => 'waitlist',
 		\OCA\BookingCheck\Controller\PortalController::class     => 'portal',
-		\OCA\BookingCheck\Controller\EmbedController::class      => 'embed',
+		\OCA\BookingCheck\Controller\EmbedController::class      => [
+			'offering' => 'embed',
+		],
+		\OCA\BookingCheck\Controller\PubCatalogController::class => [
+			// the JSON catalog is the SDK embed's data feed — same Pro
+			// boundary as the hosted iframe, or the gate is theatre
+			'offeringJson' => 'embed',
+		],
 		\OCA\BookingCheck\Controller\FeedController::class       => 'directory_feed',
 		\OCA\BookingCheck\Controller\WebhookController::class    => 'outbound_webhooks',
 		\OCA\BookingCheck\Controller\MaterialController::class   => 'materials',

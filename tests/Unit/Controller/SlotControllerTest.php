@@ -87,13 +87,13 @@ final class SlotControllerTest extends TestCase
 	 *  the row under a lock before deciding. */
 	private function slotExists(?Slot $s): void
 	{
-		$this->slotExists($s);
+		$this->slots->method('find')->willReturn($s);
 		$this->slots->method('findForUpdate')->willReturn($s);
 	}
 
 	private function eventExists(?\OCA\BookingCheck\Db\Event $e): void
 	{
-		$this->eventExists($e);
+		$this->events->method('find')->willReturn($e);
 		$this->events->method('findForUpdate')->willReturn($e);
 	}
 

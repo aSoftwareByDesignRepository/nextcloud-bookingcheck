@@ -37,12 +37,14 @@ class CatalogService
 
 	public function nextOccurrence(Offering $o): ?string
 	{
+		// Rendered verbatim on the public catalog card — must be the same
+		// human format occurrenceList() uses for its labels, never ATOM.
 		if ($o->getType() === 'timeslot') {
 			$next = $this->slots->findUpcoming((int)$o->getId(), 1);
-			return $next === [] ? null : $next[0]->getStartsAt()?->format(\DateTimeInterface::ATOM);
+			return $next === [] ? null : $next[0]->getStartsAt()?->format('D, j M Y · H:i');
 		}
 		$next = $this->events->findUpcoming((int)$o->getId(), 1);
-		return $next === [] ? null : $next[0]->getStartsAt()?->format(\DateTimeInterface::ATOM);
+		return $next === [] ? null : $next[0]->getStartsAt()?->format('D, j M Y · H:i');
 	}
 
 	/**

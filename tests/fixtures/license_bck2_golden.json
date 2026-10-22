@@ -1,0 +1,16 @@
+{
+    "seedLabel": "bookingcheck-bck2-test-signing-v1",
+    "publicKeyB64": "ur0RcoNo-NGcJfHTwWNy_K7ro_uvf8_JStg8qZftj0w",
+    "payload": {
+        "v": 2,
+        "product": "bookingcheck",
+        "customerId": "test",
+        "issuedAt": "2026-01-01",
+        "validUntil": "2027-12-31",
+        "proSeats": 100
+    },
+    "payloadB64": "eyJ2IjoyLCJwcm9kdWN0IjoiYm9va2luZ2NoZWNrIiwiY3VzdG9tZXJJZCI6InRlc3QiLCJpc3N1ZWRBdCI6IjIwMjYtMDEtMDEiLCJ2YWxpZFVudGlsIjoiMjAyNy0xMi0zMSIsInByb1NlYXRzIjoxMDB9",
+    "signatureB64": "SPAYS9MVXrmTSzWirwXVDl6sPCXsh_qt0nGbz9Y15TXnWzaKTqFJGcXvFgqQzhmo7i1yItIhfRuKiW11bEIABQ",
+    "wireKey": "BCK2.eyJ2IjoyLCJwcm9kdWN0IjoiYm9va2luZ2NoZWNrIiwiY3VzdG9tZXJJZCI6InRlc3QiLCJpc3N1ZWRBdCI6IjIwMjYtMDEtMDEiLCJ2YWxpZFVudGlsIjoiMjAyNy0xMi0zMSIsInByb1NlYXRzIjoxMDB9.SPAYS9MVXrmTSzWirwXVDl6sPCXsh_qt0nGbz9Y15TXnWzaKTqFJGcXvFgqQzhmo7i1yItIhfRuKiW11bEIABQ",
+    "note": "Lab-only BCK2 fixture. Deterministic keypair from seedLabel (sha256) — honored only when BCK_ALLOW_VENDOR_KEY_OVERRIDE=1, which must never be set on production instances."
+}

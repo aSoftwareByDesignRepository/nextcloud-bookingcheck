@@ -1,0 +1,3 @@
+# Reviewed pl vocabulary — not dictionary bleed.
+# One token per line, lowercase; marker words: loanword|proper|abbrev|shared|reviewed
+iframe # loanword — HTML element name, untranslated in pl

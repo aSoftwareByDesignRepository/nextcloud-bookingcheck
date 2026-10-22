@@ -15,7 +15,7 @@ $pending = (int)($stats['byStatus']['pending_payment'] ?? 0)
 	+ (int)($stats['byStatus']['pending_approval'] ?? 0);
 ?>
 <div class="bck-page-stack">
-	<div class="bck-stat-row" role="list">
+	<div class="bck-stat-strip" role="list">
 		<div class="bck-stat-tile bck-stat-tile--success" role="listitem">
 			<span class="bck-stat-tile__label"><?php p($l->t('Revenue')); ?></span>
 			<span class="bck-stat-tile__value"><?php p($money($stats['revenueCents'] ?? 0)); ?></span>
@@ -57,15 +57,15 @@ $pending = (int)($stats['byStatus']['pending_payment'] ?? 0)
 						<tbody>
 						<?php foreach ($recent as $o): ?>
 							<tr>
-								<td data-label="<?php p($l->t('Order')); ?>">
+								<td data-cell="<?php p($l->t('Order')); ?>">
 									<a href="<?php p($_['urls']['home'] . 'orders/' . (int)$o['id']); ?>"><?php p($o['ref']); ?></a>
 								</td>
-								<td data-label="<?php p($l->t('Offering')); ?>"><?php p((string)($o['title'] ?? '—')); ?></td>
-								<td data-label="<?php p($l->t('Buyer')); ?>"><?php p((string)$o['buyer_name']); ?></td>
-								<td data-label="<?php p($l->t('Amount')); ?>" class="bck-num"><?php p($money($o['amount_cents'], (string)$o['currency'])); ?></td>
-								<td data-label="<?php p($l->t('Status')); ?>">
-									<span class="bck-badge <?php p('bck-badge--' . (['paid' => 'success', 'pending_payment' => 'warn', 'pending_approval' => 'info', 'cancelled' => 'neutral', 'refunded' => 'neutral', 'failed' => 'danger', 'expired' => 'neutral'][$o['status']] ?? 'neutral')); ?>">
-										<?php p((string)$o['status']); ?></span>
+								<td data-cell="<?php p($l->t('Offering')); ?>"><?php p((string)($o['title'] ?? '—')); ?></td>
+								<td data-cell="<?php p($l->t('Buyer')); ?>"><?php p((string)$o['buyer_name']); ?></td>
+								<td data-cell="<?php p($l->t('Amount')); ?>" class="bck-num"><?php p($money($o['amount_cents'], (string)$o['currency'])); ?></td>
+								<td data-cell="<?php p($l->t('Status')); ?>">
+									<span class="bck-badge <?php p('bck-badge--' . \OCA\BookingCheck\Support\StatusLabels::badge((string)$o['status'])); ?>">
+										<?php p(\OCA\BookingCheck\Support\StatusLabels::label($l, (string)$o['status'])); ?></span>
 								</td>
 							</tr>
 						<?php endforeach; ?>

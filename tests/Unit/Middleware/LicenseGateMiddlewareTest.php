@@ -66,6 +66,42 @@ class LicenseGateMiddlewareTest extends TestCase
 			$this->createMock(CapiController::class), 'events');
 	}
 
+	public function testEmbedGateCoversIframeOnly(): void
+	{
+		$mw = $this->mw(false);
+		$this->expectException(ProRequiredException::class);
+		$mw->beforeController(
+			$this->createMock(\OCA\BookingCheck\Controller\EmbedController::class), 'offering');
+	}
+
+	public function testEmbedSdkAssetIsUngated(): void
+	{
+		// sdk.js is a static bootstrap file — gating it adds nothing (the
+		// data feed is gated separately) and only breaks the embed page's
+		// own loader on free instances
+		$this->mw(false)->beforeController(
+			$this->createMock(\OCA\BookingCheck\Controller\EmbedController::class), 'sdk');
+		$this->addToAssertionCount(1);
+	}
+
+	public function testEmbedJsonFeedSharesTheProBoundary(): void
+	{
+		// the SDK's data feed must not be a free path around the iframe gate
+		$this->expectException(ProRequiredException::class);
+		$this->mw(false)->beforeController(
+			$this->createMock(\OCA\BookingCheck\Controller\PubCatalogController::class), 'offeringJson');
+	}
+
+	public function testPublicCatalogPagesStayFree(): void
+	{
+		$mw = $this->mw(false);
+		$mw->beforeController(
+			$this->createMock(\OCA\BookingCheck\Controller\PubCatalogController::class), 'index');
+		$mw->beforeController(
+			$this->createMock(\OCA\BookingCheck\Controller\PubCatalogController::class), 'offering');
+		$this->addToAssertionCount(1);
+	}
+
 	public function testProTierPassesEveryGate(): void
 	{
 		$mw = $this->mw(true);

@@ -27,12 +27,20 @@ final class AssetRegistrar
 	{
 		// Make l10n/{lang}.json available to OC.L10N.translate() in page JS.
 		Util::addTranslations(Application::APP_ID);
-		foreach ([
+		$styles = [
 			'common/tokens', 'common/shell-chrome', 'common/app-layout', 'common/navigation',
 			'common/mobile-nav', 'common/form-controls', 'common/page-patterns',
 			'common/notification-surfaces', 'common/dialogs', 'common/switch-field',
-			'common/badges', 'common/field-errors', 'common/surfaces', 'app',
-		] as $style) {
+			'common/badges', 'common/field-errors', 'common/surfaces',
+		];
+		// view-components is an opt-in pack (filter pills, stat strips,
+		// pagination, combobox) — present only in apps that synced it.
+		// It must precede 'app' so app overrides keep winning.
+		if (is_file(__DIR__ . '/../../css/common/view-components.css')) {
+			$styles[] = 'common/view-components';
+		}
+		$styles[] = 'app';
+		foreach ($styles as $style) {
 			Util::addStyle(Application::APP_ID, $style);
 		}
 	}

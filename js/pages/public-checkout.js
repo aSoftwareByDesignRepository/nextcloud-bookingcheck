@@ -49,6 +49,8 @@
 		return unitCents;
 	}
 
+	var promoBps = 0; // applied percent code — shown in the live total
+
 	function renderTotal() {
 		var el = document.getElementById('bck-total');
 		if (!el) { return; }
@@ -57,8 +59,30 @@
 		form.querySelectorAll('[data-addon-id]').forEach(function (cb) {
 			if (cb.checked) { cents += parseInt(cb.getAttribute('data-price'), 10) || 0; }
 		});
+		if (promoBps > 0 && promoBps < 10000) {
+			cents = Math.round(cents * (10000 - promoBps) / 10000);
+		}
 		el.textContent = cents > 0 ? formatCents(cents) : '';
 	}
+
+	/* Qty must never exceed the picked date's availability — clamping
+	 * beats a guaranteed server rejection. */
+	var qtyInput = form.querySelector('[name="qty"]');
+	function clampQty() {
+		if (!qtyInput || isPass) { return; }
+		var occ = form.querySelector('[name="occ"]:checked');
+		var avail = occ ? parseInt(occ.getAttribute('data-available'), 10) : 0;
+		if (avail > 0) {
+			qtyInput.max = String(Math.min(50, avail));
+			if (parseInt(qtyInput.value, 10) > avail) {
+				qtyInput.value = String(avail);
+			}
+		}
+	}
+	form.addEventListener('change', function (ev) {
+		if (ev.target && ev.target.name === 'occ') { clampQty(); }
+	});
+	clampQty();
 
 	form.addEventListener('change', renderTotal);
 	form.addEventListener('input', renderTotal);
@@ -73,13 +97,25 @@
 			pubApi('/pub/api/promo/validate', { code: code, offering_id: offeringId }).then(function (body) {
 				applyBtn.disabled = false;
 				var ok = body && body.success && body.data && body.data.valid;
+				// percent codes reflect straight into the live total — fixed
+				// amounts and voucher credit stay server-priced (checkout shows it)
+				promoBps = (ok && body.data.kind === 'percent')
+					? (parseInt(body.data.percent_bps, 10) || 0) : 0;
 				promoHint.textContent = ok
-					? (body.data.kind === 'percent' && body.data.percent_bps
-						? 'Code applied: ' + (body.data.percent_bps / 100) + '% off.'
-						: 'Code applied.')
-					: 'This code is not valid.';
+					? (promoBps > 0
+						? BCK.tf('Code applied: %s% off.', [String(promoBps / 100)])
+						: BCK.t('Code applied.'))
+					: BCK.t('This code is not valid.');
+				renderTotal();
 			}).catch(function () { applyBtn.disabled = false; });
 		});
+		// editing the code after applying must not keep the stale discount
+		var promoInput = form.querySelector('[name="promo"]');
+		if (promoInput) {
+			promoInput.addEventListener('input', function () {
+				if (promoBps !== 0) { promoBps = 0; renderTotal(); }
+			});
+		}
 	}
 
 	function showFieldError(key, message) {
@@ -106,10 +142,38 @@
 		});
 	}
 
+	/* Forgiving inputs: catch the obvious mistakes before the server
+	 * round-trip — same field-error slots, same aria-invalid contract. */
+	function preValidate() {
+		var bad = [];
+		if (!isPass && !form.querySelector('[name="occ"]:checked')) {
+			bad.push(['lines', BCK.t('Please pick a date.')]);
+		}
+		var name = form.querySelector('[name="buyer_name"]');
+		if (name && String(name.value).trim().length < 2) {
+			bad.push(['buyer_name', BCK.t('Please tell us your name.')]);
+		}
+		var email = form.querySelector('[name="buyer_email"]');
+		if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(email.value).trim())) {
+			bad.push(['buyer_email', BCK.t('That email looks wrong — please check it.')]);
+		}
+		var consent = form.querySelector('[name="consent"]');
+		if (consent && !consent.checked) {
+			bad.push(['consent', BCK.t('Please accept the terms to continue.')]);
+		}
+		if (!bad.length) { return true; }
+		bad.forEach(function (pair) { showFieldError(pair[0], pair[1]); });
+		var first = form.querySelector('[aria-invalid="true"]');
+		if (first && first.focus) { first.focus(); }
+		return false;
+	}
+
 	form.addEventListener('submit', function (ev) {
 		ev.preventDefault();
 		clearErrors();
+		if (!preValidate()) { return; }
 		submitBtn.disabled = true;
+		submitBtn.setAttribute('aria-busy', 'true');
 
 		var fd = new FormData(form);
 		var occ = String(fd.get('occ') || '').split(':');
@@ -148,6 +212,10 @@
 			}
 		});
 
+		var notBusy = function () {
+			submitBtn.disabled = false;
+			submitBtn.removeAttribute('aria-busy');
+		};
 		pubApi('/pub/api/orders', payload).then(function (body) {
 			if (body && body.success && body.data) {
 				var d = body.data;
@@ -161,23 +229,25 @@
 				}
 				if (d.action === 'replay') {
 					if (BCK.toast) {
-						BCK.toast.info('This booking was already submitted — please check your email for the confirmation link.');
+						BCK.toast.info(BCK.t('This booking was already submitted — please check your email for the confirmation link.'));
 					}
-					submitBtn.disabled = false;
+					notBusy();
 					return;
 				}
 			}
-			submitBtn.disabled = false;
+			notBusy();
 			if (body && body.fields) {
 				Object.keys(body.fields).forEach(function (k) {
 					showFieldError(k, body.fields[k]);
 				});
+				var first = form.querySelector('[aria-invalid="true"]');
+				if (first && first.focus) { first.focus(); }
 			} else if (body && body.message && BCK.toast) {
 				BCK.toast.error(body.message);
 			}
 		}).catch(function () {
-			submitBtn.disabled = false;
-			if (BCK.toast) { BCK.toast.error('Something went wrong — please try again.'); }
+			notBusy();
+			if (BCK.toast) { BCK.toast.error(BCK.t('Something went wrong — please try again.')); }
 		});
 	});
 }());

@@ -38,7 +38,8 @@ class WalletPassService
 	public function appleAvailable(): bool
 	{
 		return $this->settings->getSecret('wallet_apple_cert_pem') !== ''
-			&& $this->settings->get('wallet_apple_pass_type_id') !== '';
+			&& $this->settings->get('wallet_apple_pass_type_id') !== ''
+			&& $this->settings->get('wallet_apple_team_id') !== '';
 	}
 
 	/**
@@ -129,10 +130,29 @@ class WalletPassService
 		$sig = null;
 		$tmpIn = tempnam(sys_get_temp_dir(), 'bckm'); file_put_contents($tmpIn, $manifestJson);
 		$tmpOut = tempnam(sys_get_temp_dir(), 'bcks');
-		$cert = openssl_x509_read($certPem);
-		$key = openssl_pkey_get_private($keyPem ?: $certPem);
-		if ($cert !== false && $key !== false
-			&& openssl_pkcs7_sign($tmpIn, $tmpOut, $cert, $key, [], PKCS7_BINARY | PKCS7_DETACHED)) {
+		// wallet_apple_cert_pem may be a PEM bundle: pass-signing cert
+		// first, then chain certs (the WWDR intermediate). Without the
+		// intermediate embedded in the signature the device cannot build
+		// the chain to the Apple root and rejects the pass outright.
+		$pemBlocks = [];
+		preg_match_all('/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/s',
+			$certPem, $pemBlocks);
+		$blocks = $pemBlocks[0] !== [] ? $pemBlocks[0] : [$certPem];
+		$cert = openssl_x509_read($blocks[0]);
+		$chainFile = null;
+		if (count($blocks) > 1) {
+			// extracerts reach openssl_pkcs7_sign as a PEM FILENAME
+			$chainFile = tempnam(sys_get_temp_dir(), 'bckc');
+			file_put_contents($chainFile, implode("\n", array_slice($blocks, 1)));
+		}
+		$key = openssl_pkey_get_private($keyPem !== '' ? $keyPem : $certPem);
+		$signed = $cert !== false && $key !== false && ($chainFile !== null
+			? openssl_pkcs7_sign($tmpIn, $tmpOut, $cert, $key, [], PKCS7_BINARY | PKCS7_DETACHED, $chainFile)
+			: openssl_pkcs7_sign($tmpIn, $tmpOut, $cert, $key, [], PKCS7_BINARY | PKCS7_DETACHED));
+		if ($chainFile !== null) {
+			@unlink($chainFile);
+		}
+		if ($signed) {
 			$raw = file_get_contents($tmpOut);
 			// openssl_pkcs7_sign emits a multipart S/MIME message — the
 			// .pkpass signature is the base64 body of the smime.p7s part,

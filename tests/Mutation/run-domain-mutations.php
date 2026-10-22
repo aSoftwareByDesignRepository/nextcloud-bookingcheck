@@ -228,6 +228,13 @@ $mutations = [
 			'to' => "\t\tif (true) {",
 			'test' => 'testExpiredWithinGraceKeepsPortal',
 		],
+		// a typo'd gate name must deny — reverting to "unknown = free"
+		// silently opens every paid feature that mis-spells its name
+		'unknown_feature_opens_gate' => [
+			'from' => "return in_array(\$feature, self::FREE_FEATURES, true);",
+			'to' => "return true;",
+			'test' => 'testUnknownFeatureFailsClosed',
+		],
 		'grace_on_never_licensed' => [
 			'from' => "\$s['state'] === self::STATE_EXPIRED && \$s['validUntil'] !== null",
 			'to' => "\$s['validUntil'] !== null",
@@ -328,12 +335,12 @@ $mutations = [
 	// ---- SlotController — booked inventory guard ----------------------
 	'lib/Controller/SlotController.php' => [
 		'booked_slot_deleted' => [
-			'from' => "\t\t\tif ((int)\$s->getSold() > 0 || (int)\$s->getHeld() > 0 || \$this->slotRes->hasBookings(\$id)) {",
-			'to' => "\t\t\tif (false) {",
+			'from' => "\t\t\t\tif ((int)\$s->getSold() > 0 || (int)\$s->getHeld() > 0 || \$poolBooked) {",
+			'to' => "\t\t\t\tif (false) {",
 			'test' => 'testBookedSlotCannotBeDeleted|testHeldSlotCannotBeDeleted',
 		],
 		'pool_bookings_deleted' => [
-			'from' => " || \$this->slotRes->hasBookings(\$id)) {",
+			'from' => " || \$poolBooked) {",
 			'to' => ") {",
 			'test' => 'testPoolBookedSlotCannotBeDeleted',
 		],
@@ -355,7 +362,7 @@ $mutations = [
 		],
 		// update(): a moved slot that never notifies = silent reschedule
 		'update_notify_skipped' => [
-			'from' => "\t\t\tif (\$moved) {\n\t\t\t\t\$this->notifyRescheduled('slot', \$id, \$start, \$end);\n\t\t\t}",
+			'from' => "\t\t\t\tif (\$moved) {\n\t\t\t\t\t\$this->notifyRescheduled('slot', \$id, \$start, \$end);\n\t\t\t\t}",
 			'to' => "",
 			'test' => 'testUpdateMovedSlotNotifiesPaidBuyers',
 		],
@@ -699,19 +706,90 @@ $mutations = [
 			'to' => "",
 			'test' => 'testLoggedOutAdminPathRejected',
 		],
-		// group membership is the door — dropping the role check lets
+		// the access gate is the door — dropping the canUseApp check lets
 		// any logged-in user in
-		'role_check_dropped' => [
-			'from' => "\t\tif (\$this->groupManager->isAdmin(\$uid)\n\t\t\t|| \$this->groupManager->isInGroup(\$uid, self::ADMIN_GROUP)) {",
-			'to' => "\t\tif (true) {",
-			'test' => 'testPlainUserRejected',
+		'access_gate_dropped' => [
+			'from' => "\t\tif (\$this->accessControl->canUseApp(\$user->getUID())) {\n\t\t\treturn;\n\t\t}",
+			'to' => "\t\treturn;",
+			'test' => 'testDeniedUserRejected|testSettingsPathHitsTheGate',
+		],
+	],
+	// ---- RefundService — the money-moving seam ------------------------
+	'lib/Service/RefundService.php' => [
+		// anchored on the refund() signature — quote() carries the same
+		// guard text and must stay intact for its own mutant
+		'refund_status_guard_removed' => [
+			'from' => "public function refund(Order \$order, ?int \$echoAmountCents, string \$actor): array\n\t{\n\t\tif (\$order->getStatus() !== 'paid' && \$order->getStatus() !== 'cancelled') {",
+			'to' => "public function refund(Order \$order, ?int \$echoAmountCents, string \$actor): array\n\t{\n\t\tif (false) {",
+			'test' => 'testRefundRejectsNonRefundableStatus',
+		],
+		'quote_status_guard_removed' => [
+			'from' => "public function quote(Order \$order): array\n\t{\n\t\tif (\$order->getStatus() !== 'paid' && \$order->getStatus() !== 'cancelled') {",
+			'to' => "public function quote(Order \$order): array\n\t{\n\t\tif (false) {",
+			'test' => 'testQuoteRejectsNonRefundableStatus',
+		],
+		'no_payment_guard_removed' => [
+			'from' => "if (\$payment === null || \$payment->getPspRef() === null) {",
+			'to' => "if (false) {",
+			'test' => 'testRefundRejectsMissingPayment',
+		],
+		// without the echo contract a blind caller can refund any amount —
+		// the quote→echo dance exists to make the number human-confirmed
+		'echo_amount_unchecked' => [
+			'from' => "if (\$echoAmountCents === null || \$echoAmountCents !== (int)\$payment->getAmountCents()) {",
+			'to' => "if (false) {",
+			'test' => 'testRefundRejectsWrongEchoAmount|testRefundRejectsNullEcho',
+		],
+		// quote must report the settled tranche, not the order total —
+		// on a deposit order the total promises money never collected
+		'quote_promises_order_total' => [
+			'from' => "'amount_cents' => \$payment !== null\n\t\t\t\t? (int)\$payment->getAmountCents()\n\t\t\t\t: (int)\$order->getAmountCents(),",
+			'to' => "'amount_cents' => (int)\$order->getAmountCents(),",
+			'test' => 'testQuoteReturnsSettledTrancheNotOrderTotal',
+		],
+		// the CAS claim is the double-refund firewall — without it two
+		// concurrent calls both pass the refund_ref check and both hit the PSP
+		'cas_claim_skipped' => [
+			'from' => "if (!\$this->payments->claimRefund((int)\$payment->getId(), \$claim)) {",
+			'to' => "if (false) {",
+			'test' => 'testClaimLostToInFlightRefundIsConflictNotDoubleSpend',
+		],
+		// a PSP refusal must NEVER proceed to persist a refund ref —
+		// otherwise a phantom refund_ref blocks all future retries forever
+		'psp_failure_silent' => [
+			'from' => "if (!\$result->ok) {",
+			'to' => "if (false) {",
+			'test' => 'testPspFailureReleasesClaimAndNeverTransitions',
+		],
+		// a failed PSP call must release the claim — a stuck pending:
+		// marker bricks the order's refundability until TTL expiry
+		'claim_not_released_on_failure' => [
+			'from' => "\$this->payments->releaseRefundClaim((int)\$payment->getId(), \$claim);",
+			'to' => "/* claim leak */",
+			'test' => 'testPspFailureReleasesClaimAndNeverTransitions',
+		],
+		// the real refund_ref must persist BEFORE the transition: a crash
+		// between PSP-call and transition would otherwise re-call the PSP
+		// on retry = a literal double refund
+		'refund_ref_never_persisted' => [
+			'from' => "\$payment->setRefundRef(\$refundRef);\n\t\t\t\t\$this->payments->update(\$payment);",
+			'to' => "",
+			'test' => 'testSuccessPersistsRefundRefBeforeTransition',
+		],
+		// GoBD: the Storno negates the FULL invoiced document — passing
+		// the payment tranche instead of the order total under-reverses a
+		// deposit order (open remainder silently written off nowhere)
+		'storno_uses_tranche_not_total' => [
+			'from' => "\$this->orders->transitionToRefunded(\n\t\t\t(int)\$order->getId(), \$actor, ['amount' => \$amount], (int)\$order->getAmountCents());",
+			'to' => "\$this->orders->transitionToRefunded(\n\t\t\t(int)\$order->getId(), \$actor, ['amount' => \$amount], \$amount);",
+			'test' => 'testClaimLostToCompletedRefundReturnsRefWithoutPspCall|testSuccessPersistsRefundRefBeforeTransition',
 		],
 	],
 ];
 
 // baseline
 echo "== baseline ==\n";
-if (run_filter('OrderFlowIntegrationTest|AuthAndPricingIntegrationTest|TestProviderVerifyTest|WaitlistClaimIntegrationTest|LicenseServiceTest') !== 0) {
+if (run_filter('OrderFlowIntegrationTest|AuthAndPricingIntegrationTest|TestProviderVerifyTest|WaitlistClaimIntegrationTest|LicenseServiceTest|RefundServiceTest|CapiControllerTest') !== 0) {
 	fwrite(STDERR, "Baseline suite must be green before mutating\n");
 	exit(1);
 }

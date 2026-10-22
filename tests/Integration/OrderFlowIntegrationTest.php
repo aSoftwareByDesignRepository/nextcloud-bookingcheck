@@ -139,7 +139,7 @@ final class OrderFlowIntegrationTest extends TestCase
 			'type' => "'" . ($over['type'] ?? 'event') . "'", 'slug' => "'$slug'", 'title' => "'Integration Seat'",
 			'status' => "'" . ($over['status'] ?? 'published') . "'",
 			'price_cents' => (string)($over['price_cents'] ?? 2500),
-			'currency' => "'EUR'", 'vat_bp' => '1900', 'book_series' => '0',
+			'currency' => "'EUR'", 'vat_bp' => (string)($over['vat_bp'] ?? 1900), 'book_series' => '0',
 			'approval_required' => (string)($over['approval'] ?? 0),
 			'waitlist_mode' => "'" . ($over['waitlist_mode'] ?? 'allocate') . "'",
 			'review_display' => (string)($over['review_display'] ?? 0),
@@ -478,7 +478,7 @@ final class OrderFlowIntegrationTest extends TestCase
 			$this->tickets,
 			\OC::$server->get(\OCA\BookingCheck\Db\OrderMapper::class),
 			\OC::$server->get(\OCP\IUserSession::class),
-			\OC::$server->get(\OCP\IGroupManager::class),
+			\OC::$server->get(\OCA\BookingCheck\Service\AccessControlService::class),
 				$doors, $this->db, $tokenSvc,
 				\OC::$server->get(\OCA\BookingCheck\Service\WaitlistService::class));
 		};
@@ -607,19 +607,7 @@ final class OrderFlowIntegrationTest extends TestCase
 		$this->inventory->hold('slot', $f['slot'], 1, $f['resource']);
 		$this->db->commit();
 
-		$ctrl = new \OCA\BookingCheck\Controller\SlotController('bookingcheck',
-			$this->createMock(\OCP\IRequest::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\OfferingMapper::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\EventMapper::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\SlotTplMapper::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\SlotMapper::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\SeriesMapper::class),
-			$this->db,
-			\OC::$server->get(\OCA\BookingCheck\Service\SlotMaterializer::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\ResourceMapper::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\SlotResourceMapper::class),
-			\OC::$server->get(\OCA\BookingCheck\Service\EmailService::class));
-		$r = $ctrl->templateDestroy($tplId)->getData()['data'];
+		$r = $this->slotCtrl()->templateDestroy($tplId)->getData()['data'];
 		self::assertTrue($r['deleted']);
 		self::assertSame(1, $r['slots_removed']);
 
@@ -648,6 +636,100 @@ final class OrderFlowIntegrationTest extends TestCase
 		self::assertFalse($qb->select('id')->from('bc_slot_tpl')
 			->where($qb->expr()->eq('id', $qb->createNamedParameter($tplId)))
 			->executeQuery()->fetch(), 'template itself is gone');
+	}
+
+	/** Real controller against the real DB — FOR UPDATE paths must be
+	 *  exercised on the actual engine, not a QB mock. */
+	private function slotCtrl(array $params = []): \OCA\BookingCheck\Controller\SlotController
+	{
+		$req = $this->createMock(\OCP\IRequest::class);
+		$req->method('getParam')->willReturnCallback(
+			fn (string $k, $d = null) => $params[$k] ?? $d);
+		return new \OCA\BookingCheck\Controller\SlotController('bookingcheck', $req,
+			\OC::$server->get(\OCA\BookingCheck\Db\OfferingMapper::class),
+			\OC::$server->get(\OCA\BookingCheck\Db\EventMapper::class),
+			\OC::$server->get(\OCA\BookingCheck\Db\SlotTplMapper::class),
+			\OC::$server->get(\OCA\BookingCheck\Db\SlotMapper::class),
+			\OC::$server->get(\OCA\BookingCheck\Db\SeriesMapper::class),
+			$this->db,
+			\OC::$server->get(\OCA\BookingCheck\Service\SlotMaterializer::class),
+			\OC::$server->get(\OCA\BookingCheck\Db\ResourceMapper::class),
+			\OC::$server->get(\OCA\BookingCheck\Db\SlotResourceMapper::class),
+			\OC::$server->get(\OCA\BookingCheck\Service\EmailService::class));
+	}
+
+	/**
+	 * destroy() locks the slot row AND its pool rows before judging —
+	 * an unbooked pooled slot disappears with its bc_slot_res row.
+	 */
+	public function testDestroyEmptyPooledSlotRemovesPoolRow(): void
+	{
+		$f = $this->seedPooledSlot(4);
+		$r = $this->slotCtrl()->destroy($f['slot'])->getData()['data'];
+		self::assertTrue($r['deleted']);
+		$qb = $this->db->getQueryBuilder();
+		self::assertFalse($qb->select('id')->from('bc_slot')
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($f['slot'])))
+			->executeQuery()->fetch(), 'slot row must be gone');
+		$qb = $this->db->getQueryBuilder();
+		self::assertFalse($qb->select('id')->from('bc_slot_res')
+			->where($qb->expr()->eq('slot_id', $qb->createNamedParameter($f['slot'])))
+			->executeQuery()->fetch(), 'orphan pool rows would leak capacity');
+	}
+
+	/**
+	 * A slot whose only bookings live on bc_slot_res must survive destroy —
+	 * the check re-reads pool counters under the same locks hold() takes.
+	 */
+	public function testDestroyPoolBookedSlotRejectedOnRealDb(): void
+	{
+		$f = $this->seedPooledSlot(4);
+		$this->db->beginTransaction();
+		$this->inventory->hold('slot', $f['slot'], 1, $f['resource']);
+		$this->db->commit();
+		try {
+			$this->slotCtrl()->destroy($f['slot']);
+			self::fail('pool-booked slot must refuse delete');
+		} catch (\OCA\BookingCheck\Exception\ValidationException) {
+		}
+		$qb = $this->db->getQueryBuilder();
+		self::assertNotFalse($qb->select('id')->from('bc_slot')
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($f['slot'])))
+			->executeQuery()->fetch(), 'booked slot must survive');
+	}
+
+	/**
+	 * update() on a pooled slot: capacity is pool-owned — a change is
+	 * rejected while an identical value plus moved times goes through.
+	 */
+	public function testUpdatePooledSlotCapacityRuleOnRealDb(): void
+	{
+		$f = $this->seedPooledSlot(4);
+		$ctrl = $this->slotCtrl([
+			'starts_at' => (new \DateTimeImmutable('+31 days'))->format('Y-m-d H:i'),
+			'ends_at' => (new \DateTimeImmutable('+31 days +1 hour'))->format('Y-m-d H:i'),
+			'capacity' => '9',
+		]);
+		try {
+			$ctrl->update($f['slot']);
+			self::fail('pooled capacity change must refuse');
+		} catch (\OCA\BookingCheck\Exception\ValidationException) {
+		}
+		$ctrl = $this->slotCtrl([
+			'starts_at' => (new \DateTimeImmutable('+31 days'))->format('Y-m-d H:i'),
+			'ends_at' => (new \DateTimeImmutable('+31 days +1 hour'))->format('Y-m-d H:i'),
+			'capacity' => '4',
+		]);
+		$r = $ctrl->update($f['slot'])->getData()['data'];
+		self::assertSame($f['slot'], (int)$r['id']);
+		$qb = $this->db->getQueryBuilder();
+		$row = $qb->select('starts_at')->from('bc_slot')
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($f['slot'])))
+			->executeQuery()->fetch();
+		self::assertNotFalse($row);
+		self::assertStringStartsWith(
+			(new \DateTimeImmutable('+31 days'))->format('Y-m-d'), (string)$row['starts_at'],
+			'moved times must persist');
 	}
 
 	/**
@@ -1010,6 +1092,37 @@ final class OrderFlowIntegrationTest extends TestCase
 			->andWhere($qb->expr()->eq('action', $qb->createNamedParameter('order.paid')))
 			->executeQuery()->fetch();
 		self::assertNotFalse($row, 'the paid transition must be audited');
+	}
+
+	public function testAuditChainRejectsForkedAppend(): void
+	{
+		// UNIQUE(prev_hash) is the one-child-per-node backstop: a writer
+		// that raced the chain lock and read a stale head must collide at
+		// insert — a forked chain is indistinguishable from tampering.
+		$audit = \OCP\Server::get(\OCA\BookingCheck\Db\AuditEntryMapper::class);
+		$mk = function (string $prev, string $action): \OCA\BookingCheck\Db\AuditEntry {
+			$e = new \OCA\BookingCheck\Db\AuditEntry();
+			$e->setActor('itest');
+			$e->setAction($action);
+			$e->setPrevHash($prev);
+			$e->setRowHash(hash('sha256', $prev . $action));
+			$e->setCreatedAt(new \DateTimeImmutable());
+			return $e;
+		};
+		$prev = 'fork-probe-' . bin2hex(random_bytes(16));
+		$audit->insert($mk($prev, 'first'));
+		try {
+			$audit->insert($mk($prev, 'second'));
+			self::fail('a second child of the same prev_hash must not insert');
+		} catch (\OCP\DB\Exception $e) {
+			self::assertInstanceOf(\OCP\DB\Exception::class, $e);
+		} finally {
+			// probe rows carry no order_id — the suite sweeper won't reach them
+			$qb = $this->db->getQueryBuilder();
+			$qb->delete('bc_audit')
+				->where($qb->expr()->eq('prev_hash', $qb->createNamedParameter($prev)))
+				->executeStatement();
+		}
 	}
 
 	public function testValidationRejectsBadInput(): void
@@ -1429,6 +1542,33 @@ final class OrderFlowIntegrationTest extends TestCase
 		$uploadsDir = $appData->getFolder('uploads');
 		self::assertTrue($uploadsDir->fileExists($up->getFileRef()), 'pre-purge blob exists');
 
+		// remaining PII surfaces: portal otp, pass holder fields, abuse
+		// reporter, queued CRM sync payload — all must die with the purge
+		$buyerEmail = strtolower((string)$order->getBuyerEmail());
+		$this->db->getQueryBuilder()->insert('bc_otp')->values([
+			'email' => "'$buyerEmail'", 'code_hash' => "'" . hash('sha256', 'x') . "'",
+			'attempts' => '0', 'created_at' => "'2026-01-01 00:00:00'",
+			'expires_at' => "'2030-01-01 00:00:00'",
+		])->executeStatement();
+		$this->db->getQueryBuilder()->insert('bc_pass')->values([
+			'offering_id' => (string)$f['offering'], 'order_id' => (string)$oid,
+			'token_hash' => "'" . hash('sha256', 'eol-pass-' . $oid) . "'",
+			'holder_name' => "'Max Mustermann'", 'holder_email' => "'$buyerEmail'",
+			'valid_from' => "'2026-01-01 00:00:00'", 'valid_until' => "'2027-01-01 00:00:00'",
+			'uses' => '0', 'status' => "'active'", 'created_at' => "'2026-01-01 00:00:00'",
+		])->executeStatement();
+		$this->db->getQueryBuilder()->insert('bc_abuse')->values([
+			'upload_id' => (string)$up->getId(), 'reporter' => "'$buyerEmail'",
+			'reason' => "'spam'", 'status' => "'open'", 'created_at' => "'2026-01-01 00:00:00'",
+		])->executeStatement();
+		$this->db->getQueryBuilder()->insert('bc_sync_task')->values([
+			'kind' => "'crm_buyer'",
+			'payload_json' => "'" . json_encode(['order_ref' => (string)$order->getRef(),
+				'email' => $buyerEmail, 'name' => 'Max']) . "'",
+			'status' => "'pending'", 'attempts' => '0',
+			'next_at' => "'2026-01-01 00:00:00'", 'created_at' => "'2026-01-01 00:00:00'",
+		])->executeStatement();
+
 		$qb = $this->db->getQueryBuilder();
 		$invoiceCount = (int)$qb->select($qb->func()->count('id'))->from('bc_invoice')
 			->where($qb->expr()->eq('order_id', $qb->createNamedParameter($oid)))
@@ -1480,6 +1620,27 @@ final class OrderFlowIntegrationTest extends TestCase
 		self::assertSame(0, $mailLeft, 'queued mail for the buyer must die too');
 		self::assertFalse($uploadsDir->fileExists($up->getFileRef()),
 			'the blob is the PII — row deletion alone leaks it');
+
+		// the extended PII surfaces die with the purge
+		$qb = $this->db->getQueryBuilder();
+		self::assertSame(0, (int)$qb->select($qb->func()->count('id'))->from('bc_otp')
+			->where($qb->expr()->eq('email', $qb->createNamedParameter($buyerEmail)))
+			->executeQuery()->fetchOne(), 'otp rows are the portal re-entry path');
+		$qb = $this->db->getQueryBuilder();
+		$pass = $qb->select('holder_name', 'holder_email')->from('bc_pass')
+			->where($qb->expr()->eq('order_id', $qb->createNamedParameter($oid)))
+			->executeQuery()->fetch();
+		self::assertStringStartsWith('gdpr:', (string)$pass['holder_name']);
+		self::assertStringStartsWith('gdpr:', (string)$pass['holder_email']);
+		$qb = $this->db->getQueryBuilder();
+		self::assertSame(0, (int)$qb->select($qb->func()->count('id'))->from('bc_abuse')
+			->where($qb->expr()->eq('reporter', $qb->createNamedParameter($buyerEmail)))
+			->executeQuery()->fetchOne(), 'abuse reporter email is PII');
+		$qb = $this->db->getQueryBuilder();
+		self::assertSame(0, (int)$qb->select($qb->func()->count('id'))->from('bc_sync_task')
+			->where($qb->expr()->like('payload_json',
+				$qb->createNamedParameter('%' . $buyerEmail . '%')))
+			->executeQuery()->fetchOne(), 'queued crm payload must not outlive the purge');
 
 		// legal/audit records survive untouched
 		$qb = $this->db->getQueryBuilder();
@@ -1568,19 +1729,31 @@ final class OrderFlowIntegrationTest extends TestCase
 		$req = $this->createMock(\OCP\IRequest::class);
 		$req->method('getParam')->willReturnCallback(
 			fn (string $k, $d = null) => $params[$k] ?? $d);
-		$sc = new \OCA\BookingCheck\Controller\SettingsController(
-			'bookingcheck', $req,
-			\OC::$server->get(\OCA\BookingCheck\Service\SettingsService::class),
-			\OC::$server->get(\OCA\BookingCheck\Psp\PspManager::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\CompanionTokenMapper::class),
-			\OC::$server->get(\OCA\BookingCheck\Service\TokenService::class),
-			\OC::$server->get(\OCP\IUserSession::class),
-			\OC::$server->get(\OCA\BookingCheck\Service\SellerNotifyService::class),
-			\OC::$server->get(\OCA\BookingCheck\Service\LicenseService::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\OfferingMapper::class),
-			\OC::$server->get(\OCA\BookingCheck\Db\MailTplMapper::class),
-		);
-		$res = $sc->issueDevice();
+		// issueDevice is app-admin territory — the real session must hold a
+		// principal isAppAdmin() accepts, or requireConfigAdmin refuses first
+		$session = \OC::$server->get(\OCP\IUserSession::class);
+		$session->setUser(\OC::$server->get(\OCP\IUserManager::class)->get('admin'));
+		try {
+			$sc = new \OCA\BookingCheck\Controller\SettingsController(
+				'bookingcheck', $req,
+				\OC::$server->get(\OCA\BookingCheck\Service\SettingsService::class),
+				\OC::$server->get(\OCA\BookingCheck\Psp\PspManager::class),
+				\OC::$server->get(\OCA\BookingCheck\Db\CompanionTokenMapper::class),
+				\OC::$server->get(\OCA\BookingCheck\Service\TokenService::class),
+				$session,
+				\OC::$server->get(\OCA\BookingCheck\Service\SellerNotifyService::class),
+				\OC::$server->get(\OCA\BookingCheck\Service\LicenseService::class),
+				\OC::$server->get(\OCA\BookingCheck\Db\OfferingMapper::class),
+				\OC::$server->get(\OCA\BookingCheck\Db\MailTplMapper::class),
+				\OC::$server->get(\OCA\BookingCheck\Service\AccessControlService::class),
+				\OC::$server->get(\OCA\BookingCheck\Service\DirectoryOptionsService::class),
+				\OC::$server->get(\OCP\IUserManager::class),
+				\OC::$server->get(\OCP\IGroupManager::class),
+			);
+			$res = $sc->issueDevice();
+		} finally {
+			$session->setUser(null);
+		}
 		self::assertSame(201, $res->getStatus());
 		$devId = (int)$res->getData()['data']['device']['id'];
 
@@ -2359,6 +2532,55 @@ final class OrderFlowIntegrationTest extends TestCase
 		}
 	}
 
+	public function testFreeOrderMintsNoInvoice(): void
+	{
+		// a €0 order must not burn a gapless invoice number on a document
+		// that is not a fiscal invoice — it only pollutes DATEV exports.
+		$f = $this->seedOffering(5, ['price_cents' => 0]);
+		$r = $this->create($f['offering'], $f['event'], 1, $this->idem('free-inv'), false, 'event', false);
+		$this->created['order'][] = (int)$r['order']->getId();
+		self::assertSame(0, (int)$r['order']->getAmountCents());
+
+		$qb = $this->db->getQueryBuilder();
+		$count = (int)$qb->select($qb->func()->count('id'))->from('bc_invoice')
+			->where($qb->expr()->eq('order_id', $qb->createNamedParameter((int)$r['order']->getId())))
+			->executeQuery()->fetchOne();
+		self::assertSame(0, $count, 'free order must not mint a fiscal document');
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_sync_task')->where($qb->expr()->like('payload_json',
+			$qb->createNamedParameter('%"orderId":' . (int)$r['order']->getId() . '%')))->executeStatement();
+	}
+
+	public function testDatevExportRunsAgainstRealSchema(): void
+	{
+		// regression: the export selected bc_order.vat_bp — a column that
+		// never existed — so every DATEV run 500'd. Only a real-DB query
+		// surfaces that; mocked QBs swallow unknown columns silently.
+		$f = $this->seedOffering(5);
+		$r = $this->create($f['offering'], $f['event'], 1, $this->idem('datev'), false, 'event', false);
+		$this->created['order'][] = (int)$r['order']->getId();
+		$this->orders->markPaid((int)$r['order']->getId(), 'itest');
+
+		$out = \OC::$server->get(\OCA\BookingCheck\Service\DatevExportService::class)
+			->export(new \DateTimeImmutable('-1 day'), new \DateTimeImmutable('+1 day'));
+		self::assertStringContainsString('Buchungsstapel', $out['csv']);
+		$refRow = null;
+		foreach (explode("\r\n", $out['csv']) as $csvLine) {
+			if (str_contains($csvLine, $r['order']->getRef())) {
+				$refRow = $csvLine;
+			}
+		}
+		self::assertNotNull($refRow,
+			'the paid order\'s invoice must post a booking row');
+		// vat-bearing invoice carries the BU 9 tax key in its field slot
+		self::assertStringContainsString(';9;', (string)$refRow);
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_sync_task')->where($qb->expr()->like('payload_json',
+			$qb->createNamedParameter('%"orderId":' . (int)$r['order']->getId() . '%')))->executeStatement();
+	}
+
 	public function testCartOrderLocksInIdOrderButKeepsLeadOffering(): void
 	{
 		// regression for the ABBA deadlock: createCartOrder must lock all
@@ -2408,6 +2630,50 @@ final class OrderFlowIntegrationTest extends TestCase
 		self::assertContainsEquals($low['event'], $lines);
 	}
 
+	public function testExportRosterScopesLinesByTargetOfferingNotLead(): void
+	{
+		// regression: the seller zip-export roster filtered o.offering_id
+		// (the LEAD offering) — a cart's lines for the other offering were
+		// listed under the lead's export AND missing from their own.
+		$a = $this->seedOffering(5, ['price_cents' => 1000]);
+		$b = $this->seedOffering(5, ['price_cents' => 2000]);
+		$r = $this->orders->createCartOrder(
+			[
+				['offering_id' => $a['offering'],
+				 'lines' => [['target_type' => 'event', 'target_id' => $a['event'], 'seats' => 1]],
+				 'addons' => []],
+				['offering_id' => $b['offering'],
+				 'lines' => [['target_type' => 'event', 'target_id' => $b['event'], 'seats' => 1]],
+				 'addons' => []],
+			],
+			'Cart Buyer', 'cart-' . $this->idem('roster') . '@x.test', 'en',
+			[], null, $this->idem('cart-roster'), null, 'itest', true);
+		$order = $r['order'];
+		$this->created['order'][] = (int)$order->getId();
+
+		$csv = new \OCA\BookingCheck\Service\CsvExportService($this->db);
+		$rowsFor = function (int $offeringId) use ($csv): array {
+			$lines = explode("\n", trim($csv->roster($offeringId)));
+			array_shift($lines); // header
+			return array_map('str_getcsv', $lines);
+		};
+		$ref = (string)$order->getRef();
+
+		$rowsA = $rowsFor($a['offering']);
+		$rowsB = $rowsFor($b['offering']);
+		self::assertCount(1, $rowsA, 'lead offering roster must carry only its own line');
+		self::assertCount(1, $rowsB, 'second offering roster must carry its line too');
+		self::assertSame($ref, $rowsA[0][0]);
+		self::assertSame($ref, $rowsB[0][0]);
+		self::assertSame((string)$a['event'], $rowsA[0][7],
+			'A roster must reference A\'s event, not B\'s');
+		self::assertSame((string)$b['event'], $rowsB[0][7]);
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_sync_task')->where($qb->expr()->like('payload_json',
+			$qb->createNamedParameter('%"orderId":' . (int)$order->getId() . '%')))->executeStatement();
+	}
+
 	public function testCartOrderRejectsDuplicateOfferingGroup(): void
 	{
 		$f = $this->seedOffering(5);
@@ -2427,6 +2693,100 @@ final class OrderFlowIntegrationTest extends TestCase
 		} catch (\OCA\BookingCheck\Exception\ValidationException $e) {
 			self::assertArrayHasKey('cart', $e->getFields());
 		}
+	}
+
+	public function testCartOrderReverseChargeChargesNetNotGross(): void
+	{
+		// §13b B2B cart: the buyer owes the NET of the catalog price —
+		// summing the gross group subtotals would over-charge by the full
+		// VAT fraction while the invoice reports VAT=0.
+		$a = $this->seedOffering(5, ['price_cents' => 2500]);
+		$b = $this->seedOffering(5, ['price_cents' => 1500]);
+		$r = $this->orders->createCartOrder(
+			[
+				['offering_id' => $a['offering'],
+				 'lines' => [['target_type' => 'event', 'target_id' => $a['event'], 'seats' => 1]],
+				 'addons' => []],
+				['offering_id' => $b['offering'],
+				 'lines' => [['target_type' => 'event', 'target_id' => $b['event'], 'seats' => 1]],
+				 'addons' => []],
+			],
+			'Biz Cart', 'cart-' . $this->idem('c3') . '@x.test', 'en',
+			[], null, $this->idem('cart-rc'),
+			['company' => 'ACME', 'country' => 'FR', 'vat_id' => 'FR12345678901',
+				'vies_status' => 'valid', 'reverse_charge' => true],
+			'itest', true);
+		$order = $r['order'];
+		$this->created['order'][] = (int)$order->getId();
+
+		[$netA] = \OCA\BookingCheck\Service\PricingService::splitVat(2500, 1900);
+		[$netB] = \OCA\BookingCheck\Service\PricingService::splitVat(1500, 1900);
+		self::assertSame($netA + $netB, (int)$order->getAmountCents(),
+			'reverse-charge cart must charge the summed per-group NET');
+		self::assertSame(1, (int)$order->getReverseCharge());
+		self::assertSame(1900, (int)$order->getVatBp(),
+			'resolved rate is a fact of the order');
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_sync_task')->where($qb->expr()->like('payload_json',
+			$qb->createNamedParameter('%"orderId":' . (int)$order->getId() . '%')))->executeStatement();
+	}
+
+	public function testCartOrderRejectsMixedVatRates(): void
+	{
+		// the invoice model stores ONE net/vat pair — a cart mixing 19% and
+		// 7% groups could not produce a correct document, so it is refused
+		// at checkout like mixed currencies.
+		$a = $this->seedOffering(5);
+		$b = $this->seedOffering(5, ['vat_bp' => 700]);
+		try {
+			$this->orders->createCartOrder(
+				[
+					['offering_id' => $a['offering'],
+					 'lines' => [['target_type' => 'event', 'target_id' => $a['event'], 'seats' => 1]],
+					 'addons' => []],
+					['offering_id' => $b['offering'],
+					 'lines' => [['target_type' => 'event', 'target_id' => $b['event'], 'seats' => 1]],
+					 'addons' => []],
+				],
+				'Cart Buyer', 'cart-' . $this->idem('c4') . '@x.test', 'en',
+				[], null, $this->idem('cart-vat'), null, 'itest', true);
+			self::fail('mixed-rate cart must be refused');
+		} catch (\OCA\BookingCheck\Exception\ValidationException $e) {
+			self::assertArrayHasKey('cart', $e->getFields());
+		}
+	}
+
+	public function testInvoiceSplitsAtOrderVatBpNotCurrentOfferingRate(): void
+	{
+		// the invoice must split at the rate the order was priced and
+		// charged at — a seller editing the offering rate between order
+		// and issue must not rewrite the document's tax math.
+		$f = $this->seedOffering(5, ['vat_bp' => 700]);
+		$r = $this->create($f['offering'], $f['event'], 2, $this->idem('vat-rate'), false, 'event', false);
+		$this->created['order'][] = (int)$r['order']->getId();
+		self::assertSame(700, (int)$r['order']->getVatBp(),
+			'order must persist the resolved pricing-time rate');
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_offering')->set('vat_bp', $qb->createNamedParameter(1900))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($f['offering'])))
+			->executeStatement();
+
+		$this->orders->markPaid((int)$r['order']->getId(), 'itest');
+		$qb = $this->db->getQueryBuilder();
+		$invoice = $qb->select('net_cents', 'vat_cents')->from('bc_invoice')
+			->where($qb->expr()->eq('order_id', $qb->createNamedParameter((int)$r['order']->getId())))
+			->andWhere($qb->expr()->eq('type', $qb->createNamedParameter('invoice')))
+			->executeQuery()->fetch();
+		self::assertNotFalse($invoice);
+		[$net, $vat] = \OCA\BookingCheck\Service\PricingService::splitVat(5000, 700);
+		self::assertSame($net, (int)$invoice['net_cents'],
+			'invoice splits at the order rate (7%), not the edited offering rate');
+		self::assertSame($vat, (int)$invoice['vat_cents']);
+
+		$qb = $this->db->getQueryBuilder();
+		$qb->delete('bc_sync_task')->where($qb->expr()->like('payload_json',
+			$qb->createNamedParameter('%"orderId":' . (int)$r['order']->getId() . '%')))->executeStatement();
 	}
 
 	public function testAbuseReportTwinViolatesUniqueIndex(): void
@@ -2632,6 +2992,52 @@ final class OrderFlowIntegrationTest extends TestCase
 			$ent->viewerOrderIdForOffering((string)$upOrder->getBuyerEmail(), $f['offering']));
 		// a stranger gets nothing
 		self::assertNull($ent->viewerOrderIdForOffering('nobody@x.test', $f['offering']));
+	}
+
+	public function testRevokedTicketDropsPortalEntitlement(): void
+	{
+		$f = $this->seedOffering(5);
+		$r = $this->create($f['offering'], $f['event'], 1, $this->idem('rev-ent'));
+		$oid = (int)$r['order']->getId();
+		$this->created['order'][] = $oid;
+		$this->orders->markPaid($oid, 'itest');
+
+		// re-assign the issued ticket to a distinct attendee mailbox —
+		// the buyer's own entitlement leg must stay out of the way
+		$tid = $this->orderTicketId($oid);
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_ticket')
+			->set('attendee_email', $qb->createNamedParameter('no-show@x.test'))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($tid)))
+			->executeStatement();
+
+		// offering-wide material (target_id NULL)
+		$qb = $this->db->getQueryBuilder();
+		$qb->insert('bc_material')
+			->setValue('offering_id', $qb->createNamedParameter($f['offering']))
+			->setValue('kind', $qb->createNamedParameter('page'))
+			->setValue('title', $qb->createNamedParameter('Handbook'))
+			->setValue('page_md', $qb->createNamedParameter('# hi'))
+			->executeStatement();
+		$materialId = (int)$qb->getLastInsertId();
+
+		$ent = \OCP\Server::get(\OCA\BookingCheck\Service\EntitlementService::class);
+		self::assertNotEmpty($ent->entitledOrders('no-show@x.test'),
+			'live attendee ticket must grant portal listing');
+		self::assertTrue($ent->canAccessMaterial('no-show@x.test', $materialId));
+
+		// revoke — the CAS path sellers use
+		$qb = $this->db->getQueryBuilder();
+		$qb->update('bc_ticket')
+			->set('revoked_at', $qb->createNamedParameter(new \DateTime(), 'datetime'))
+			->where($qb->expr()->eq('id', $qb->createNamedParameter($tid)))
+			->executeStatement();
+
+		self::assertSame([], $ent->entitledOrders('no-show@x.test'),
+			'revoked ticket must drop the order from the portal list');
+		self::assertFalse($ent->canAccessMaterial('no-show@x.test', $materialId),
+			'revoked ticket must not keep material downloads alive');
+		self::assertNull($ent->orderScope('no-show@x.test', $oid));
 	}
 
 	public function testReminderClaimDedupesAndReleaseRestores(): void

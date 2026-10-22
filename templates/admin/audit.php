@@ -22,10 +22,10 @@ $entries = $_['entries'] ?? [];
 				<tbody>
 				<?php foreach ($entries as $e): ?>
 					<tr>
-						<td data-label="<?php p($l->t('When')); ?>"><?php p((string)$e['created_at']); ?></td>
-						<td data-label="<?php p($l->t('Actor')); ?>"><?php p((string)$e['actor']); ?></td>
-						<td data-label="<?php p($l->t('Action')); ?>"><code><?php p((string)$e['action']); ?></code></td>
-						<td data-label="<?php p($l->t('From → To')); ?>">
+						<td data-cell="<?php p($l->t('When')); ?>"><?php p((string)$e['created_at']); ?></td>
+						<td data-cell="<?php p($l->t('Actor')); ?>"><?php p((string)$e['actor']); ?></td>
+						<td data-cell="<?php p($l->t('Action')); ?>"><code><?php p((string)$e['action']); ?></code></td>
+						<td data-cell="<?php p($l->t('From → To')); ?>">
 							<?php p((string)($e['from_state'] ?? '—') . ' → ' . (string)($e['to_state'] ?? '—')); ?></td>
 					</tr>
 				<?php endforeach; ?>

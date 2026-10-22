@@ -92,9 +92,12 @@ final class LicenseServiceTest extends TestCase
 		self::assertFalse($s->isPro());
 	}
 
-	public function testUnknownFeatureIsFreePath(): void
+	public function testUnknownFeatureFailsClosed(): void
 	{
 		$s = $this->service('');
-		self::assertTrue($s->hasFeature('not_a_gate'));
+		// a typo'd gate name must never silently open a paid feature —
+		// only names on the explicit FREE list are ungated
+		self::assertFalse($s->hasFeature('not_a_gate'));
+		self::assertTrue($s->hasFeature('checkout'), 'whitelisted free name');
 	}
 }

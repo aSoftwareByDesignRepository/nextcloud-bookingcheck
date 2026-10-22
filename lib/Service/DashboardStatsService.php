@@ -10,6 +10,7 @@ declare(strict_types=1);
 namespace OCA\BookingCheck\Service;
 
 use OCA\BookingCheck\Middleware\AppAccessMiddleware;
+use OCA\BookingCheck\Service\AccessControlService;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use OCP\IGroupManager;
@@ -24,14 +25,13 @@ class DashboardStatsService
 	public function __construct(
 		private readonly IDBConnection $db,
 		private readonly IGroupManager $groups,
+		private readonly AccessControlService $accessControl,
 	) {
 	}
 
 	public function canSee(string $uid): bool
 	{
-		return $uid !== ''
-			&& ($this->groups->isAdmin($uid)
-				|| $this->groups->isInGroup($uid, AppAccessMiddleware::ADMIN_GROUP));
+		return $this->accessControl->canUseApp($uid);
 	}
 
 	/** Tickets checked in since local midnight today. */

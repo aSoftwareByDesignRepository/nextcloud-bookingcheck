@@ -32,7 +32,7 @@ $url = \OCP\Server::get(\OCP\IURLGenerator::class);
 					<p><?php p((string)$ticket['resource']); ?></p>
 				<?php endif; ?>
 				<p class="bck-muted"><?php p((string)$order['ref']); ?></p>
-				<p class="bck-muted" style="font-size:.85em"><?php p($l->t('If the QR will not scan, door staff can look up this order reference.')); ?></p>
+				<p class="bck-muted bck-fs-sm"><?php p($l->t('If the QR will not scan, door staff can look up this order reference.')); ?></p>
 				<a class="bck-btn bck-btn--secondary"
 					href="<?php p($url->linkToRoute('bookingcheck.manage.show', ['token' => $token])); ?>">
 					<?php p($l->t('Back to booking')); ?></a>

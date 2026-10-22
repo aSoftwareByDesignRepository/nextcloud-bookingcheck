@@ -57,7 +57,7 @@
 	padding: 0;
 	border: none;
 	border-radius: 0;
-	background: transparent;
+	background-color: transparent;
 	box-shadow: none;
 }
 
@@ -524,8 +524,6 @@
    screen edge (WCAG 1.4.10 reflow; the farm's table_actions_fit gate). */
 #app-content.bck-app .grid-table td,
 #app-content.bck-app .bck-table td,
-#app-content.bck-app .bookingcheck-table td,
-#app-content.bck-app .report-table td,
 .bck-pub .bck-table td {
 	white-space: normal;
 }

@@ -65,7 +65,7 @@ class PubCheckoutController extends Controller
 	{
 		$o = $this->offerings->findBySlug($slug);
 		if ($o === null || $o->getStatus() !== 'published') {
-			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
+			return \OCA\BookingCheck\Support\PublicNotFound::render([]);
 		}
 		$isPass = $o->getType() === 'pass';
 		// Curated whitelist — jsonSerialize() leaks internal refs
@@ -118,6 +118,10 @@ class PubCheckoutController extends Controller
 		$addons = $this->parseAddons($in['addons'] ?? []);
 		$billing = $this->parseBilling($in);
 		$idem = (string)($in['idem_token'] ?? '');
+		// NH-05 — SDK embeds POST cross-origin; ACAO reflects only for
+		// this offering's embed_domains. Thrown errors get the same
+		// treatment in PublicErrorMiddleware.
+		$domains = $this->offerings->find($offeringId)?->getEmbedDomains();
 
 		// is_test can ONLY come from an admin session — public buyers can
 		// never mint test orders (structural sandbox isolation, §9.13).
@@ -165,23 +169,24 @@ class PubCheckoutController extends Controller
 				$payMethod,
 				);
 		} catch (StateConflictException $e) {
-			return $this->fail(409, $e->getCodeName(), $e->getMessage());
+			return $this->withEmbedCors(
+				$this->fail(409, $e->getCodeName(), $e->getMessage()), $domains);
 		}
 
 		$order = $result['order'];
 		$base = ['order_ref' => $order->getRef(), 'status' => $order->getStatus()];
 
 		if ($result['action'] === 'approve') {
-			return $this->ok($base + ['action' => 'approval',
-				'manage_url' => $this->manageUrl($result['manageToken'])], 201);
+			return $this->withEmbedCors($this->ok($base + ['action' => 'approval',
+				'manage_url' => $this->manageUrl($result['manageToken'])], 201), $domains);
 		}
 		if ($result['action'] === 'done') {
-			return $this->ok($base + ['action' => 'done',
-				'manage_url' => $this->manageUrl($result['manageToken'])], 201);
+			return $this->withEmbedCors($this->ok($base + ['action' => 'done',
+				'manage_url' => $this->manageUrl($result['manageToken'])], 201), $domains);
 		}
 		if ($result['action'] === 'idempotent-replay') {
 			// same idem token ⇒ return the standing state, no redirect token
-			return $this->ok($base + ['action' => 'replay']);
+			return $this->withEmbedCors($this->ok($base + ['action' => 'replay']), $domains);
 		}
 
 		// action=pay: create the PSP session OUTSIDE the db txn
@@ -191,13 +196,15 @@ class PubCheckoutController extends Controller
 			// PSP unreachable → release the holds so seats aren't stranded
 			$this->logger->warning('checkout PSP session failed', ['order' => $order->getRef(), 'err' => $e->getMessage()]);
 			$this->orders->cancelPending((int)$order->getId(), 'psp');
-			return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Payment is temporarily unavailable — please try again.');
+			return $this->withEmbedCors(
+				$this->fail(502, 'PAYMENT_UNAVAILABLE', 'Payment is temporarily unavailable — please try again.'),
+				$domains);
 		}
 
-		return $this->ok($base + [
+		return $this->withEmbedCors($this->ok($base + [
 			'action' => 'pay',
 			'checkout_url' => $session->checkoutUrl,
-		], 201);
+		], 201), $domains);
 	}
 
 	/**
@@ -311,7 +318,7 @@ class PubCheckoutController extends Controller
 	{
 		$order = $this->orderMapper->findByRef($publicRef);
 		if ($order === null) {
-			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
+			return \OCA\BookingCheck\Support\PublicNotFound::render([]);
 		}
 		return new PublicTemplateResponse($this->appName, 'public/return', [
 			'order' => ['ref' => $order->getRef(), 'status' => $order->getStatus()],

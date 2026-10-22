@@ -63,7 +63,7 @@ $action = $isNew
 				<input type="checkbox" name="approval_required" value="1" <?php if ((int)($o['approvalRequired'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Bookings need my approval first')); ?></span>
 			</label>
-			<label class="bck-check">
+			<label class="bck-check" id="bck-bookseries-wrap">
 				<input type="hidden" name="book_series" value="0">
 				<input type="checkbox" name="book_series" value="1" <?php if ((int)($o['bookSeries'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Buyers can book the whole series at once (courses)')); ?></span>
@@ -132,7 +132,7 @@ $action = $isNew
 				<input type="checkbox" name="sharing_enabled" value="1" <?php if ((int)($o['sharingEnabled'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Attendees can upload and share files')); ?></span>
 			</label>
-			<div class="bck-field">
+			<div class="bck-field" id="bck-shscope-field">
 				<label for="bck-shscope" class="bck-label"><?php p($l->t('Files are shared with')); ?></label>
 				<select id="bck-shscope" name="sharing_scope" class="bck-select">
 					<?php $sc = (string)($o['sharingScope'] ?? 'occurrence'); ?>
@@ -140,7 +140,7 @@ $action = $isNew
 					<option value="offering" <?php if ($sc === 'offering') { p('selected'); } ?>><?php p($l->t('All attendees of this offering')); ?></option>
 				</select>
 			</div>
-			<div class="bck-field bck-field--row">
+			<div class="bck-field bck-field--row" id="bck-uploadquota-wrap">
 				<div>
 					<label for="bck-umax" class="bck-label"><?php p($l->t('Max file size (MB)')); ?></label>
 					<input id="bck-umax" name="upload_max_mb" type="number" min="1" max="50" inputmode="numeric"
@@ -171,7 +171,7 @@ $action = $isNew
 					<p class="bck-field__hint"><?php p($l->t('Price rises as seats fill (dynamic pricing). 0 = off.')); ?></p>
 				</div>
 			</div>
-			<div class="bck-field">
+			<div class="bck-field" id="bck-dynstep-field">
 				<label for="bck-dynstep" class="bck-label"><?php p($l->t('…applied per % filled')); ?></label>
 				<input id="bck-dynstep" name="dyn_step_pct" type="number" min="1" max="100" step="1" inputmode="numeric"
 					value="<?php p((int)($o['dynStepPct'] ?? 25) === 0 ? 25 : (int)($o['dynStepPct'] ?? 25)); ?>">

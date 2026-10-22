@@ -45,6 +45,12 @@ class InvoiceService
 		if ($existing !== null) {
 			return $existing;
 		}
+		// a €0 order burns a gapless sequence number on a document that is
+		// not a fiscal invoice — free supplies need none (§14 UStG); it
+		// would also pollute the DATEV export with 0,00 posting rows
+		if ((int)$order->getAmountCents() <= 0) {
+			return null;
+		}
 		[$net, $vat] = $this->computeVat($order);
 		return $this->allocate((int)$order->getId(), 'invoice', null, $net, $vat, (int)$order->getAmountCents());
 	}
@@ -73,10 +79,17 @@ class InvoiceService
 		if ($this->settings->getBool('kleinunternehmer') || (int)$order->getReverseCharge() === 1) {
 			return [$amountCents, 0];
 		}
-		$vatBp = 1900;
-		$offering = $this->offerings->find((int)$order->getOfferingId());
-		if ($offering !== null) {
-			$vatBp = (int)$offering->getVatBp();
+		// the rate RESOLVED at pricing is a fact of the order — re-deriving
+		// from the offering would drift on seller edits and miss the OSS
+		// destination rate cross-border B2C orders were charged at.
+		$vatBp = (int)$order->getVatBp();
+		if ($vatBp < 0) {
+			// legacy row (pre-vat_bp column) — offering rate, as before
+			$vatBp = 1900;
+			$offering = $this->offerings->find((int)$order->getOfferingId());
+			if ($offering !== null) {
+				$vatBp = (int)$offering->getVatBp();
+			}
 		}
 		return PricingService::splitVat($amountCents, $vatBp);
 	}

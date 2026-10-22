@@ -17,7 +17,6 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\OCS\OCSForbiddenException;
 use OCP\AppFramework\OCSController;
-use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -37,7 +36,7 @@ class OcsApiController extends OCSController
 		IRequest $request,
 		private readonly OfferingMapper $offerings,
 		private readonly IUserSession $userSession,
-		private readonly IGroupManager $groupManager,
+		private readonly \OCA\BookingCheck\Service\AccessControlService $accessControl,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -65,9 +64,7 @@ class OcsApiController extends OCSController
 	private function requireSellerRole(): void
 	{
 		$uid = $this->userSession->getUser()?->getUID();
-		if ($uid === null
-			|| (!$this->groupManager->isAdmin($uid)
-				&& !$this->groupManager->isInGroup($uid, AppAccessMiddleware::ADMIN_GROUP))) {
+		if ($uid === null || !$this->accessControl->canUseApp($uid)) {
 			throw new UnauthorizedException();
 		}
 	}

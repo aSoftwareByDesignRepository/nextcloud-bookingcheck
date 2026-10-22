@@ -67,8 +67,11 @@ test.describe('FOCUS_PRESERVATION_CONTRACT', () => {
 		await assertLeaveThenWipeDoesNotSteal(page, {
 			target: TARGET,
 			leave: async () => {
-				// Trusted gesture on neutral NC chrome (top-left header area).
-				await page.mouse.click(10, 8);
+				// Trusted gesture on neutral in-app chrome: the page title h1
+				// is never interactive and never navigates. A bare coordinate
+				// click at (10,8) lands on the NC "Go to Dashboard" logo —
+				// the navigation destroys the eval context mid-leg.
+				await page.locator('#bck-page-title').click();
 				await page.waitForTimeout(150);
 			},
 			rebuild: () => page.evaluate(REBUILD),

@@ -17,7 +17,7 @@ use OCA\BookingCheck\Service\TokenService;
 use OCP\DB\QueryBuilder\IExpressionBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
-use OCP\IGroupManager;
+use OCA\BookingCheck\Service\AccessControlService;
 use OCP\IRequest;
 use OCP\ISession;
 use OCP\IUser;
@@ -38,7 +38,7 @@ final class ScanControllerTest extends TestCase
 	private TicketService&MockObject $tickets;
 	private OrderMapper&MockObject $orders;
 	private IUserSession&MockObject $session;
-	private IGroupManager&MockObject $groups;
+	private AccessControlService&MockObject $accessControl;
 	private ISession&MockObject $phpSession;
 	private CompanionTokenMapper&MockObject $devices;
 	private DoorSessionService $doors;
@@ -52,7 +52,7 @@ final class ScanControllerTest extends TestCase
 		$this->tickets = $this->createMock(TicketService::class);
 		$this->orders = $this->createMock(OrderMapper::class);
 		$this->session = $this->createMock(IUserSession::class);
-		$this->groups = $this->createMock(IGroupManager::class);
+		$this->accessControl = $this->createMock(AccessControlService::class);
 		// real DoorSessionService — it's final; the session store + device
 		// mapper are the stubbed seams
 		$this->phpSession = $this->createMock(ISession::class);
@@ -82,7 +82,7 @@ final class ScanControllerTest extends TestCase
 			->willReturnCallback(fn () => $this->scopeOfferingId);
 
 		$this->ctrl = new ScanController('bookingcheck', $this->request,
-			$this->tickets, $this->orders, $this->session, $this->groups,
+			$this->tickets, $this->orders, $this->session, $this->accessControl,
 			$this->doors, $db, $this->createMock(TokenService::class), $waitlist);
 	}
 
@@ -92,14 +92,14 @@ final class ScanControllerTest extends TestCase
 			fn (string $k, $d = null) => $map[$k] ?? $d);
 	}
 
-	/** Admin principal: logged-in NC user in the app-admin group. */
+	/** Staff principal: logged-in NC user past the access door. */
 	private function asAdmin(): void
 	{
 		$u = $this->createMock(IUser::class);
 		$u->method('getUID')->willReturn('seller');
 		$this->session->method('getUser')->willReturn($u);
-		$this->groups->method('isAdmin')->willReturn(false);
-		$this->groups->method('isInGroup')->with('seller', 'bookingcheck_admin')->willReturn(true);
+		$this->accessControl->method('canUseApp')->willReturnCallback(
+			fn (string $uid) => $uid === 'seller');
 		$this->phpSession->method('get')->willReturn(null);
 	}
 

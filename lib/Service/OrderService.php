@@ -21,6 +21,7 @@ use OCA\BookingCheck\Exception\CapacityException;
 use OCA\BookingCheck\Exception\NotFoundException;
 use OCA\BookingCheck\Exception\StateConflictException;
 use OCA\BookingCheck\Exception\ValidationException;
+use OCA\BookingCheck\Support\Locales;
 use OCP\DB\Exception as DbException;
 use OCP\IDBConnection;
 use OCP\IURLGenerator;
@@ -176,9 +177,12 @@ class OrderService
 			$order->setOfferingId($offeringId);
 			$order->setBuyerName($buyerName);
 			$order->setBuyerEmail(strtolower(trim($buyerEmail)));
-			$order->setBuyerLocale($locale);
+			$order->setBuyerLocale(Locales::canonicalize($locale));
 			$order->setAmountCents($priced['total']);
 			$order->setCurrency($priced['currency']);
+			// the resolved (OSS-aware) rate is a fact of THIS order — invoices
+			// must split at it, not at the offering's current mutable rate
+			$order->setVatBp($priced['vatBp']);
 			$order->setIdemToken($idemToken);
 			$order->setManageTokenHash($manageHash);
 			$order->setIsTest($isTest ? 1 : 0);
@@ -365,14 +369,15 @@ class OrderService
 		try {
 			$allLines = [];
 			$allHolds = [];
-			$seatSubtotal = 0;
-			$addonSubtotal = 0;
 			$promoCents = 0;
 			$needsApproval = false;
 			$tosTexts = [];
 			$invoiceOk = true;
 			$leadOffering = null;
 			$currency = null;
+			$vatBp = null;
+			$chargeBasis = 0;
+			$reverseCharge = !empty($billing['reverse_charge']);
 			$offeringIds = [];
 
 			// canonical lock order (offering → inventory → waitlist): all
@@ -431,8 +436,25 @@ class OrderService
 				} elseif ($currency !== $priced['currency']) {
 					throw new ValidationException(['cart' => 'All cart items must share one currency.']);
 				}
-				$seatSubtotal += $priced['seatSubtotal'];
-				$addonSubtotal += $priced['addonSubtotal'];
+				// the invoice model stores ONE net/vat pair — a taxable cart
+				// mixing resolved VAT rates could not produce a correct
+				// document, so it is refused like mixed currencies.
+				// (reverse-charge carts stay allowed: their document reports
+				// vat=0 and the per-group net already handles mixed rates —
+				// a mixed RC cart just stores -1 for "no single rate")
+				if ($vatBp === null) {
+					$vatBp = $priced['vatBp'];
+				} elseif ($vatBp !== $priced['vatBp']) {
+					if ($reverseCharge) {
+						$vatBp = -1;
+					} else {
+						throw new ValidationException(['cart' => 'All cart items must share one VAT rate.']);
+					}
+				}
+				// per-group charge basis: gross for domestic/OSS buyers, NET
+				// for reverse-charge — summing gross components would charge
+				// a §13b buyer the VAT they legally do not owe
+				$chargeBasis += $priced['total'];
 				$promoCents += $priced['promoCents'];
 				if ($priced['promoId'] !== null) {
 					if (!$this->promos->incrementUses($priced['promoId'])) {
@@ -461,17 +483,6 @@ class OrderService
 
 			if ($tosTexts !== [] && !$consented) {
 				throw new ValidationException(['consent' => 'Please accept the terms to continue.']);
-			}
-
-			// combined charge basis: reverse-charge buyers owe net
-			$reverseCharge = !empty($billing['reverse_charge']);
-			$grossRemainder = $seatSubtotal + $addonSubtotal - $promoCents;
-			$chargeBasis = $grossRemainder;
-			if ($reverseCharge) {
-				// per-group net was already embedded via reverse-charge
-				// pricing? No — pricing() zeroed VAT per group but kept
-				// gross basis. Cart charges the summed charge basis.
-				$chargeBasis = $grossRemainder;
 			}
 
 			// aggregate voucher (single redemption across the cart)
@@ -508,9 +519,14 @@ class OrderService
 			$order->setOfferingId((int)$leadOffering->getId());
 			$order->setBuyerName($buyerName);
 			$order->setBuyerEmail(strtolower(trim($buyerEmail)));
-			$order->setBuyerLocale($locale);
+			$order->setBuyerLocale(Locales::canonicalize($locale));
 			$order->setAmountCents($total);
 			$order->setCurrency((string)$currency);
+			// resolved rates matched across groups (checked above); stored so
+			// invoices split at the priced rate, not a mutable offering rate.
+			// -1 = no single resolved rate (reverse-charge cart: the document
+			// reports vat=0 and never consults this field anyway)
+			$order->setVatBp($vatBp ?? -1);
 			$order->setIdemToken($idemToken);
 			$order->setManageTokenHash($manageHash);
 			$order->setIsTest(0);
@@ -708,9 +724,10 @@ class OrderService
 			$order->setOfferingId($offeringId);
 			$order->setBuyerName($buyerName);
 			$order->setBuyerEmail(strtolower(trim($buyerEmail)));
-			$order->setBuyerLocale($locale);
+			$order->setBuyerLocale(Locales::canonicalize($locale));
 			$order->setAmountCents($priced['total']);
 			$order->setCurrency($priced['currency']);
+			$order->setVatBp($priced['vatBp']);
 			$order->setIdemToken($idemToken);
 			$order->setManageTokenHash($manageHash);
 			$order->setIsTest(0);
@@ -874,6 +891,7 @@ class OrderService
 			$order->setBuyerLocale('en');
 			$order->setAmountCents($priced['total']);
 			$order->setCurrency($priced['currency']);
+			$order->setVatBp($priced['vatBp']);
 			$order->setIdemToken($idemToken);
 			[, $manageHash] = $this->tokens->mint(); // token never leaves the door
 			$order->setManageTokenHash($manageHash);

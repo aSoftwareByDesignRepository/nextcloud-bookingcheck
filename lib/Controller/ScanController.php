@@ -13,6 +13,7 @@ use OCA\BookingCheck\Db\CompanionToken;
 use OCA\BookingCheck\Db\OrderMapper;
 use OCA\BookingCheck\Db\Ticket;
 use OCA\BookingCheck\Middleware\AppAccessMiddleware;
+use OCA\BookingCheck\Service\AccessControlService;
 use OCA\BookingCheck\Service\DoorSessionService;
 use OCA\BookingCheck\Service\TicketService;
 use OCA\BookingCheck\Service\TokenService;
@@ -23,7 +24,6 @@ use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\TemplateResponse;
 use OCP\IDBConnection;
-use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUserSession;
 
@@ -51,7 +51,7 @@ class ScanController extends Controller
 		private readonly TicketService $tickets,
 		private readonly OrderMapper $orders,
 		private readonly IUserSession $userSession,
-		private readonly IGroupManager $groupManager,
+		private readonly AccessControlService $accessControl,
 		private readonly DoorSessionService $doors,
 		private readonly IDBConnection $db,
 		private readonly TokenService $tokenService,
@@ -71,7 +71,7 @@ class ScanController extends Controller
 	public function index(): TemplateResponse
 	{
 		$device = $this->doors->device();
-		if ($this->isAdmin()) {
+		if ($this->isStaff()) {
 			return new TemplateResponse($this->appName, 'admin/scan', [
 				'navId' => 'scan', 'scanMode' => 'admin',
 			], 'user');
@@ -210,7 +210,7 @@ class ScanController extends Controller
 	 */
 	private function assertDoorOrAdmin(): ?CompanionToken
 	{
-		if ($this->isAdmin()) {
+		if ($this->isStaff()) {
 			return null;
 		}
 		$device = $this->doors->device();
@@ -242,15 +242,15 @@ class ScanController extends Controller
 		return $offeringId !== null && $this->doors->scopeAllows($device, $offeringId);
 	}
 
-	private function isAdmin(): bool
+	/**
+	 * Staff = anyone past the access door (app admins plus allowlisted
+	 * organizers; in Open mode every logged-in user). Door devices keep
+	 * their own least-privilege path via assertDoorOrAdmin().
+	 */
+	private function isStaff(): bool
 	{
 		$user = $this->userSession->getUser();
-		if ($user === null) {
-			return false;
-		}
-		$uid = $user->getUID();
-		return $this->groupManager->isAdmin($uid)
-			|| $this->groupManager->isInGroup($uid, AppAccessMiddleware::ADMIN_GROUP);
+		return $user !== null && $this->accessControl->canUseApp($user->getUID());
 	}
 
 	/** The scan form posts `code`; older clients post `qr`. */

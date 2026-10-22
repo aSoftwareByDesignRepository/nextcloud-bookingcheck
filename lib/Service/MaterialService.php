@@ -140,6 +140,10 @@ class MaterialService
 		$resp->addHeader('X-Content-Type-Options', 'nosniff');
 		$resp->addHeader('Content-Disposition', 'inline; filename="preview"');
 		$resp->addHeader('Cache-Control', 'private, max-age=300');
+		// seller material is untrusted content rendered on the portal origin —
+		// a PDF can carry embedded JS that some viewers execute. sandbox the
+		// document: it still renders, but gets no script and no origin rights
+		$resp->addHeader('Content-Security-Policy', 'sandbox');
 		return $resp;
 	}
 

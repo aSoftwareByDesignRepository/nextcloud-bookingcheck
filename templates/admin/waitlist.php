@@ -26,12 +26,12 @@ $badge = ['waiting' => 'info', 'offered' => 'warn', 'claimed' => 'success', 'exp
 				<tbody>
 				<?php foreach ($entries as $w): ?>
 					<tr>
-						<td data-label="<?php p($l->t('Email')); ?>"><?php p((string)$w['email']); ?></td>
-						<td data-label="<?php p($l->t('Target')); ?>"><?php p((string)$w['targetType'] . ' #' . (int)$w['targetId']); ?></td>
-						<td data-label="<?php p($l->t('State')); ?>">
+						<td data-cell="<?php p($l->t('Email')); ?>"><?php p((string)$w['email']); ?></td>
+						<td data-cell="<?php p($l->t('Target')); ?>"><?php p((string)$w['targetType'] . ' #' . (int)$w['targetId']); ?></td>
+						<td data-cell="<?php p($l->t('State')); ?>">
 							<span class="bck-badge <?php p('bck-badge--' . ($badge[$w['state']] ?? 'neutral')); ?>"><?php p((string)$w['state']); ?></span>
 						</td>
-						<td data-label="<?php p($l->t('Joined')); ?>"><?php p((string)$w['createdAt']); ?></td>
+						<td data-cell="<?php p($l->t('Joined')); ?>"><?php p((string)$w['createdAt']); ?></td>
 						<td class="bck-table-actions-col">
 							<?php if (in_array($w['state'], ['waiting', 'offered'], true)): ?>
 								<button type="button" class="bck-btn bck-btn--small bck-btn--danger"

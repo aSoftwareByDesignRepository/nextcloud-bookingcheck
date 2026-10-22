@@ -11,6 +11,7 @@ namespace OCA\BookingCheck\Service;
 
 use OCA\BookingCheck\Db\EmailOutbox;
 use OCA\BookingCheck\Db\EmailOutboxMapper;
+use OCA\BookingCheck\Support\Locales;
 use OCP\IDBConnection;
 
 /**
@@ -45,7 +46,7 @@ class EmailService
 		$e = new EmailOutbox();
 		$e->setKind($kind);
 		$e->setToEmail($to);
-		$e->setLocale($locale);
+		$e->setLocale(Locales::canonicalize($locale));
 		$e->setPayloadJson(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?: '{}');
 		$e->setCreatedAt(new \DateTimeImmutable());
 		$this->outbox->insert($e);

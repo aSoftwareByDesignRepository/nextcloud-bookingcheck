@@ -10,30 +10,31 @@ declare(strict_types=1);
 namespace OCA\BookingCheck\Middleware;
 
 use OCA\BookingCheck\AppInfo\Application;
+use OCA\BookingCheck\Service\AccessControlService;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http\RedirectResponse;
 use OCP\AppFramework\Middleware;
-use OCP\IGroupManager;
 use OCP\IRequest;
-use OCP\IURLGenerator;
 use OCP\IUserSession;
 
 /**
  * Admin-side access gate.
  *
  * The logged-in seller UI (everything not /pub/, /psp/, /capi/, /scan)
- * requires membership in the `bookingcheck_admin` group OR instance admin.
- * Members get through; everyone else lands on a friendly needs-role page.
+ * requires {@see AccessControlService::canUseApp()} — app admins always,
+ * allowlisted users/groups under restriction, everyone when the door is
+ * Open. Members get through; everyone else meets the uniform 404 — a
+ * restricted app is indistinguishable from an absent one
+ * (restricted_door_status_oracle).
  */
 class AppAccessMiddleware extends Middleware
 {
-	public const ADMIN_GROUP = 'bookingcheck_admin';
+	/** @deprecated Use AccessControlService::ADMIN_GROUP. */
+	public const ADMIN_GROUP = AccessControlService::ADMIN_GROUP;
 
 	public function __construct(
 		private readonly IRequest $request,
 		private readonly IUserSession $userSession,
-		private readonly IGroupManager $groupManager,
-		private readonly IURLGenerator $urlGenerator,
+		private readonly AccessControlService $accessControl,
 	) {
 	}
 
@@ -63,7 +64,10 @@ class AppAccessMiddleware extends Middleware
 		// accidentally share the /pub exemption. /scan is exempt so
 		// anonymous door tablets can reach the token-entry page — the
 		// ScanController itself asserts admin-or-door-session on every
-		// endpoint, and a door session unlocks nothing else.
+		// endpoint, and a door session unlocks nothing else. /needs-role
+		// is NOT exempt: it renders only for entitled members who hit an
+		// in-app role deny — a door-denied user must meet the uniform 404
+		// even on the deny template (restricted_door_status_oracle).
 		$rest = substr($path, strlen($appPrefix)); // e.g. '/pub/api/orders'
 		foreach (['/pub', '/psp', '/capi', '/scan', '/api/scan'] as $open) {
 			if ($rest === $open || str_starts_with($rest, $open . '/')) {
@@ -74,11 +78,10 @@ class AppAccessMiddleware extends Middleware
 		if ($user === null) {
 			throw new \OCA\BookingCheck\Exception\UnauthorizedException();
 		}
-		$uid = $user->getUID();
-		if ($this->groupManager->isAdmin($uid)
-			|| $this->groupManager->isInGroup($uid, self::ADMIN_GROUP)) {
+		if ($this->accessControl->canUseApp($user->getUID())) {
 			return;
 		}
-		throw new \OCA\BookingCheck\Exception\UnauthorizedException('requires BookingCheck admin role');
+		throw new \OCA\BookingCheck\Exception\AppDoorDeniedException(
+			'requires BookingCheck access');
 	}
 }

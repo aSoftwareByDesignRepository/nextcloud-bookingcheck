@@ -43,11 +43,13 @@ const { occ, runJob, mailBody, extractUrl } = require('./helpers/nc.js')
 
 const HERE = __dirname
 const MANIFEST = JSON.parse(readFileSync(join(HERE, 'screenshot-matrix.json'), 'utf8'))
+// Lab-only BCK2 fixture — honored only under BCK_ALLOW_VENDOR_KEY_OVERRIDE.
+const LICENSE_FIXTURE = require('../tests/fixtures/license_bck2_golden.json')
 const OUT = resolve(HERE, '../../../../.cursor/atlas-farm-v3/artifacts/bookingcheck', MANIFEST.outDir)
 const APP = '/apps/bookingcheck'
 // Env names mirror global-setup.js (E2E_USER/E2E_PASSWORD); BCK_E2E_* kept
-// as aliases. The capture user must be a real NC admin — the admin-settings
-// surface (/index.php/settings/admin/bookingcheck) 404s for bookingcheck_admin.
+// as aliases. The capture user must be an app admin — the in-app settings
+// surface (/apps/bookingcheck/settings/*) refuses everyone else.
 const ADMIN = {
 	username: process.env.E2E_USER || process.env.BCK_E2E_USER || 'bck_atlas',
 	password: process.env.E2E_PASSWORD || process.env.E2E_PASS || process.env.BCK_E2E_PASS || 'BckAtlas2026!',
@@ -66,6 +68,9 @@ const seed = {
 /** psp_provider captured before the run mutates it — restored in afterAll. */
 let origPspProvider = ''
 let pspTouched = false
+/** license_key captured before the run mutates it — restored in afterAll. */
+let origLicense = ''
+let licenseTouched = false
 const written = []
 
 async function reqToken(/** @type {import('@playwright/test').Page} */ page) {
@@ -213,11 +218,26 @@ test.describe('SCREENSHOT_MATRIX capture', () => {
 			pspTouched = true
 			await appConfig(page, 'psp_provider', 'test')
 
+			// Pro license is required for reviews/portal/uploads cells — do not
+			// trust prior suite state to have left one installed (a wiped key
+			// fails silently as "no line id on manage page"). Install the
+			// golden fixture and restore whatever was there in afterAll.
+			origLicense = await appConfigGet(page, 'license_key', 'general')
+			licenseTouched = true
+			// PUT echoes the live license verdict — assert the fixture is
+			// honored rather than discovering free tier at the review cell.
+			const licPut = await api(page, 'PUT', '/api/settings/general', { license_key: LICENSE_FIXTURE.wireKey })
+			expect(licPut.data?.license?.state, 'BCK2 fixture not honored (BCK_ALLOW_VENDOR_KEY_OVERRIDE off?)').toBe('pro')
+
 			// ── Primary offering: free event → instant 'done' order ──
 			const off = await api(page, 'POST', '/api/offerings', {
 				title: `MX Concert ${Date.now()}`, type: 'event', price_cents: 0,
 				currency: 'EUR', vat_bp: 1900, review_display: 1, list_in_directory: 1,
 				descr: 'Matrix seed event — an evening of seeded bookings.',
+				// embed_domains empty → /pub/embed/o/{slug} renders PublicNotFound
+				// and the pub-embed 'populated' cell captures a 404 card instead
+				// of the widget. Any valid https origin unlocks the surface.
+				embed_domains: 'https://localhost',
 			})
 			expect(off.success, `offering seed: ${JSON.stringify(off)}`).toBe(true)
 			seed.offeringId = off.data.id
@@ -379,6 +399,13 @@ test.describe('SCREENSHOT_MATRIX capture', () => {
 					occ(['config:app:delete', 'bookingcheck', 'psp_provider'])
 				} else {
 					occ(['config:app:set', 'bookingcheck', 'psp_provider', `--value=${origPspProvider}`])
+				}
+			}
+			if (licenseTouched) {
+				if (origLicense === '') {
+					occ(['config:app:delete', 'bookingcheck', 'license_key'])
+				} else {
+					occ(['config:app:set', 'bookingcheck', 'license_key', `--value=${origLicense}`])
 				}
 			}
 		}

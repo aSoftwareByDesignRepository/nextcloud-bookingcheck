@@ -16,6 +16,39 @@ $oid = (int)($_['offeringId'] ?? 0);
 		</div>
 	</div>
 
+	<div class="bck-card" id="bck-share-card" hidden>
+		<div class="bck-card__header">
+			<div class="bck-card__header-text">
+				<h2 class="bck-card__title"><?php p($l->t('Share this offering')); ?></h2>
+				<p class="bck-card__subtitle"><?php p($l->t('Send the link or place the booking form on your website.')); ?></p>
+			</div>
+		</div>
+		<div class="bck-card__body">
+			<div class="bck-field">
+				<label class="bck-label" for="bck-share-link"><?php p($l->t('Booking link')); ?></label>
+				<div class="bck-field--row">
+					<input class="bck-input" id="bck-share-link" readonly onfocus="this.select()">
+					<button type="button" class="bck-btn bck-btn--secondary" data-bck-copy="#bck-share-link"><?php p($l->t('Copy')); ?></button>
+				</div>
+			</div>
+			<div id="bck-share-embed" hidden>
+				<div class="bck-field">
+					<label class="bck-label" for="bck-share-iframe"><?php p($l->t('Embed — simple (iframe)')); ?></label>
+					<textarea class="bck-input" id="bck-share-iframe" rows="3" readonly onfocus="this.select()"></textarea>
+					<p class="bck-field__hint"><?php p($l->t('Paste this where your website allows iframes.')); ?></p>
+					<button type="button" class="bck-btn bck-btn--secondary" data-bck-copy="#bck-share-iframe"><?php p($l->t('Copy')); ?></button>
+				</div>
+				<div class="bck-field">
+					<label class="bck-label" for="bck-share-sdk"><?php p($l->t('Embed — seamless (recommended)')); ?></label>
+					<textarea class="bck-input" id="bck-share-sdk" rows="3" readonly onfocus="this.select()"></textarea>
+					<p class="bck-field__hint"><?php p($l->t('Paste this into your website HTML — the form blends into your page.')); ?></p>
+					<button type="button" class="bck-btn bck-btn--secondary" data-bck-copy="#bck-share-sdk"><?php p($l->t('Copy')); ?></button>
+				</div>
+			</div>
+			<p class="bck-field__hint" id="bck-share-note" hidden></p>
+		</div>
+	</div>
+
 	<div class="bck-card">
 		<div class="bck-card__header">
 			<div class="bck-card__header-text">

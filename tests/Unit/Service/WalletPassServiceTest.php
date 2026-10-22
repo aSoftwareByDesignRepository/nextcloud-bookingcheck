@@ -122,4 +122,53 @@ class WalletPassServiceTest extends TestCase
 		$zip->close();
 		@unlink($tmp);
 	}
+
+	public function testAppleAvailableRequiresTeamId(): void
+	{
+		// an empty teamIdentifier produces a pass Apple rejects — the CTA
+		// must not appear until the credential set is complete.
+		$svc = $this->service(
+			['wallet_apple_pass_type_id' => 'pass.x'],
+			['wallet_apple_cert_pem' => 'some-pem']);
+		self::assertFalse($svc->appleAvailable(), 'team id missing → unavailable');
+		self::assertNull($svc->applePass($this->order(), $this->ticket(), 'BCK1:77:tok', 'Gala'));
+	}
+
+	public function testApplePassSignsWithChainFromPemBundle(): void
+	{
+		// seller pastes a PEM bundle: pass cert first, then the WWDR
+		// intermediate — the chain file must reach openssl_pkcs7_sign so
+		// the device can build the path to the Apple root.
+		$mkCert = function (string $cn): array {
+			$key = openssl_pkey_new(['private_key_bits' => 2048,
+				'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+			$csr = openssl_csr_new(['commonName' => $cn], $key);
+			$x509 = openssl_csr_sign($csr, null, $key, 1);
+			openssl_x509_export($x509, $pem);
+			return [$pem, $key];
+		};
+		[$passCertPem, $passKey] = $mkCert('Pass Cert');
+		[$wwdrPem] = $mkCert('Apple WWDR-like Intermediate');
+		openssl_pkey_export($passKey, $passKeyPem);
+
+		$svc = $this->service(
+			['wallet_apple_pass_type_id' => 'pass.de.test.bck',
+			 'wallet_apple_team_id' => 'TEAM123456'],
+			['wallet_apple_cert_pem' => $passCertPem . "\n" . $wwdrPem,
+			 'wallet_apple_key_pem' => $passKeyPem]);
+		$bytes = $svc->applePass($this->order(), $this->ticket(), 'BCK1:77:tok', 'Gala');
+		self::assertNotNull($bytes, 'bundle signing must succeed end to end');
+		$tmp = tempnam(sys_get_temp_dir(), 'pkt');
+		file_put_contents($tmp, $bytes);
+		$zip = new \ZipArchive();
+		self::assertTrue($zip->open($tmp));
+		$sig = $zip->getFromName('signature');
+		self::assertNotFalse($sig);
+		// DER-signed content embeds both certs: decode and count CERTIFICATE
+		// oids — the WWDR CN must appear in the signature blob.
+		self::assertStringContainsString('WWDR', $sig,
+			'chain certs must be embedded in the detached signature');
+		$zip->close();
+		@unlink($tmp);
+	}
 }

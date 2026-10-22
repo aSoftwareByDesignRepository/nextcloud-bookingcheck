@@ -26,7 +26,7 @@ $canMarkPaid = $status === 'paid' && $remainder > 0;
 		<section class="bck-card" aria-labelledby="bck-order-main">
 			<div class="bck-card__header">
 				<h2 id="bck-order-main" class="bck-card__title"><?php p($l->t('Booking')); ?></h2>
-				<span class="bck-badge bck-badge--neutral"><?php p($status); ?></span>
+				<span class="bck-badge <?php p('bck-badge--' . \OCA\BookingCheck\Support\StatusLabels::badge($status)); ?>"><?php p(\OCA\BookingCheck\Support\StatusLabels::label($l, $status)); ?></span>
 			</div>
 			<div class="bck-card__body">
 				<dl class="bck-kv">
@@ -87,7 +87,7 @@ $canMarkPaid = $status === 'paid' && $remainder > 0;
 		<section class="bck-card" aria-labelledby="bck-order-lines">
 			<div class="bck-card__header"><h2 id="bck-order-lines" class="bck-card__title"><?php p($l->t('Seats')); ?></h2></div>
 			<div class="bck-card__body bck-card__body--table">
-				<table class="bck-table">
+				<table class="bck-table bck-table--cards">
 					<thead><tr>
 						<th scope="col"><?php p($l->t('Line')); ?></th>
 						<th scope="col" class="bck-num"><?php p($l->t('Qty')); ?></th>
@@ -97,10 +97,10 @@ $canMarkPaid = $status === 'paid' && $remainder > 0;
 					<tbody>
 					<?php foreach ($lines as $ln): ?>
 						<tr>
-							<td><?php p((string)($ln['catName'] ?? $ln['targetType'] . ' #' . $ln['targetId'])); ?></td>
-							<td class="bck-num"><?php p((string)(int)$ln['seats']); ?></td>
-							<td><?php p(implode(', ', $holdersByLine[(int)$ln['id']] ?? []) ?: '—'); ?></td>
-							<td class="bck-num"><?php p($fmt((int)$ln['lineCents'])); ?></td>
+							<td data-cell="<?php p($l->t('Line')); ?>"><?php p((string)($ln['catName'] ?? $ln['targetType'] . ' #' . $ln['targetId'])); ?></td>
+							<td data-cell="<?php p($l->t('Qty')); ?>" class="bck-num"><?php p((string)(int)$ln['seats']); ?></td>
+							<td data-cell="<?php p($l->t('Holders')); ?>"><?php p(implode(', ', $holdersByLine[(int)$ln['id']] ?? []) ?: '—'); ?></td>
+							<td data-cell="<?php p($l->t('Price')); ?>" class="bck-num"><?php p($fmt((int)$ln['lineCents'])); ?></td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
@@ -112,7 +112,7 @@ $canMarkPaid = $status === 'paid' && $remainder > 0;
 		<section class="bck-card" aria-labelledby="bck-order-inv">
 			<div class="bck-card__header"><h2 id="bck-order-inv" class="bck-card__title"><?php p($l->t('Invoices')); ?></h2></div>
 			<div class="bck-card__body bck-card__body--table">
-				<table class="bck-table">
+				<table class="bck-table bck-table--cards">
 					<thead><tr>
 						<th scope="col"><?php p($l->t('Number')); ?></th>
 						<th scope="col"><?php p($l->t('Type')); ?></th>
@@ -124,12 +124,12 @@ $canMarkPaid = $status === 'paid' && $remainder > 0;
 					<tbody>
 					<?php foreach ($invoices as $inv): ?>
 						<tr>
-							<td><code><?php p(sprintf('%s-%d-%04d', $inv['prefix'], $inv['year'], $inv['number'])); ?></code></td>
-							<td><span class="bck-badge bck-badge--<?php p($inv['type'] === 'credit' ? 'warning' : 'neutral'); ?>"><?php p((string)$inv['type']); ?></span></td>
-							<td><?php p(substr((string)$inv['issuedAt'], 0, 10)); ?></td>
-							<td class="bck-num"><?php p($fmt((int)$inv['netCents'])); ?></td>
-							<td class="bck-num"><?php p($fmt((int)$inv['vatCents'])); ?></td>
-							<td class="bck-num"><?php p($fmt((int)$inv['grossCents'])); ?></td>
+							<td data-cell="<?php p($l->t('Number')); ?>"><code><?php p(sprintf('%s-%d-%04d', $inv['prefix'], $inv['year'], $inv['number'])); ?></code></td>
+							<td data-cell="<?php p($l->t('Type')); ?>"><span class="bck-badge bck-badge--<?php p($inv['type'] === 'credit' ? 'warning' : 'neutral'); ?>"><?php p((string)$inv['type']); ?></span></td>
+							<td data-cell="<?php p($l->t('Issued')); ?>"><?php p(substr((string)$inv['issuedAt'], 0, 10)); ?></td>
+							<td data-cell="<?php p($l->t('Net')); ?>" class="bck-num"><?php p($fmt((int)$inv['netCents'])); ?></td>
+							<td data-cell="<?php p($l->t('VAT')); ?>" class="bck-num"><?php p($fmt((int)$inv['vatCents'])); ?></td>
+							<td data-cell="<?php p($l->t('Gross')); ?>" class="bck-num"><?php p($fmt((int)$inv['grossCents'])); ?></td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>
@@ -145,7 +145,7 @@ $canMarkPaid = $status === 'paid' && $remainder > 0;
 				<dl class="bck-kv">
 					<dt><?php p($l->t('Provider')); ?></dt><dd><?php p((string)$payment['provider']); ?></dd>
 					<dt><?php p($l->t('PSP ref')); ?></dt><dd><code><?php p((string)$payment['pspRef']); ?></code></dd>
-					<dt><?php p($l->t('State')); ?></dt><dd><?php p((string)$payment['status']); ?></dd>
+					<dt><?php p($l->t('State')); ?></dt><dd><?php p(\OCA\BookingCheck\Support\StatusLabels::payment($l, (string)$payment['status'])); ?></dd>
 				</dl>
 			</div>
 		</section>

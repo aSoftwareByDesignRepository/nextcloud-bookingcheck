@@ -99,7 +99,13 @@ class AvScanService
 		fwrite($fp, $head . dechex($len) . "\r\n" . $data . "\r\n0\r\n\r\n");
 		$resp = '';
 		while (!feof($fp) && strlen($resp) < 65536) {
-			$resp .= fread($fp, 8192);
+			$chunk = fread($fp, 8192);
+			// fread false/'' on a blocking socket = timeout or stall — a
+			// server that accepts and hangs must fail closed, not spin forever
+			if ($chunk === false || $chunk === '') {
+				break;
+			}
+			$resp .= $chunk;
 		}
 		fclose($fp);
 		if ($resp === '') {

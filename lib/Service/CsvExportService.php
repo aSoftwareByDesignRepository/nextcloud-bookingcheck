@@ -53,7 +53,10 @@ class CsvExportService
 		return $csv === false ? '' : $csv;
 	}
 
-	/** Per-offering roster for the seller zip export — same cell safety. */
+	/** Per-offering roster for the seller zip export — same cell safety.
+	 *  Cart orders span offerings: the LINE's target decides which roster
+	 *  a row belongs on — filtering o.offering_id (the lead) would list
+	 *  foreign-offering attendees here and drop them from their own. */
 	public function roster(int $offeringId): string
 	{
 		$qb = $this->db->getQueryBuilder();
@@ -62,7 +65,21 @@ class CsvExportService
 			->from('bc_order', 'o')
 			->innerJoin('o', 'bc_order_line', 'l', $qb->expr()->eq('l.order_id', 'o.id'))
 			->leftJoin('l', 'bc_ticket', 't', $qb->expr()->eq('t.line_id', 'l.id'))
-			->where($qb->expr()->eq('o.offering_id', $qb->createNamedParameter($offeringId)))
+			->leftJoin('l', 'bc_event', 'ev',
+				$qb->expr()->andX(
+					$qb->expr()->eq('l.target_type', $qb->createNamedParameter('event')),
+					$qb->expr()->eq('ev.id', 'l.target_id')))
+			->leftJoin('l', 'bc_slot', 'sl',
+				$qb->expr()->andX(
+					$qb->expr()->eq('l.target_type', $qb->createNamedParameter('slot')),
+					$qb->expr()->eq('sl.id', 'l.target_id')))
+			->leftJoin('l', 'bc_series', 'se',
+				$qb->expr()->andX(
+					$qb->expr()->eq('l.target_type', $qb->createNamedParameter('series')),
+					$qb->expr()->eq('se.id', 'l.target_id')))
+			->where($qb->expr()->eq(
+				$qb->createFunction('COALESCE(ev.offering_id, sl.offering_id, se.offering_id)'),
+				$qb->createNamedParameter($offeringId)))
 			->andWhere($qb->expr()->eq('o.is_test', $qb->createNamedParameter(0)))
 			->orderBy('o.id', 'ASC')
 			->setMaxResults(50000);

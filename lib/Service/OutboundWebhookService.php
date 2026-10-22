@@ -124,12 +124,22 @@ class OutboundWebhookService
 		if (!is_string($host) || $host === '') {
 			throw new ValidationException(['url' => 'Invalid host.']);
 		}
-		$ips = gethostbynamel($host);
-		if ($ips === false || $ips === []) {
-			// literal IP in the URL
-			if (filter_var($host, FILTER_VALIDATE_IP)) {
-				$ips = [$host];
-			} else {
+		// IPv6 literals arrive bracketed ([::1]) — strip before IP validation
+		if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+			$host = substr($host, 1, -1);
+		}
+		// A+AAAA both — gethostbynamel only returns IPv4, so a host with a
+		// public A plus a private AAAA (::1, fe80::, fc00::) would pass the
+		// check while the client prefers IPv6 and dials the internal target
+		if (filter_var($host, FILTER_VALIDATE_IP)) {
+			$ips = [$host];
+		} else {
+			$ips = [];
+			foreach ((array)@dns_get_record($host, DNS_A | DNS_AAAA) as $rec) {
+				$ips[] = (string)($rec['ip'] ?? $rec['ipv6'] ?? '');
+			}
+			$ips = array_values(array_filter($ips, static fn (string $ip) => $ip !== ''));
+			if ($ips === []) {
 				throw new ValidationException(['url' => 'Host does not resolve.']);
 			}
 		}

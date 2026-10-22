@@ -36,6 +36,12 @@ trait ApiControllerTrait
 		return $this->fail(404, 'NOT_FOUND', 'Not found.');
 	}
 
+	/** See \OCA\BookingCheck\Support\EmbedCors — the single authority. */
+	private function withEmbedCors(JSONResponse $resp, ?string $domainsJson): JSONResponse
+	{
+		return \OCA\BookingCheck\Support\EmbedCors::apply($resp, $this->request, $domainsJson);
+	}
+
 	/** Strict integer id per api-security rules — "2.9"/"2e3" rejected. */
 	private function strictId(mixed $raw): ?int
 	{

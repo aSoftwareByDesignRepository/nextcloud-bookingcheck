@@ -46,9 +46,9 @@ $abuse = $_['abuseReports'] ?? [];
 		<div class="bck-card__header"><h2 id="bck-zip-h" class="bck-card__title"><?php p($l->t('Offering archive')); ?></h2></div>
 		<div class="bck-card__body">
 			<p><?php p($l->t('Roster, materials, and attendee uploads of one offering as a ZIP — for records or legal hold.')); ?></p>
-			<ul class="bck-list">
+			<ul class="bck-list-cards">
 				<?php foreach ($offerings as $of): ?>
-				<li class="bck-list__item">
+				<li class="bck-list-cards__item">
 					<span><?php p((string)$of['title']); ?></span>
 					<span class="bck-btn-row">
 						<a class="bck-btn bck-btn--secondary" href="<?php p($url->linkToRoute('bookingcheck.report.exportZip', ['offeringId' => (int)$of['id']])); ?>"><?php p($l->t('ZIP')); ?></a>
@@ -67,9 +67,9 @@ $abuse = $_['abuseReports'] ?? [];
 			<span class="bck-badge bck-badge--warn"><?php p((string)count($abuse)); ?></span></h2></div>
 		<div class="bck-card__body">
 			<p><?php p($l->t('Attendees flagged shared files. Decide for each report whether the file stays or is deleted.')); ?></p>
-			<ul class="bck-list">
+			<ul class="bck-list-cards">
 				<?php foreach ($abuse as $r): ?>
-				<li class="bck-list__item">
+				<li class="bck-list-cards__item">
 					<span>
 						<strong>#<?php p((int)$r['id']); ?></strong> — <?php p((string)$r['reason']); ?><br>
 						<small><?php p($l->t('Upload') . ' #' . (int)$r['uploadId'] . ' · ' . (string)$r['createdAt']); ?></small>

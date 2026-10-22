@@ -78,6 +78,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setPayMethod(string $payMethod)
  * @method int getRemainderCents()
  * @method void setRemainderCents(int $remainderCents)
+ * @method int getVatBp()
+ * @method void setVatBp(int $vatBp)
  */
 class Order extends Entity
 {
@@ -112,6 +114,7 @@ class Order extends Entity
 	protected $staffNote;
 	protected $payMethod;
 	protected $remainderCents;
+	protected $vatBp;
 
 	public function __construct()
 	{
@@ -128,6 +131,7 @@ class Order extends Entity
 		$this->addType('consentAt', 'datetime_immutable');
 		$this->addType('payMethod', 'string');
 		$this->addType('remainderCents', 'integer');
+		$this->addType('vatBp', 'integer');
 		$this->addType('createdAt', 'datetime_immutable');
 		$this->addType('paidAt', 'datetime_immutable');
 		$this->addType('expiresAt', 'datetime_immutable');
@@ -159,6 +163,7 @@ class Order extends Entity
 			'promoCents' => (int)$this->promoCents,
 			'payMethod' => $this->payMethod,
 			'remainderCents' => (int)$this->remainderCents,
+			'vatBp' => (int)$this->vatBp,
 			'approvedBy' => $this->approvedBy,
 			'approvedAt' => $this->approvedAt === null ? null : $this->approvedAt->format(\DateTimeInterface::ATOM),
 			'consentAt' => $this->consentAt === null ? null : $this->consentAt->format(\DateTimeInterface::ATOM),

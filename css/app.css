@@ -521,8 +521,20 @@
  * Public guest surfaces + admin details not covered by shared packs.
  * Colors come only from tokens / NC vars — never literals. */
 
-/* Public guest pages — single centred column, huge tap targets */
+/* Public guest pages — single centred column, huge tap targets.
+   #body-public renders #content as NC's two-column app grid
+   (nav 280px + content 1fr): a bare .bck-pub child lands in the nav
+   column and renders ~280px wide on desktop. Span the full grid. */
+#content > .bck-pub,
+#content > .bck-embed { grid-column: 1 / -1; width: 100%; }
+
 .bck-pub {
+	/* Text must never sit directly on --image-background (theming
+	   wallpaper / colour gradient): contrast there is uncontrolled.
+	   Same recipe as core .guest-box — blurred main-background sheet
+	   that pairs with --color-main-text under every theme. */
+	--color-text-maxcontrast: var(--color-text-maxcontrast-background-blur, var(--color-main-text));
+	--bck-muted: var(--color-text-maxcontrast);
 	box-sizing: border-box;
 	max-width: 60rem;
 	margin: 0 auto;
@@ -530,6 +542,12 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--bck-space-5);
+	color: var(--color-main-text);
+	background-color: var(--color-main-background-blur, var(--color-main-background));
+	-webkit-backdrop-filter: var(--filter-background-blur, blur(12px));
+	backdrop-filter: var(--filter-background-blur, blur(12px));
+	border-radius: var(--bck-radius-lg);
+	box-shadow: 0 0 10px var(--color-box-shadow);
 }
 .bck-pub--narrow { max-width: 34rem; }
 .bck-pub__head { text-align: center; }
@@ -596,7 +614,14 @@
 @media print {
 	.bck-no-print, header#header, #app-navigation { display: none !important; }
 	.bck-invoice__sheet { border: none; padding: 0; }
-	.bck-pub { padding: 0; max-width: none; }
+	.bck-pub {
+		padding: 0;
+		max-width: none;
+		background: none;
+		box-shadow: none;
+		-webkit-backdrop-filter: none;
+		backdrop-filter: none;
+	}
 }
 
 .bck-card--link {
@@ -836,6 +861,7 @@
 	gap: var(--bck-space-4);
 }
 .bck-pub .bck-muted { color: var(--bck-muted); }
+.bck-pub .bck-fs-sm { font-size: var(--bck-fs-sm); }
 .bck-pub .bck-page-stack {
 	display: flex;
 	flex-direction: column;
@@ -1038,4 +1064,29 @@
 		min-height: 44px;
 		min-width: 44px;
 	}
+}
+
+/* Settings — access-door group allowlist (scrollable checkbox list). */
+#app-content.bck-app .bck-access-groups {
+	list-style: none;
+	margin: var(--bck-space-2) 0 0;
+	padding: 0;
+	max-height: 16rem;
+	overflow-y: auto;
+	border: 1px solid var(--bck-border, var(--color-border));
+	border-radius: var(--bck-radius-md);
+	background: var(--bck-bg-card, var(--color-main-background));
+}
+#app-content.bck-app .bck-access-groups__item {
+	padding: var(--bck-space-1) var(--bck-space-3);
+	border-bottom: 1px solid var(--bck-border, var(--color-border));
+}
+#app-content.bck-app .bck-access-groups__item:last-child { border-bottom: none; }
+#app-content.bck-app .bck-access-groups__item:hover {
+	background: var(--bck-bg-hover, var(--color-background-hover));
+}
+#app-content.bck-app .bck-access-groups .bck-check {
+	display: flex;
+	min-height: 44px;
+	align-items: center;
 }

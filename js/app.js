@@ -64,7 +64,7 @@
 
 	function ApiError(payload, status) {
 		this.error = (payload && payload.error) || 'SERVER_ERROR';
-		this.message = (payload && payload.message) || 'Unexpected error';
+		this.message = (payload && payload.message) || t('Unexpected error');
 		this.fields = (payload && payload.fields) || {};
 		this.status = status || 0;
 	}

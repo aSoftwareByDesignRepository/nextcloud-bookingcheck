@@ -6,6 +6,55 @@
 	function reload() { window.location.reload(); }
 	function fail(e) { BCK.handleError(e); }
 
+	/* ---- offering edit: progressive disclosure ----
+	 * Fields that only apply under a given type/toggle stay hidden until
+	 * they matter (hidden inputs still post — "off" semantics survive).
+	 * With JS off everything stays visible — the form still works. */
+	var typeSel = document.getElementById('bck-type');
+	var bookSeriesWrap = document.getElementById('bck-bookseries-wrap');
+	var passScopeWrap = document.getElementById('bck-passscope-wrap');
+	var bookSeriesChk = bookSeriesWrap
+		? bookSeriesWrap.querySelector('input[type="checkbox"][name="book_series"]') : null;
+	function applyTypeVisibility() {
+		if (!typeSel) { return; }
+		if (bookSeriesWrap) {
+			var showSeries = typeSel.value === 'course';
+			bookSeriesWrap.hidden = !showSeries;
+			// a hidden toggle must not keep its state — it would save
+			// invisibly onto a type it does not apply to
+			if (!showSeries && bookSeriesChk) { bookSeriesChk.checked = false; }
+		}
+		if (passScopeWrap) { passScopeWrap.hidden = typeSel.value !== 'pass'; }
+	}
+	if (typeSel) {
+		typeSel.addEventListener('change', applyTypeVisibility);
+		applyTypeVisibility();
+	}
+	var shareChk = document.querySelector('input[type="checkbox"][name="sharing_enabled"]');
+	var shareScopeField = document.getElementById('bck-shscope-field');
+	var quotaWrap = document.getElementById('bck-uploadquota-wrap');
+	function applyShareVisibility() {
+		var on = !!(shareChk && shareChk.checked);
+		if (shareScopeField) { shareScopeField.hidden = !on; }
+		if (quotaWrap) { quotaWrap.hidden = !on; }
+	}
+	if (shareChk) {
+		shareChk.addEventListener('change', applyShareVisibility);
+		applyShareVisibility();
+	}
+	var dynPctInput = document.getElementById('bck-dynbp');
+	var dynStepField = document.getElementById('bck-dynstep-field');
+	function applyDynVisibility() {
+		if (dynStepField) {
+			dynStepField.hidden = !(dynPctInput && parseInt(dynPctInput.value, 10) > 0);
+		}
+	}
+	if (dynPctInput) {
+		dynPctInput.addEventListener('input', applyDynVisibility);
+		dynPctInput.addEventListener('change', applyDynVisibility);
+		applyDynVisibility();
+	}
+
 	// generic JSON form posts: <form data-bck-form data-bck-method="PUT"
 	// action="/apps/bookingcheck/api/..."> — FormData → JSON, then follow up.
 	document.addEventListener('submit', function (ev) {
@@ -132,11 +181,12 @@
 				.then(function (data) {
 					var rows = (data && data.roster) || [];
 					if (!rows.length) {
-						listBox.innerHTML = '<div class="bck-card__body"><div class="bck-empty-state"><p class="bck-empty-state__text">Nobody booked yet.</p></div></div>';
+						listBox.innerHTML = '<div class="bck-card__body"><div class="bck-empty-state"><p class="bck-empty-state__text">'
+							+ BCK.t('Nobody booked yet.') + '</p></div></div>';
 						return;
 					}
 					var html = '<div class="bck-card__body bck-card__body--table"><div class="bck-table-wrap"><table class="bck-table"><thead><tr>'
-						+ '<th>Name</th><th>Seat</th><th>Status</th><th></th></tr></thead><tbody>';
+						+ '<th>' + BCK.t('Name') + '</th><th>' + BCK.t('Seat') + '</th><th>' + BCK.t('Status') + '</th><th></th></tr></thead><tbody>';
 					rows.forEach(function (t) {
 						var checked = !!t.checked_in_at;
 						var notes = (t.answers || []).map(function (a) {
@@ -145,15 +195,20 @@
 						html += '<tr><td>' + BCK.esc(t.attendee_name || '')
 							+ (notes ? '<br><span class="bck-roster-notes">' + notes + '</span>' : '') + '</td>'
 							+ '<td>' + BCK.esc(t.seat_no || '') + '</td>'
-							+ '<td>' + (checked ? 'in' : 'out') + '</td>'
+							+ '<td>' + (checked ? BCK.t('In') : BCK.t('Out')) + '</td>'
 							+ '<td><button class="bck-btn bck-btn--small bck-btn--primary" data-bck-checkin="'
 							+ t.id + '" data-bck-undo="' + (checked ? '1' : '0') + '">'
-							+ (checked ? 'Undo' : 'Check in') + '</button></td></tr>';
+							+ (checked ? BCK.t('Undo') : BCK.t('Check in')) + '</button></td></tr>';
 					});
 					listBox.innerHTML = html + '</tbody></table></div></div>';
 				})
 				.catch(fail);
 		});
+		// first visit = one fewer click: load the next upcoming date right away
+		if (!picker.value && picker.options.length > 1) {
+			picker.selectedIndex = 1;
+			picker.dispatchEvent(new Event('change'));
+		}
 	}
 
 	// scan-page check-in — QR-token bound, works for admin and door sessions
@@ -164,7 +219,7 @@
 		BCK.api('/scan/check-in', { method: 'POST', json: { code: btn.getAttribute('data-bck-scan-checkin') } })
 			.then(function (d) {
 				// AC-2: a second scan is a warning, never a silent green
-				var mark = (d && d.already) ? ' — ALREADY IN' : ' — in';
+				var mark = ' — ' + ((d && d.already) ? BCK.t('ALREADY IN') : BCK.t('in'));
 				var li = btn.closest('li');
 				if (li) {
 					var s = li.querySelector('span');
@@ -173,8 +228,8 @@
 				var p = btn.parentElement && btn.parentElement.querySelector('.bck-callout__text');
 				if (p && !li) {
 					p.textContent = (d && d.already)
-						? (d.attendee_name || 'Ticket') + ' — already checked in earlier'
-						: (d.attendee_name || 'Ticket') + ' — checked in';
+						? (d.attendee_name || BCK.t('Ticket')) + ' — ' + BCK.t('already checked in earlier')
+						: (d.attendee_name || BCK.t('Ticket')) + ' — ' + BCK.t('checked in');
 				}
 				btn.remove();
 			})
@@ -196,7 +251,7 @@
 					var li = btn.closest('li');
 					if (li) {
 						var s = li.querySelector('span');
-						if (s) { s.textContent = s.textContent + ' — in'; }
+						if (s) { s.textContent = s.textContent + ' — ' + BCK.t('in'); }
 					}
 					btn.remove();
 					return;
@@ -220,7 +275,7 @@
 				.then(function () { window.location.reload(); })
 				.catch(function (e) {
 					if (err) {
-						err.textContent = (e && e.message) || 'Invalid device token.';
+						err.textContent = (e && e.message) || BCK.t('Invalid device token.');
 						err.hidden = false;
 					}
 					if (btn) { btn.disabled = false; }
@@ -255,7 +310,7 @@
 						btn.type = 'button';
 						btn.className = 'bck-btn bck-btn--primary';
 						btn.setAttribute('data-bck-scan-checkin', String(qr));
-						btn.textContent = 'Check in';
+						btn.textContent = BCK.t('Check in');
 						return btn;
 					};
 					if (d.tickets) {
@@ -270,9 +325,9 @@
 						d.tickets.forEach(function (t) {
 							var li = document.createElement('li');
 							var span = document.createElement('span');
-							span.textContent = (t.attendee_name || 'Ticket')
-								+ (t.seat_no ? ' · seat ' + t.seat_no : '')
-								+ (t.checked_in_at ? ' — in' : '');
+							span.textContent = (t.attendee_name || BCK.t('Ticket'))
+								+ (t.seat_no ? ' · ' + BCK.tf('seat %s', [String(t.seat_no)]) : '')
+								+ (t.checked_in_at ? ' — ' + BCK.t('in') : '');
 							li.appendChild(span);
 							if (!t.checked_in_at && t.qr) { li.appendChild(mkBtn(t.qr)); }
 							ul.appendChild(li);
@@ -282,7 +337,8 @@
 						scanResult.className = 'bck-callout bck-callout--' + (d.checked_in ? 'warning' : 'success');
 						var p = document.createElement('p');
 						p.className = 'bck-callout__text';
-						p.textContent = (d.attendee_name || 'Ticket') + ' — ' + (d.checked_in ? 'already checked in' : 'valid');
+						p.textContent = (d.attendee_name || BCK.t('Ticket')) + ' — '
+							+ (d.checked_in ? BCK.t('already checked in') : BCK.t('valid'));
 						scanResult.appendChild(p);
 						if (!d.checked_in && d.qr) { scanResult.appendChild(mkBtn(d.qr)); }
 					}
@@ -290,7 +346,7 @@
 				})
 				.catch(function (e) {
 					scanResult.className = 'bck-callout bck-callout--danger';
-					scanResult.textContent = (e && e.message) || 'No ticket found for this code.';
+					scanResult.textContent = (e && e.message) || BCK.t('No ticket found for this code.');
 					scanResult.hidden = false;
 				});
 		});
@@ -308,9 +364,9 @@
 		}).then(function (d) {
 			if (d && d.unavailable) {
 				el.checked = false;
-				BCK.toast('error', 'That integration is not installed.');
+				BCK.toast('error', BCK.t('That integration is not installed.'));
 			} else {
-				BCK.toast('success', el.checked ? 'Connected.' : 'Disconnected.');
+				BCK.toast('success', el.checked ? BCK.t('Connected.') : BCK.t('Disconnected.'));
 			}
 			el.disabled = false;
 		}).catch(function (e) {
@@ -410,7 +466,7 @@
 						// the code is minted server-side — show it once, large
 						var code = (d && d.code) || '';
 						var p = BCK.el('p', { class: 'bck-callout__text' });
-						p.innerHTML = 'Voucher code: <code>' + BCK.esc(code) + '</code>';
+						p.innerHTML = BCK.esc(BCK.t('Voucher code:')) + ' <code>' + BCK.esc(code) + '</code>';
 						BCK.openDialog({ title: BCK.t('Voucher created'), body: p, submitLabel: BCK.t('Done') });
 						reload();
 					});
@@ -497,6 +553,23 @@
 	}
 
 	// webhook secret rotation
+	// copy-to-clipboard for share snippets — data-bck-copy="#elementId"
+	document.addEventListener('click', function (ev) {
+		var btn = ev.target.closest('[data-bck-copy]');
+		if (!btn) { return; }
+		var src = document.querySelector(btn.getAttribute('data-bck-copy'));
+		if (!src) { return; }
+		var text = ('value' in src) ? src.value : src.textContent;
+		var done = function () { BCK.toast('success', BCK.t('Copied.')); };
+		if (navigator.clipboard && navigator.clipboard.writeText) {
+			navigator.clipboard.writeText(text).then(done, function () {
+				src.select && src.select(); document.execCommand('copy'); done();
+			});
+		} else {
+			src.select && src.select(); document.execCommand('copy'); done();
+		}
+	});
+
 	document.addEventListener('click', function (ev) {
 		var btn = ev.target.closest('[data-bck-webhook-rotate]');
 		if (!btn) { return; }
@@ -504,7 +577,7 @@
 		BCK.api('/webhooks/' + btn.getAttribute('data-bck-webhook-rotate'), {
 			method: 'PUT', json: { rotate_secret: '1' }
 		}).then(function () {
-			BCK.toast('success', 'Secret rotated — old one stays valid 24h.');
+			BCK.toast('success', BCK.t('Secret rotated — old one stays valid 24h.'));
 			btn.disabled = false;
 		}).catch(function (e) { fail(e); btn.disabled = false; });
 	});
@@ -532,6 +605,45 @@
 		function cents(c) { return (parseInt(c, 10) / 100).toFixed(2); }
 		function dt(s) { return s ? String(s).slice(0, 16).replace('T', ' ') : '—'; }
 
+		// ---- share card: link + embed snippets (values only — markup is
+		// PHP-rendered so every label is translatable and nothing hits
+		// innerHTML) ----
+		function renderShareCard(o) {
+			var card = document.getElementById('bck-share-card');
+			var link = document.getElementById('bck-share-link');
+			var embed = document.getElementById('bck-share-embed');
+			var note = document.getElementById('bck-share-note');
+			if (!card || !link || !o || !o.slug) { return; }
+			var base = window.location.origin + BCK.appBase();
+			link.value = base + '/pub/o/' + encodeURIComponent(o.slug);
+			card.hidden = false;
+			if (o.status !== 'published') {
+				note.textContent = BCK.t('Publish this offering to get the embed code.');
+				note.hidden = false;
+				return;
+			}
+			var domains = [];
+			try { domains = JSON.parse(o.embedDomains || '[]') || []; } catch (e) {}
+			if (!domains.length) {
+				note.textContent = BCK.t('Allow websites under Edit to get the embed code.');
+				note.hidden = false;
+				return;
+			}
+			var enc = encodeURIComponent(o.slug);
+			var iframeTitle = String(o.title || 'Booking')
+				.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+			document.getElementById('bck-share-iframe').value =
+				'<iframe src="' + base + '/pub/embed/o/' + enc + '"'
+				+ ' style="width:100%;max-width:480px;border:0;min-height:420px"'
+				+ ' title="' + iframeTitle + '"'
+				+ ' loading="lazy"></iframe>';
+			document.getElementById('bck-share-sdk').value =
+				'<script src="' + base + '/pub/sdk.js" async></' + 'script>\n'
+				+ '<bck-booking slug="' + enc + '" base="' + base + '"></bck-booking>';
+			embed.hidden = false;
+		}
+
 		// ---- summary ----
 		var summaryBox = document.getElementById('bck-offering-summary');
 		var offering = null;
@@ -551,6 +663,7 @@
 				if (seriesChk) { seriesChk.closest('.bck-field').hidden = true; }
 				loadTemplates();
 			}
+			renderShareCard(offering);
 		}).catch(function () {
 			summaryBox.innerHTML = '<div class="bck-card__body"><p class="bck-empty-state__text">'
 				+ BCK.t('Offering not found.') + '</p></div>';

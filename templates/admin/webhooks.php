@@ -30,9 +30,9 @@ $items = $_['webhooks'] ?? [];
 				<tbody>
 				<?php foreach ($items as $w): ?>
 					<tr>
-						<td data-label="<?php p($l->t('Endpoint')); ?>"><code><?php p((string)$w['url']); ?></code></td>
-						<td data-label="<?php p($l->t('Events')); ?>"><?php p(implode(', ', array_map('strval', $w['events'] ?? []))); ?></td>
-						<td data-label="<?php p($l->t('Status')); ?>">
+						<td data-cell="<?php p($l->t('Endpoint')); ?>"><code><?php p((string)$w['url']); ?></code></td>
+						<td data-cell="<?php p($l->t('Events')); ?>"><?php p(implode(', ', array_map('strval', $w['events'] ?? []))); ?></td>
+						<td data-cell="<?php p($l->t('Status')); ?>">
 							<span class="bck-badge <?php p((int)$w['active'] === 1 ? 'bck-badge--success' : 'bck-badge--neutral'); ?>">
 								<?php p((int)$w['active'] === 1 ? $l->t('active') : $l->t('off')); ?></span>
 						</td>

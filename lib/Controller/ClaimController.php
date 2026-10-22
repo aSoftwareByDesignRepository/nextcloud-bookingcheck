@@ -42,12 +42,12 @@ class ClaimController extends Controller
 	public function show(string $token): PublicTemplateResponse
 	{
 		if ($token === '' || strlen($token) > 128) {
-			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
+			return \OCA\BookingCheck\Support\PublicNotFound::render([]);
 		}
 		$row = $this->waitlist->findByClaimTokenHash($this->tokens->hash($token));
 		if ($row === null || $row->getState() !== 'offered'
 			|| ($row->getOfferExpiresAt() !== null && $row->getOfferExpiresAt() < new \DateTimeImmutable())) {
-			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
+			return \OCA\BookingCheck\Support\PublicNotFound::render([]);
 		}
 		// expose the offering's terms so the claim page can demand consent
 		$offeringId = $this->waitlistService->offeringForTarget($row->getTargetType(), (int)$row->getTargetId());

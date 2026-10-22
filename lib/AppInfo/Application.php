@@ -109,9 +109,7 @@ class Application extends App implements IBootstrap
 			'BookingCheck',
 			10,
 			static function (string $uid) use ($app): bool {
-				$groups = $app->get(\OCP\IGroupManager::class);
-				return $groups->isAdmin($uid)
-					|| $groups->isInGroup($uid, \OCA\BookingCheck\Middleware\AppAccessMiddleware::ADMIN_GROUP);
+				return $app->get(\OCA\BookingCheck\Service\AccessControlService::class)->canUseApp($uid);
 			},
 		);
 	}

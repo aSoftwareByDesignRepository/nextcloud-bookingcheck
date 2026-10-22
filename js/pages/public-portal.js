@@ -37,7 +37,7 @@
 			}
 			var err = document.getElementById('bck-portal-error');
 			if (err) {
-				err.textContent = 'That code is not right — try again.';
+				err.textContent = BCK.t('That code is not right — try again.');
 				err.hidden = false;
 			}
 		});

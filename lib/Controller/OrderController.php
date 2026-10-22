@@ -15,10 +15,11 @@ use OCA\BookingCheck\Db\OrderLineMapper;
 use OCA\BookingCheck\Db\PaymentMapper;
 use OCA\BookingCheck\Db\TicketMapper;
 use OCA\BookingCheck\Exception\NotFoundException;
+use OCA\BookingCheck\Exception\PspException;
 use OCA\BookingCheck\Exception\StateConflictException;
 use OCA\BookingCheck\Exception\ValidationException;
-use OCA\BookingCheck\Psp\PspManager;
 use OCA\BookingCheck\Service\OrderService;
+use OCA\BookingCheck\Service\RefundService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -41,7 +42,7 @@ class OrderController extends Controller
 		private readonly PaymentMapper $payments,
 		private readonly TicketMapper $tickets,
 		private readonly InvoiceMapper $invoices,
-		private readonly PspManager $psp,
+		private readonly RefundService $refunds,
 		private readonly IUserSession $userSession,
 		private readonly IDBConnection $db,
 		private readonly \OCA\BookingCheck\Service\TokenService $tokenService,
@@ -59,6 +60,11 @@ class OrderController extends Controller
 	#[NoCSRFRequired]
 	public function index(): TemplateResponse
 	{
+		$status = trim((string)$this->request->getParam('status', ''));
+		if (!array_key_exists($status, \OCA\BookingCheck\Support\StatusLabels::STATUSES)) {
+			$status = '';
+		}
+		$q = trim((string)$this->request->getParam('q', ''));
 		$qb = $this->db->getQueryBuilder();
 		$qb->select('o.id', 'o.ref', 'o.status', 'o.buyer_name', 'o.buyer_email',
 			'o.amount_cents', 'o.currency', 'o.created_at', 'o.is_test', 'f.title')
@@ -66,9 +72,40 @@ class OrderController extends Controller
 			->leftJoin('o', 'bc_offering', 'f', $qb->expr()->eq('f.id', 'o.offering_id'))
 			->orderBy('o.id', 'DESC')
 			->setMaxResults(500);
+		if ($status !== '') {
+			$qb->andWhere($qb->expr()->eq('o.status', $qb->createNamedParameter($status)));
+		}
+		if ($q !== '') {
+			// Support lookup: ref, buyer name, or buyer email (spec §support).
+			$like = '%' . $this->db->escapeLikeParameter($q) . '%';
+			$qb->andWhere($qb->expr()->orX(
+				$qb->expr()->iLike('o.ref', $qb->createNamedParameter($like)),
+				$qb->expr()->iLike('o.buyer_name', $qb->createNamedParameter($like)),
+				$qb->expr()->iLike('o.buyer_email', $qb->createNamedParameter($like)),
+			));
+		}
+		$rows = $qb->executeQuery()->fetchAll();
+		$countQb = $this->db->getQueryBuilder();
+		$countQb->select($countQb->func()->count('o.id'))->from('bc_order', 'o');
+		if ($status !== '') {
+			$countQb->andWhere($countQb->expr()->eq('o.status', $countQb->createNamedParameter($status)));
+		}
+		if ($q !== '') {
+			$like = '%' . $this->db->escapeLikeParameter($q) . '%';
+			$countQb->andWhere($countQb->expr()->orX(
+				$countQb->expr()->iLike('o.ref', $countQb->createNamedParameter($like)),
+				$countQb->expr()->iLike('o.buyer_name', $countQb->createNamedParameter($like)),
+				$countQb->expr()->iLike('o.buyer_email', $countQb->createNamedParameter($like)),
+			));
+		}
+		$total = (int)$countQb->executeQuery()->fetchOne();
 		return new TemplateResponse($this->appName, 'admin/orders', [
 			'navId' => 'orders',
-			'orders' => $qb->executeQuery()->fetchAll(),
+			'orders' => $rows,
+			'filterStatus' => $status,
+			'filterQ' => $q,
+			'total' => $total,
+			'truncated' => count($rows) >= 500 && $total > count($rows),
 		]);
 	}
 
@@ -129,94 +166,26 @@ class OrderController extends Controller
 	/**
 	 * Two-step refund: quote returns the policy-computed amount; the
 	 * commit requires the quoted amount echoed back (admin confirms the
-	 * number they saw — no blind clicks).
+	 * number they saw — no blind clicks). The executor is shared with
+	 * the companion manager API — RefundService owns the money path.
 	 */
 	#[NoAdminRequired]
 	public function refundQuote(int $id): JSONResponse
 	{
-		$order = $this->mustExist($id);
-		if ($order->getStatus() !== 'paid' && $order->getStatus() !== 'cancelled') {
-			throw new ValidationException(['order' => 'Only paid orders can be refunded.']);
-		}
-		// The quote is what the PSP can actually move: the settled tranche
-		// on the paid payment row. For a deposit order that is
-		// amount−remainder, not the order total — refunding the total
-		// would try to return money never collected (PSP rejects) or, if
-		// accepted, hand back more than the buyer ever paid.
-		$payment = $this->payments->findPaidByOrder($id);
-		return $this->ok([
-			'amount_cents' => $payment !== null
-				? (int)$payment->getAmountCents()
-				: (int)$order->getAmountCents(),
-			'currency' => $order->getCurrency(),
-		]);
+		return $this->ok($this->refunds->quote($this->mustExist($id)));
 	}
 
 	#[NoAdminRequired]
 	public function refund(int $id): JSONResponse
 	{
-		$order = $this->mustExist($id);
-		if ($order->getStatus() !== 'paid' && $order->getStatus() !== 'cancelled') {
-			throw new ValidationException(['order' => 'Only paid orders can be refunded.']);
+		try {
+			return $this->ok($this->refunds->refund(
+				$this->mustExist($id),
+				$this->strictId($this->request->getParam('amount_cents')),
+				$this->uid()));
+		} catch (PspException $e) {
+			return $this->fail(502, 'PAYMENT_UNAVAILABLE', $e->getMessage());
 		}
-		$payment = $this->payments->findPaidByOrder($id);
-		if ($payment === null || $payment->getPspRef() === null) {
-			throw new ValidationException(['order' => 'No payment to refund.']);
-		}
-		$amount = $this->strictId($this->request->getParam('amount_cents'));
-		// v1 is full-refund only — a partial amount would still release ALL
-		// seats and revoke ALL tickets (the transition is terminal). The
-		// quote must be echoed back exactly; partials arrive with the
-		// refund-policy engine, never as a silent semantic mismatch.
-		// "Full" means the settled tranche on this payment row — on a
-		// deposit order the PSP only captured amount−remainder.
-		if ($amount === null || $amount !== (int)$payment->getAmountCents()) {
-			throw new ValidationException(['amount_cents' => 'Only full refunds are supported — echo the quoted amount.']);
-		}
-		$refundRef = (string)$payment->getRefundRef();
-		if ($refundRef === '' || str_starts_with($refundRef, 'pending:')) {
-			// CAS-claim the refund before touching the PSP — without this
-			// two concurrent refund calls both pass the refund_ref check
-			// and submit two real refunds. 'pending:' markers are
-			// reclaimable once stale (claimant died mid-call).
-			$claim = 'pending:' . bin2hex(random_bytes(8));
-			if (!$this->payments->claimRefund((int)$payment->getId(), $claim)) {
-				// lost the claim — a real refund_ref means already done;
-				// a fresh pending marker means in flight → 409, not a
-				// second PSP call and not a silent merge
-				$current = $this->payments->find((int)$payment->getId());
-				$currentRef = (string)$current?->getRefundRef();
-				if (str_starts_with($currentRef, 'pending:')) {
-					throw new StateConflictException(
-						'A refund is already in progress for this order — retry in a moment.');
-				}
-				$refundRef = $currentRef;
-			} else {
-				// PSP refund first — order state only moves after money
-				// moved. The real refund_ref is persisted BEFORE the
-				// transition: if the transition throws, a retry finds it
-				// set and skips the PSP call instead of double-refunding.
-				$result = $this->psp->byName($payment->getProvider())
-					->refund($payment->getPspRef(), $amount, $order->getCurrency());
-				if (!$result->ok) {
-					// release our claim — the PSP never moved money, so
-					// a retry must be able to claim again
-					$this->payments->releaseRefundClaim((int)$payment->getId(), $claim);
-					return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Refund failed at the payment provider: ' . $result->error);
-				}
-				$refundRef = $result->refundRef !== '' ? $result->refundRef : 'ref-' . $payment->getPspRef();
-				$payment->setRefundRef($refundRef);
-				$this->payments->update($payment);
-			}
-		}
-		// the credit note mints inside the refund transaction — allocate()'s
-		// FOR UPDATE only serializes while a transaction is open; minting in
-		// autocommit here could duplicate invoice numbers under a race.
-		// GoBD: the Storno must negate the FULL invoiced document — that is
-		// the order total, not the refunded tranche (a deposit order's open
-		// remainder is written off by the reversal, never collected).
-		$this->orders->transitionToRefunded($id, $this->uid(), ['amount' => $amount], (int)$order->getAmountCents());
-		return $this->ok(['refunded_cents' => $amount, 'refund_ref' => $refundRef]);
 	}
 
 	#[NoAdminRequired]

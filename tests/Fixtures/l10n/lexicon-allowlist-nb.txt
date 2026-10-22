@@ -1,0 +1,12 @@
+# Reviewed nb vocabulary — not dictionary bleed.
+# One token per line, lowercase; marker words: loanword|proper|abbrev|shared|reviewed
+drop # loanword — established Norwegian "drop-in"
+kalenderfeed # loanword — established nb; family convention (dutycheck/customercheck nb)
+katalogfeed # loanword — katalog + feed compound
+katalogfeeden # loanword — definite form of katalogfeed
+deaktiver # shared — valid nb imperative of "deaktivere" (shared with da)
+rabattype # shared — valid nb compound rabatt + type (shared with da)
+deaktivert # shared — valid nb past participle of "deaktivere"
+enhetstoken # reviewed — valid nb compound enhet + token
+mva # abbrev — standard nb abbreviation for merverdiavgift (VAT)
+eus # abbrev — "EUs" genitive (EUs mva-direktiv)

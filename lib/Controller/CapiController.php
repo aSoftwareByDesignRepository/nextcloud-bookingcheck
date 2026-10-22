@@ -41,6 +41,8 @@ class CapiController extends Controller
 		private readonly ?\OCA\BookingCheck\Service\PassService $passes = null,
 		private readonly ?\OCA\BookingCheck\Service\OrderService $orderService = null,
 		private readonly ?\OCA\BookingCheck\Db\CompanionTokenMapper $companions = null,
+		private readonly ?\OCA\BookingCheck\Service\RefundService $refunds = null,
+		private readonly ?\OCA\BookingCheck\Db\OrderMapper $orderMapper = null,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -54,7 +56,7 @@ class CapiController extends Controller
 			'api' => 'v1',
 			'role' => $this->companionDevice?->getRole() ?? 'door',
 			'capabilities' => match ($this->companionDevice?->getRole() ?? 'door') {
-				'manager' => ['events', 'roster', 'check-in', 'stats', 'push', 'pass', 'walkup'],
+				'manager' => ['events', 'roster', 'check-in', 'stats', 'push', 'pass', 'walkup', 'orders', 'refund'],
 				'api' => ['events', 'roster', 'check-in', 'stats', 'push', 'pass', 'walkup', 'offerings.write'],
 				default => ['events', 'roster', 'check-in', 'push', 'pass', 'walkup'],
 			},
@@ -503,10 +505,18 @@ class CapiController extends Controller
 			return $this->fail(403, 'FORBIDDEN', 'API devices only.');
 		}
 		$title = trim((string)$this->request->getParam('title', ''));
-		$priceCents = (int)($this->request->getParam('price_cents') ?? 0);
-		$capacity = (int)($this->request->getParam('capacity') ?? 0);
+		// strict digit parse — (int) would turn "abc" into a free offering
+		// and "2.9" into capacity 2 silently
+		$rawPrice = $this->request->getParam('price_cents') ?? '0';
+		$rawCap = $this->request->getParam('capacity') ?? '';
+		$rawDur = $this->request->getParam('duration_min') ?? '60';
+		$priceCents = is_scalar($rawPrice) && preg_match('/^\d+$/', (string)$rawPrice)
+			? (int)$rawPrice : -1;
+		$capacity = is_scalar($rawCap) && preg_match('/^\d+$/', (string)$rawCap)
+			? (int)$rawCap : 0;
+		$duration = is_scalar($rawDur) && preg_match('/^\d+$/', (string)$rawDur)
+			? max(15, min(1440, (int)$rawDur)) : 0;
 		$startsAt = trim((string)$this->request->getParam('starts_at', ''));
-		$duration = max(15, min(1440, (int)($this->request->getParam('duration_min') ?? 60)));
 		$fields = [];
 		if ($title === '' || mb_strlen($title) > 190) {
 			$fields['title'] = 'Title required (≤190 chars).';
@@ -516,6 +526,9 @@ class CapiController extends Controller
 		}
 		if ($capacity < 1 || $capacity > 100000) {
 			$fields['capacity'] = 'Capacity 1–100000 required.';
+		}
+		if ($duration === 0) {
+			$fields['duration_min'] = 'Duration must be a whole number of minutes.';
 		}
 		$start = \DateTimeImmutable::createFromFormat(\DateTimeInterface::ATOM, $startsAt)
 			?: \DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $startsAt);
@@ -535,6 +548,130 @@ class CapiController extends Controller
 		return $this->ok(['offering_id' => $offeringId, 'event_id' => $eventId], 201);
 	}
 
+	/**
+	 * NH-04 — manager quick-refund surface. Recent orders inside the
+	 * device scope, newest first; `limit` clamps 1–100. Door-role
+	 * devices are refused outright — a tablet at the gate must never
+	 * enumerate a seller's order book.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function orders(): JSONResponse
+	{
+		if ($this->companionDevice?->getRole() !== 'manager') {
+			return $this->fail(403, 'FORBIDDEN', 'Manager devices only.');
+		}
+		if ($this->orderMapper === null) {
+			return $this->fail(400, 'UNSUPPORTED', 'Orders unavailable.');
+		}
+		$limit = $this->strictId($this->request->getParam('limit')) ?? 50;
+		$limit = max(1, min($limit, 100));
+		$rows = array_map(
+			$this->orderPayload(...),
+			$this->orderMapper->findRecentScoped($this->deviceScope(), $limit));
+		return $this->ok(['orders' => $rows]);
+	}
+
+	/** Manager order detail — scoped; foreign offerings collapse to 404. */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function order(int $id): JSONResponse
+	{
+		if ($this->companionDevice?->getRole() !== 'manager') {
+			return $this->fail(403, 'FORBIDDEN', 'Manager devices only.');
+		}
+		$order = $this->scopedOrder($id);
+		if ($order === null) {
+			return $this->notFound();
+		}
+		return $this->ok(['order' => $this->orderPayload($order)]);
+	}
+
+	/**
+	 * Manager quick refund — same two-step quote→echo contract as the
+	 * web surface. The quote is the settled tranche the PSP can move;
+	 * commit requires it echoed back so the app cannot blind-refund.
+	 */
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function orderRefundQuote(int $id): JSONResponse
+	{
+		if ($this->companionDevice?->getRole() !== 'manager') {
+			return $this->fail(403, 'FORBIDDEN', 'Manager devices only.');
+		}
+		$order = $this->scopedOrder($id);
+		if ($order === null || $this->refunds === null) {
+			return $order === null ? $this->notFound() : $this->fail(400, 'UNSUPPORTED', 'Refunds unavailable.');
+		}
+		try {
+			return $this->ok($this->refunds->quote($order));
+		} catch (\OCA\BookingCheck\Exception\ValidationException $e) {
+			return $this->fail(400, 'VALIDATION', 'Order cannot be refunded.', $e->getFields());
+		}
+	}
+
+	#[PublicPage]
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
+	public function orderRefund(int $id): JSONResponse
+	{
+		if ($this->companionDevice?->getRole() !== 'manager') {
+			return $this->fail(403, 'FORBIDDEN', 'Manager devices only.');
+		}
+		$order = $this->scopedOrder($id);
+		if ($order === null || $this->refunds === null) {
+			return $order === null ? $this->notFound() : $this->fail(400, 'UNSUPPORTED', 'Refunds unavailable.');
+		}
+		try {
+			return $this->ok($this->refunds->refund(
+				$order,
+				$this->strictId($this->request->getParam('amount_cents')),
+				'device:' . ($this->companionDevice?->getLabel() ?? 'unknown')));
+		} catch (\OCA\BookingCheck\Exception\ValidationException $e) {
+			return $this->fail(400, 'VALIDATION', 'Order cannot be refunded.', $e->getFields());
+		} catch (\OCA\BookingCheck\Exception\StateConflictException) {
+			return $this->fail(409, 'CONFLICT', 'A refund is already in progress for this order — retry in a moment.');
+		} catch (\OCA\BookingCheck\Exception\PspException $e) {
+			return $this->fail(502, 'PAYMENT_UNAVAILABLE', $e->getMessage());
+		}
+	}
+
+	/** Scoped order lookup — the offering boundary is the tenant wall. */
+	private function scopedOrder(int $id): ?\OCA\BookingCheck\Db\Order
+	{
+		$order = $this->orderMapper?->find($id);
+		if ($order === null || !$this->scopeAllows((int)$order->getOfferingId())) {
+			return null;
+		}
+		return $order;
+	}
+
+	/**
+	 * Trimmed order payload — the manager needs enough to identify and
+	 * refund an order, not the order's internal bookkeeping (staffNote,
+	 * consent record, voucher wiring).
+	 */
+	private function orderPayload(\OCA\BookingCheck\Db\Order $o): array
+	{
+		return [
+			'id' => (int)$o->getId(),
+			'ref' => $o->getRef(),
+			'offering_id' => (int)$o->getOfferingId(),
+			'buyer_name' => $o->getBuyerName(),
+			'buyer_email' => $o->getBuyerEmail(),
+			'status' => $o->getStatus(),
+			'amount_cents' => (int)$o->getAmountCents(),
+			'currency' => $o->getCurrency(),
+			'is_test' => (int)$o->getIsTest(),
+			'paid_at' => $o->getPaidAt()?->format(\DateTimeInterface::ATOM),
+			'created_at' => $o->getCreatedAt()->format(\DateTimeInterface::ATOM),
+		];
+	}
+
+	/** @return list<int>|null null = unscoped; [] = malformed, grant nothing */
 	private function deviceScope(): ?array
 	{
 		$raw = $this->companionDevice?->getOfferingIds();

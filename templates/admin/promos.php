@@ -26,13 +26,13 @@ $items = $_['promos'] ?? [];
 				<tbody>
 				<?php foreach ($items as $p_): ?>
 					<tr>
-						<td data-label="<?php p($l->t('Code')); ?>"><code><?php p((string)$p_['code']); ?></code></td>
-						<td data-label="<?php p($l->t('Discount')); ?>">
+						<td data-cell="<?php p($l->t('Code')); ?>"><code><?php p((string)$p_['code']); ?></code></td>
+						<td data-cell="<?php p($l->t('Discount')); ?>">
 							<?php p($p_['kind'] === 'percent'
 								? number_format(((int)$p_['percentBps']) / 100, ($p_['percentBps'] % 100 === 0) ? 0 : 2, ',', '.') . ' %'
 								: number_format(((int)$p_['amountCents']) / 100, 2, ',', '.') . ' ' . (string)($p_['currency'] ?? '')); ?></td>
-						<td data-label="<?php p($l->t('Used')); ?>"><?php p((string)(int)$p_['uses'] . '/' . ($p_['maxUses'] === null ? '∞' : (string)(int)$p_['maxUses'])); ?></td>
-						<td data-label="<?php p($l->t('Status')); ?>">
+						<td data-cell="<?php p($l->t('Used')); ?>"><?php p((string)(int)$p_['uses'] . '/' . ($p_['maxUses'] === null ? '∞' : (string)(int)$p_['maxUses'])); ?></td>
+						<td data-cell="<?php p($l->t('Status')); ?>">
 							<span class="bck-badge <?php p((int)$p_['active'] === 1 ? 'bck-badge--success' : 'bck-badge--neutral'); ?>">
 								<?php p((int)$p_['active'] === 1 ? $l->t('active') : $l->t('inactive')); ?></span>
 						</td>

@@ -24,15 +24,15 @@
 			.then(function (b) {
 				var s = b && b.data && b.data.status;
 				if (s === 'paid') {
-					paint('success', 'Payment confirmed — your tickets are on the way by email.');
+					paint('success', BCK.t('Payment confirmed — your tickets are on the way by email.'));
 					return;
 				}
 				if (s === 'failed' || s === 'expired' || s === 'cancelled') {
-					paint('danger', 'Payment did not complete. The seats were released — you can book again.');
+					paint('danger', BCK.t('Payment did not complete. The seats were released — you can book again.'));
 					return;
 				}
 				if (tries < 40) { setTimeout(poll, 3000); }
-				else { paint('info', 'Still waiting for your bank. We email you the moment it lands.'); }
+				else { paint('info', BCK.t('Still waiting for your bank. We email you the moment it lands.')); }
 			})
 			.catch(function () {
 				if (tries < 40) { setTimeout(poll, 4000); }

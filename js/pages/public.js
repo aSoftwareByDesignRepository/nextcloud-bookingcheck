@@ -13,6 +13,37 @@
 		}).then(function (r) { return r.json().catch(function () { return {}; }); });
 	}
 
+	/* --- cancel booking: destructive — never fire it on a stray tap --- */
+	document.querySelectorAll('form[data-bck-cancel-confirm]').forEach(function (form) {
+		form.addEventListener('submit', function (ev) {
+			if (!BCK.openDialog) { return; } // no dialog lib → plain submit
+			ev.preventDefault();
+			var wrap = BCK.el('div', { class: 'bck-field' });
+			wrap.appendChild(BCK.el('p', {
+				text: BCK.t('This cancels the whole booking — tickets are revoked and cannot be restored.')
+			}));
+			BCK.openDialog({
+				title: BCK.t('Cancel this booking?'),
+				body: wrap,
+				submitLabel: BCK.t('Yes, cancel booking'),
+				danger: true,
+				onSubmit: function () {
+					// the endpoint answers JSON, so a bare form POST would
+					// strand the buyer on a raw payload — fetch + reload
+					// lands them back on the (now cancelled) booking
+					return fetch(form.action, {
+						method: 'POST', credentials: 'same-origin',
+						headers: { 'Accept': 'application/json' }
+					}).then(function (r) { return r.json().catch(function () { return {}; }); })
+						.then(function (b) {
+							if (b && b.success) { window.location.reload(); return; }
+							throw new Error((b && b.message) || BCK.t('Could not cancel this booking.'));
+						});
+				}
+			});
+		});
+	});
+
 	/* --- promo validate (checkout page) --- */
 	var applyBtn = document.getElementById('bck-promo-apply');
 	if (applyBtn) {
@@ -41,7 +72,19 @@
 				target_type: form.getAttribute('data-target-type'),
 				target_id: parseInt(form.getAttribute('data-target-id'), 10),
 				email: email.value
-			}).then(function () {
+			}).then(function (res) {
+				// 202 on every business outcome — but a 400 means the input
+				// itself was rejected; surface the field error, don't claim
+				// a join that never happened.
+				if (res && res.success === false) {
+					if (btn) { btn.disabled = false; }
+					if (msg) {
+						msg.hidden = false;
+						msg.textContent = (res.fields && res.fields.email) ||
+							res.message || BCK.t('Something went wrong — please try again.');
+					}
+					return;
+				}
 				// 202 always — same answer for join, dedupe and invalid target
 				form.innerHTML = '<p class="bck-waitlist-msg">' +
 					BCK.t("Done — we'll email you if a seat frees up.") + '</p>';

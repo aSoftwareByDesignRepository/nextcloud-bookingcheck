@@ -79,7 +79,7 @@ class ManageController extends Controller
 	{
 		$order = $this->resolve($token);
 		if ($order === null) {
-			return new PublicTemplateResponse($this->appName, 'public/not-found', [
+			return \OCA\BookingCheck\Support\PublicNotFound::render([
 				'recover' => true, // oracle-safe "send me a new link" affordance
 			]);
 		}
@@ -251,7 +251,7 @@ class ManageController extends Controller
 			? $this->invoices->findByOrderAndType((int)$order->getId(), 'invoice')
 			: null;
 		if ($order === null || $invoice === null) {
-			return new PublicTemplateResponse($this->appName, 'public/not-found', []);
+			return \OCA\BookingCheck\Support\PublicNotFound::render([]);
 		}
 		$offering = $this->offerings->find((int)$order->getOfferingId());
 		return new PublicTemplateResponse($this->appName, 'public/invoice', [
@@ -282,7 +282,11 @@ class ManageController extends Controller
 				'country' => $this->settings->get('seller_country'),
 				'kleinunternehmer' => $this->settings->getBool('kleinunternehmer'),
 			],
-			'vatBp' => (int)($offering?->getVatBp() ?? 0),
+			// the printed rate is an order FACT — the offering's mutable
+			// rate would relabel a frozen invoice after a seller edit
+			'vatBp' => (int)$order->getVatBp() >= 0
+				? (int)$order->getVatBp()
+				: (int)($offering?->getVatBp() ?? 0),
 		]);
 	}
 

@@ -108,7 +108,8 @@ $token = (string)($_['token'] ?? '');
 						<?php p($l->t('E-invoice (XML)')); ?></a>
 				<?php endif; ?>
 				<?php if (in_array('cancel', $actions, true)): ?>
-					<form method="post" action="<?php p($url->linkToRoute('bookingcheck.manage.cancel', ['token' => $token])); ?>">
+					<form method="post" action="<?php p($url->linkToRoute('bookingcheck.manage.cancel', ['token' => $token])); ?>"
+						data-bck-cancel-confirm>
 						<input type="hidden" name="requesttoken" value="<?php p($_['requesttoken'] ?? ''); ?>">
 						<button type="submit" class="bck-btn bck-btn--danger"><?php p($l->t('Cancel booking')); ?></button>
 					</form>
