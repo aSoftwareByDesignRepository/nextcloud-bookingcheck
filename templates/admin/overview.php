@@ -10,15 +10,15 @@ $stats = $_['stats'] ?? [];
 $recent = $_['recentOrders'] ?? [];
 $money = static fn (?int $c, string $cur = 'EUR'): string =>
 	$cur . ' ' . number_format(((int)$c) / 100, 2, ',', '.');
-$paid = (int)($stats['byStatus']['paid'] ?? 0);
-$pending = (int)($stats['byStatus']['pending_payment'] ?? 0)
-	+ (int)($stats['byStatus']['pending_approval'] ?? 0);
+$paid = (int)($stats['orders_by_status']['paid'] ?? 0);
+$pending = (int)($stats['orders_by_status']['pending_payment'] ?? 0)
+	+ (int)($stats['orders_by_status']['pending_approval'] ?? 0);
 ?>
 <div class="bck-page-stack">
 	<div class="bck-stat-strip" role="list">
 		<div class="bck-stat-tile bck-stat-tile--success" role="listitem">
 			<span class="bck-stat-tile__label"><?php p($l->t('Revenue')); ?></span>
-			<span class="bck-stat-tile__value"><?php p($money($stats['revenueCents'] ?? 0)); ?></span>
+			<span class="bck-stat-tile__value"><?php p($money($stats['revenue_cents'] ?? 0)); ?></span>
 		</div>
 		<div class="bck-stat-tile bck-stat-tile--primary" role="listitem">
 			<span class="bck-stat-tile__label"><?php p($l->t('Paid orders')); ?></span>
@@ -30,7 +30,7 @@ $pending = (int)($stats['byStatus']['pending_payment'] ?? 0)
 		</div>
 		<div class="bck-stat-tile" role="listitem">
 			<span class="bck-stat-tile__label"><?php p($l->t('Live offerings')); ?></span>
-			<span class="bck-stat-tile__value"><?php p((string)($stats['published'] ?? 0)); ?></span>
+			<span class="bck-stat-tile__value"><?php p((string)($stats['published_offerings'] ?? 0)); ?></span>
 		</div>
 	</div>
 

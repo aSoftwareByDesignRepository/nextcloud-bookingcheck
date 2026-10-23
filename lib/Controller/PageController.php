@@ -37,13 +37,15 @@ class PageController extends Controller
 		parent::__construct($appName, $request);
 	}
 
+	/** App root → canonical overview render (dashboard#index supplies
+	    stats + recentOrders; a second render path without them shipped a
+	    permanently-zero stat strip). */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function index(): TemplateResponse
+	public function index(): RedirectResponse
 	{
-		return new TemplateResponse($this->appName, 'admin/overview', [
-			'navId' => 'overview',
-		]);
+		return new RedirectResponse($this->urlGenerator->linkToRoute(
+			'bookingcheck.dashboard.index'));
 	}
 
 	#[NoAdminRequired]
