@@ -64,7 +64,7 @@ class PromoController extends Controller
 		if ($kind === 'percent') {
 			$bps = $this->strictId($this->request->getParam('percent_bps'));
 			if ($bps === null || $bps <= 0 || $bps > 10000) {
-				throw new ValidationException(['percent_bps' => '0–100%.']);
+				throw new ValidationException(['percent_bps' => 'Between 0 and 100 percent.']);
 			}
 			$p->setPercentBps($bps);
 		} else {

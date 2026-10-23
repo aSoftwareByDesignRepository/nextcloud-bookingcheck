@@ -439,7 +439,7 @@ class ReservationService
 			->andWhere($qb->expr()->gte('held', $qb->createNamedParameter(max(0, -$heldDelta))))
 			->andWhere($qb->expr()->gte('sold', $qb->createNamedParameter(max(0, -$soldDelta))));
 		if ($qb->executeStatement() !== 1) {
-			throw new StateConflictException('Inventory counter underflow on event ' . $eventId);
+			throw new StateConflictException('Inventory counter underflow.');
 		}
 	}
 
@@ -453,7 +453,7 @@ class ReservationService
 			->andWhere($qb->expr()->gte('held', $qb->createNamedParameter(max(0, -$heldDelta))))
 			->andWhere($qb->expr()->gte('sold', $qb->createNamedParameter(max(0, -$soldDelta))));
 		if ($qb->executeStatement() !== 1) {
-			throw new StateConflictException('Inventory counter underflow on series ' . $seriesId);
+			throw new StateConflictException('Inventory counter underflow.');
 		}
 		foreach ($this->seriesEventIds($seriesId) as $eventId) {
 			$this->moveEvent($eventId, $heldDelta, $soldDelta);
@@ -472,7 +472,7 @@ class ReservationService
 				->andWhere($qb->expr()->gte('held', $qb->createNamedParameter(max(0, -$heldDelta))))
 				->andWhere($qb->expr()->gte('sold', $qb->createNamedParameter(max(0, -$soldDelta))));
 			if ($qb->executeStatement() !== 1) {
-				throw new StateConflictException('Inventory counter underflow on slot_resource ' . $slotId . '/' . $resourceId);
+				throw new StateConflictException('Inventory counter underflow.');
 			}
 			return;
 		}
@@ -484,7 +484,7 @@ class ReservationService
 			->andWhere($qb->expr()->gte('held', $qb->createNamedParameter(max(0, -$heldDelta))))
 			->andWhere($qb->expr()->gte('sold', $qb->createNamedParameter(max(0, -$soldDelta))));
 		if ($qb->executeStatement() !== 1) {
-			throw new StateConflictException('Inventory counter underflow on slot ' . $slotId);
+			throw new StateConflictException('Inventory counter underflow.');
 		}
 	}
 

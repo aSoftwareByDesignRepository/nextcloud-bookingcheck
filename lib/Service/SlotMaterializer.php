@@ -58,7 +58,7 @@ class SlotMaterializer
 			foreach (explode(',', $m[2]) as $time) {
 				$time = trim($time);
 				if (!preg_match('/^([01]?\d|2[0-3]):([0-5]\d)$/', $time, $t)) {
-					throw new \InvalidArgumentException('Times must be HH:MM — got "' . $time . '".');
+					throw new \InvalidArgumentException('Times must be HH:MM.');
 				}
 				$out[] = [$dow, sprintf('%02d:%02d', (int)$t[1], (int)$t[2])];
 			}

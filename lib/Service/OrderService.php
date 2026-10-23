@@ -1319,7 +1319,7 @@ class OrderService
 			->where($qb->expr()->eq('id', $qb->createNamedParameter((int)$order->getId())))
 			->andWhere($qb->expr()->in('status', $qb->createNamedParameter($from, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_STR_ARRAY)));
 		if ($qb->executeStatement() !== 1) {
-			throw new StateConflictException(sprintf('Transition %s→%s stolen', implode(',', $from), $to), 'ILLEGAL_TRANSITION');
+			throw new StateConflictException('This state changed concurrently — please reload and retry.', 'ILLEGAL_TRANSITION');
 		}
 		$order->setStatus($to);
 		$order->setExpiresAt($expiresAt);

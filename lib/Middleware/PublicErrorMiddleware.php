@@ -164,11 +164,15 @@ class PublicErrorMiddleware extends Middleware
 	/** @param array<string,string> $fields */
 	private function envelope(int $status, string $code, string $message, array $fields = []): JSONResponse
 	{
+		// Serialize in the requester's language (l10n_unlocalized_error_surface):
+		// /pub/ calls honor the explicit locale param the embed/checkout
+		// already send, staff calls resolve the session user's language.
+		$l = \OCA\BookingCheck\Support\ErrorText::l10nFor($this->request);
 		$resp = new JSONResponse([
 			'success' => false,
 			'error' => $code,
-			'message' => $message,
-			'fields' => (object)$fields,
+			'message' => \OCA\BookingCheck\Support\ErrorText::t($l, $message),
+			'fields' => (object)\OCA\BookingCheck\Support\ErrorText::fields($l, $fields),
 		], $status);
 		// NH-05 — the SDK embed must be able to READ error envelopes on
 		// the order endpoint (validation fields, 409, 429). Same origin

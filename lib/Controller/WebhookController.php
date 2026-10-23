@@ -63,7 +63,7 @@ class WebhookController extends Controller
 			if (!in_array($ev, OutboundWebhookService::EVENTS, true)) {
 				// a typo'd name subscribes to an event that can never fire —
 				// reject it instead of storing a dead subscription
-				throw new ValidationException(['events' => 'Unknown event: ' . (string)$ev]);
+				throw new ValidationException(['events' => $this->tx('Unknown event') . ': ' . (string)$ev]);
 			}
 		}
 		$w = new Webhook();

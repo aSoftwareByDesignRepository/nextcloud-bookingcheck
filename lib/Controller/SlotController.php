@@ -320,7 +320,7 @@ class SlotController extends Controller
 						throw new ValidationException(['capacity' => 'Capacity is managed on the resource pools for this slot.']);
 					}
 				} elseif ($cap < $booked) {
-					throw new ValidationException(['capacity' => 'Below sold+held (' . $booked . ').']);
+					throw new ValidationException(['capacity' => $this->tx('Below the number already sold or held') . ' (' . $booked . ').']);
 				}
 				$moved = $s->getStartsAt() != $start || $s->getEndsAt() != $end;
 				$s->setStartsAt($start);
@@ -347,7 +347,7 @@ class SlotController extends Controller
 				}
 				$booked = (int)$e->getSold() + (int)$e->getHeld();
 				if ($cap < $booked) {
-					throw new ValidationException(['capacity' => 'Below sold+held (' . $booked . ').']);
+					throw new ValidationException(['capacity' => $this->tx('Below the number already sold or held') . ' (' . $booked . ').']);
 				}
 				$moved = $e->getStartsAt() != $start || $e->getEndsAt() != $end;
 				$e->setStartsAt($start);

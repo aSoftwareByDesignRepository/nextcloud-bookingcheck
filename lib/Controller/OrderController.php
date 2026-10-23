@@ -184,7 +184,7 @@ class OrderController extends Controller
 				$this->strictId($this->request->getParam('amount_cents')),
 				$this->uid()));
 		} catch (PspException $e) {
-			return $this->fail(502, 'PAYMENT_UNAVAILABLE', $e->getMessage());
+			return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Payment is temporarily unavailable — please try again.');
 		}
 	}
 

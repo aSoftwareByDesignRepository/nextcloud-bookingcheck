@@ -635,7 +635,7 @@ class CapiController extends Controller
 		} catch (\OCA\BookingCheck\Exception\StateConflictException) {
 			return $this->fail(409, 'CONFLICT', 'A refund is already in progress for this order — retry in a moment.');
 		} catch (\OCA\BookingCheck\Exception\PspException $e) {
-			return $this->fail(502, 'PAYMENT_UNAVAILABLE', $e->getMessage());
+			return $this->fail(502, 'PAYMENT_UNAVAILABLE', 'Payment is temporarily unavailable — please try again.');
 		}
 	}
 

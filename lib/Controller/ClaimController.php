@@ -22,6 +22,8 @@ use OCP\IRequest;
 /** Waitlist claim link — consumes an offer hold into a real checkout. */
 class ClaimController extends Controller
 {
+	use ApiControllerTrait;
+
 	public function __construct(
 		string $appName,
 		IRequest $request,
@@ -70,9 +72,8 @@ class ClaimController extends Controller
 	{
 		$buyerName = trim((string)$this->request->getParam('buyer_name', ''));
 		if ($buyerName === '' || mb_strlen($buyerName) > 190) {
-			return new JSONResponse(['success' => false, 'error' => 'VALIDATION',
-				'message' => 'Please check the highlighted fields.',
-				'fields' => ['buyer_name' => 'Your name is required.']], 400);
+			return $this->fail(400, 'VALIDATION', 'Please check the highlighted fields.',
+				['buyer_name' => 'Your name is required.']);
 		}
 		$consented = in_array((string)$this->request->getParam('consent', ''), ['1', 'true'], true);
 		// the waitlister's own locale — never force 'en' on a booked claim
@@ -84,9 +85,8 @@ class ClaimController extends Controller
 		} catch (\OCA\BookingCheck\Exception\NotFoundException) {
 			throw new \OCA\BookingCheck\Exception\NotFoundException();
 		} catch (\OCA\BookingCheck\Exception\CapacityException) {
-			return new JSONResponse(['success' => false, 'error' => 'SOLD_OUT',
-				'message' => 'The seat was just taken — you are back on the waitlist.',
-				'fields' => []], 409);
+			return $this->fail(409, 'SOLD_OUT',
+				'The seat was just taken — you are back on the waitlist.');
 		}
 		$order = $result['order'];
 		$base = ['success' => true, 'order_ref' => $order->getRef(), 'status' => $order->getStatus()];
@@ -95,8 +95,8 @@ class ClaimController extends Controller
 				$session = $this->paySessions->createForOrder($order);
 			} catch (\OCA\BookingCheck\Exception\PspException) {
 				$this->orders->cancelPending((int)$order->getId(), 'psp');
-				return new JSONResponse(['success' => false, 'error' => 'PAYMENT_UNAVAILABLE',
-					'message' => 'Payment is temporarily unavailable — please try again.', 'fields' => []], 502);
+				return $this->fail(502, 'PAYMENT_UNAVAILABLE',
+					'Payment is temporarily unavailable — please try again.');
 			}
 			return new JSONResponse($base + ['action' => 'pay', 'checkout_url' => $session->checkoutUrl], 201);
 		}

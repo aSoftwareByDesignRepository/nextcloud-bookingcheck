@@ -39,6 +39,7 @@ final class PublicErrorMiddlewareTest extends TestCase
 	private string $path = '/apps/bookingcheck/pub/api/orders';
 	private string $origin = '';
 	private mixed $offeringId = '7';
+	private ?string $locale = null;
 
 	protected function setUp(): void
 	{
@@ -48,7 +49,11 @@ final class PublicErrorMiddlewareTest extends TestCase
 		$this->request->method('getHeader')->willReturnCallback(
 			fn (string $n): string => $n === 'Origin' ? $this->origin : '');
 		$this->request->method('getParam')->willReturnCallback(
-			fn (string $k) => $k === 'offering_id' ? $this->offeringId : null);
+			fn (string $k) => match ($k) {
+				'offering_id' => $this->offeringId,
+				'locale' => $this->locale,
+				default => null,
+			});
 		$this->offerings = $this->createMock(OfferingMapper::class);
 		$o = new Offering();
 		$o->setEmbedDomains('["https://shop.example"]');
@@ -299,6 +304,70 @@ final class PublicErrorMiddlewareTest extends TestCase
 		self::assertInstanceOf(\OCP\AppFramework\Http\JSONResponse::class, $resp);
 		self::assertSame(404, $resp->getStatus());
 		self::assertSame('NOT_FOUND', $resp->getData()['error']);
+	}
+
+	/** l10n_unlocalized_error_surface — a buyer request that carries the
+	 *  embed's explicit locale param must get the envelope message AND
+	 *  every field error in that locale, not raw English. */
+	public function testPubApiErrorEnvelopeHonoursLocaleParam(): void
+	{
+		$this->locale = 'de';
+		$resp = $this->mw()->afterException($this->controller(), 'create',
+			new ValidationException(['buyer_email' => 'Enter a valid email address.']));
+		$data = $resp->getData();
+		self::assertSame('VALIDATION', $data['error']);
+		self::assertSame('Bitte prüfen Sie die markierten Felder.', $data['message'],
+			'envelope message must serialize in the request locale');
+		self::assertSame('Geben Sie eine gültige E-Mail-Adresse ein.',
+			$data['fields']->buyer_email,
+			'field-level errors render inline — they must be localized too');
+	}
+
+	/** Without a locale param the ambient language applies — the
+	 *  session user's language, else the instance default. Whatever it
+	 *  resolves to, the envelope must match that catalog, never a
+	 *  hard-coded English fallback. */
+	public function testPubApiErrorEnvelopeWithoutLocaleUsesAmbientLanguage(): void
+	{
+		$lang = \OCP\Server::get(\OCP\L10N\IFactory::class)
+			->get('bookingcheck')->getLanguageCode();
+		$cat = json_decode((string)file_get_contents(
+			dirname(__DIR__, 3) . '/l10n/' . $lang . '.json'), true)['translations'];
+		$resp = $this->mw()->afterException($this->controller(), 'create',
+			new ValidationException(['buyer_email' => 'Enter a valid email address.']));
+		$data = $resp->getData();
+		self::assertSame($cat['Please check the highlighted fields.'], $data['message']);
+		self::assertSame($cat['Enter a valid email address.'], $data['fields']->buyer_email);
+	}
+
+	/** The defect's flagship case: PRO_REQUIRED's static exception text
+	 *  is a cataloged msgid — a German requester must never see
+	 *  "This feature requires BookingCheck Pro." verbatim. */
+	public function testProRequiredMessageTranslatesViaErrorText(): void
+	{
+		$l = \OCP\Server::get(\OCP\L10N\IFactory::class)->get('bookingcheck', 'de');
+		self::assertSame('Diese Funktion erfordert BookingCheck Pro.',
+			\OCA\BookingCheck\Support\ErrorText::t(
+				$l, (new \OCA\BookingCheck\Exception\ProRequiredException())->getMessage()));
+	}
+
+	/** l10n_sprintf_literal_percent_crash — L10NString::__toString()
+	 *  vsprintf()s unconditionally, so dynamic text with a literal '%'
+	 *  must never enter the l10n pipeline. */
+	public function testLiteralPercentPassesThroughUntouched(): void
+	{
+		$l = \OCP\Server::get(\OCP\L10N\IFactory::class)->get('bookingcheck', 'de');
+		self::assertSame('Capacity at 50% of pool',
+			\OCA\BookingCheck\Support\ErrorText::t($l, 'Capacity at 50% of pool'));
+	}
+
+	/** Unknown/dynamic text that is not a cataloged msgid passes through
+	 *  unchanged — the helper never mangles or drops it. */
+	public function testUnknownMsgidPassesThrough(): void
+	{
+		$l = \OCP\Server::get(\OCP\L10N\IFactory::class)->get('bookingcheck', 'de');
+		self::assertSame('something never cataloged',
+			\OCA\BookingCheck\Support\ErrorText::t($l, 'something never cataloged'));
 	}
 
 	/** Page surfaces keep the framework 500 — HTML error page is the

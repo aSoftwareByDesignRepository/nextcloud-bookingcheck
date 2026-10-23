@@ -55,7 +55,9 @@ class OcsApiController extends OCSController
 		try {
 			$this->requireSellerRole();
 		} catch (UnauthorizedException) {
-			throw new OCSForbiddenException('Seller role required');
+			throw new OCSForbiddenException(\OCA\BookingCheck\Support\ErrorText::t(
+				\OCA\BookingCheck\Support\ErrorText::l10nFor($this->request),
+				'Seller role required'));
 		}
 		return new DataResponse(array_map(
 			fn ($o) => $o->jsonSerialize(), $this->offerings->findAll()));

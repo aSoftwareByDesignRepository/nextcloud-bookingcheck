@@ -24,10 +24,26 @@ trait ApiControllerTrait
 	/** @param array<string,string> $fields field-level errors for inline display */
 	private function fail(int $status, string $code, string $message, array $fields = []): JSONResponse
 	{
+		// Serialize in the requester's language — the message/fields reach
+		// toasts and inline errors verbatim (l10n_unlocalized_error_surface).
+		$l = \OCA\BookingCheck\Support\ErrorText::l10nFor($this->request);
 		return new JSONResponse([
-			'success' => false, 'error' => $code, 'message' => $message,
-			'fields' => (object)$fields,
+			'success' => false, 'error' => $code,
+			'message' => \OCA\BookingCheck\Support\ErrorText::t($l, $message),
+			'fields' => (object)\OCA\BookingCheck\Support\ErrorText::fields($l, $fields),
 		], $status);
+	}
+
+	/**
+	 * Translate a fragment that will be COMPOSED into a dynamic field
+	 * message at the throw site (e.g. 'Unknown event' . ': ' . $name) —
+	 * the boundary translator only sees whole strings, so dynamic tails
+	 * must be handled before the exception is thrown.
+	 */
+	private function tx(string $text): string
+	{
+		$l = \OCA\BookingCheck\Support\ErrorText::l10nFor($this->request);
+		return \OCA\BookingCheck\Support\ErrorText::t($l, $text);
 	}
 
 	private function notFound(): JSONResponse
