@@ -29,7 +29,7 @@ $badge = ['waiting' => 'info', 'offered' => 'warn', 'claimed' => 'success', 'exp
 						<td data-cell="<?php p($l->t('Email')); ?>"><?php p((string)$w['email']); ?></td>
 						<td data-cell="<?php p($l->t('Target')); ?>"><?php p((string)$w['targetType'] . ' #' . (int)$w['targetId']); ?></td>
 						<td data-cell="<?php p($l->t('State')); ?>">
-							<span class="bck-badge <?php p('bck-badge--' . ($badge[$w['state']] ?? 'neutral')); ?>"><?php p((string)$w['state']); ?></span>
+							<span class="bck-badge <?php p('bck-badge--' . ($badge[$w['state']] ?? 'neutral')); ?>"><?php p(\OCA\BookingCheck\Support\StatusLabels::waitlistState($l, (string)$w['state'])); ?></span>
 						</td>
 						<td data-cell="<?php p($l->t('Joined')); ?>"><?php p((string)$w['createdAt']); ?></td>
 						<td class="bck-table-actions-col">

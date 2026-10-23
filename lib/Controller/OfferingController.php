@@ -253,15 +253,56 @@ class OfferingController extends Controller
 		if ($src === null) {
 			throw new NotFoundException();
 		}
-		$o = clone $src;
-		$o->setId(0);
+		// Explicit copy — QBMapper::insert() only writes dirty fields, so a
+		// plain clone would insert a nearly-empty row (no `type`, no defaults
+		// on the column) and fail with SQLSTATE 1364.
+		$o = new Offering();
+		$o->setType($src->getType());
 		$o->setSlug($this->slugify($src->getTitle() . ' copy'));
-		$o->setStatus('draft');
 		$o->setTitle($src->getTitle() . ' (copy)');
+		$o->setDescr($src->getDescr());
+		$o->setStatus('draft');
+		$o->setPriceCents($src->getPriceCents());
+		$o->setCurrency($src->getCurrency());
+		$o->setVatBp($src->getVatBp());
+		$o->setCancelPolicy($src->getCancelPolicy());
+		$o->setBookSeries($src->getBookSeries());
+		// external refs are not shared between two offerings — the copy
+		// starts without a Deck board or Talk room of its own
+		$o->setDeckBoardId(null);
+		$o->setTalkRoom(null);
+		$o->setApprovalRequired($src->getApprovalRequired());
+		$o->setApprovalHoldCap($src->getApprovalHoldCap());
+		$o->setWaitlistMode($src->getWaitlistMode());
+		$o->setReviewDisplay($src->getReviewDisplay());
+		$o->setLogoFileRef($src->getLogoFileRef());
+		$o->setAccentHex($src->getAccentHex());
+		$o->setSharingEnabled($src->getSharingEnabled());
+		$o->setSharingScope($src->getSharingScope());
+		$o->setUploadMaxMb($src->getUploadMaxMb());
+		$o->setUploadQuotaMb($src->getUploadQuotaMb());
+		$o->setEmbedDomains($src->getEmbedDomains());
+		$o->setSalesFrom($src->getSalesFrom());
+		$o->setSalesTo($src->getSalesTo());
+		$o->setTosText($src->getTosText());
+		$o->setListInDirectory($src->getListInDirectory());
+		// lifecycle bookkeeping never carries over — the copy is a new draft
+		$o->setEolState('none');
+		$o->setEolPolicy($src->getEolPolicy());
+		$o->setEolActionAt(null);
+		$o->setReminderDays($src->getReminderDays());
+		$o->setDynBp($src->getDynBp());
+		$o->setDynStepPct($src->getDynStepPct());
+		$o->setDepositBp($src->getDepositBp());
+		$o->setInvoicePay($src->getInvoicePay());
+		$o->setPassScope($src->getPassScope());
+		$o->setCreatedBy($this->userSession->getUser()?->getUID() ?? 'system');
 		$now = new \DateTimeImmutable();
 		$o->setCreatedAt($now);
 		$o->setUpdatedAt($now);
 		$this->offerings->insert($o);
+		$this->audit->log(null, (int)$o->getId(), $this->userSession->getUser()?->getUID() ?? 'system',
+			'offering.duplicated', (string)$id, (string)$o->getId());
 		return $this->ok(['id' => (int)$o->getId()], 201);
 	}
 

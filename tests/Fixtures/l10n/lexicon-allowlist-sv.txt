@@ -5,3 +5,4 @@ drop # loanword — established Swedish "drop-in"
 webhookhemlighet # reviewed — valid sv compound webhook + hemlighet
 vouchrar # reviewed — established sv plural of loanword "voucher"
 mailar # loanword — verb "maila" (att maila), established sv
+avpublicera # shared — standard sv compound av + publicera ("de-publish"; mirrors da afpublicér)

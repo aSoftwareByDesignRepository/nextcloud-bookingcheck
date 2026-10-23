@@ -160,6 +160,40 @@
 			.catch(function (e) { fail(e); btn.disabled = false; });
 	});
 
+	// offering lifecycle — POST /api/offerings/{id}/transition {to}.
+	// Lossy directions carry data-bck-confirm for a real dialog first.
+	document.addEventListener('click', function (ev) {
+		var btn = ev.target.closest('[data-bck-offer-transition]');
+		if (!btn) { return; }
+		var oid = btn.getAttribute('data-bck-offer-transition');
+		var to = btn.getAttribute('data-bck-to');
+		var fire = function () {
+			btn.disabled = true;
+			BCK.api('/offerings/' + oid + '/transition', {
+				method: 'POST', json: { to: to }
+			}).then(reload)
+				.catch(function (e) { fail(e); btn.disabled = false; });
+		};
+		var confirmKey = btn.getAttribute('data-bck-confirm');
+		if (confirmKey === 'archive') {
+			BCK.confirmDialog(
+				BCK.t('Archive this offering?'),
+				BCK.t('Archived offerings disappear from the booking link — existing orders and tickets stay valid.'),
+				{ confirmLabel: BCK.t('Archive') }
+			).then(function (ok) { if (ok) { fire(); } });
+			return;
+		}
+		if (confirmKey === 'unpublish') {
+			BCK.confirmDialog(
+				BCK.t('Unpublish this offering?'),
+				BCK.t('The booking link stops working until you publish again.'),
+				{ confirmLabel: BCK.t('Unpublish'), danger: false }
+			).then(function (ok) { if (ok) { fire(); } });
+			return;
+		}
+		fire();
+	});
+
 	// waitlist remove
 	document.addEventListener('click', function (ev) {
 		var btn = ev.target.closest('[data-bck-waitlist-remove]');
@@ -644,18 +678,57 @@
 			embed.hidden = false;
 		}
 
+		// ---- lifecycle actions (summary footer) ----
+		// The server transition map is draft→published, published→
+		// draft|archived, archived→draft — the buttons mirror it 1:1.
+		var actionsBox = document.getElementById('bck-offering-actions');
+		var actionFor = {
+			draft: ['bck-offer-publish'],
+			published: ['bck-offer-unpublish', 'bck-offer-archive'],
+			archived: ['bck-offer-restore']
+		};
+		var statusLabels = {
+			draft: BCK.t('Draft'), published: BCK.t('Published'),
+			paused: BCK.t('Paused'), archived: BCK.t('Archived')
+		};
+		var statusBadge = {
+			published: 'success', draft: 'neutral', paused: 'warn', archived: 'neutral'
+		};
+		var occLabels = {
+			scheduled: BCK.t('Scheduled'), cancelled: BCK.t('Cancelled'), done: BCK.t('Done')
+		};
+		var dupBtn = document.getElementById('bck-offer-duplicate');
+		if (dupBtn) {
+			dupBtn.addEventListener('click', function () {
+				dupBtn.disabled = true;
+				BCK.api('/offerings/' + offeringId + '/duplicate', { method: 'POST', json: {} })
+					.then(function (d) {
+						window.location.href = BCK.appBase() + '/offerings/'
+							+ (d && d.id ? parseInt(d.id, 10) : offeringId);
+					}).catch(function (e) { fail(e); dupBtn.disabled = false; });
+			});
+		}
+
 		// ---- summary ----
 		var summaryBox = document.getElementById('bck-offering-summary');
+		var summaryBody = document.getElementById('bck-offering-summary-body') || summaryBox;
 		var offering = null;
 		BCK.api('/offerings/' + offeringId).then(function (d) {
 			offering = d && d.offering;
 			if (!offering) { throw new Error('empty'); }
-			summaryBox.innerHTML = '<div class="bck-card__body">'
-				+ '<h2 class="bck-card__title">' + esc(offering.title) + '</h2>'
+			var st = String(offering.status || '');
+			summaryBody.innerHTML = '<h2 class="bck-card__title">' + esc(offering.title) + '</h2>'
 				+ '<p>' + esc(offering.type) + ' · '
 				+ esc(offering.currency) + ' ' + cents(offering.priceCents)
-				+ ' · <span class="bck-badge bck-badge--info">' + esc(offering.status) + '</span></p>'
-				+ '</div>';
+				+ ' · <span class="bck-badge bck-badge--' + (statusBadge[st] || 'info') + '">'
+				+ esc(statusLabels[st] || st) + '</span></p>';
+			if (actionsBox) {
+				(actionFor[st] || []).forEach(function (id) {
+					var b = document.getElementById(id);
+					if (b) { b.hidden = false; }
+				});
+				actionsBox.hidden = false;
+			}
 			if (offering.type === 'timeslot') {
 				var tplField = document.getElementById('bck-occ-tpl-field');
 				var seriesChk = document.getElementById('bck-occ-series');
@@ -665,8 +738,8 @@
 			}
 			renderShareCard(offering);
 		}).catch(function () {
-			summaryBox.innerHTML = '<div class="bck-card__body"><p class="bck-empty-state__text">'
-				+ BCK.t('Offering not found.') + '</p></div>';
+			summaryBody.innerHTML = '<p class="bck-empty-state__text">'
+				+ BCK.t('Offering not found.') + '</p>';
 		});
 
 		// ---- occurrences ----
@@ -686,7 +759,7 @@
 						+ BCK.t('Edit') + '</button>';
 					rows.push('<tr><td>' + esc(dt(e.startsAt)) + '</td><td>' + esc(dt(e.endsAt))
 						+ '</td><td>' + e.sold + '/' + e.capacity + '</td><td>'
-						+ esc(e.status || '') + '</td><td>' + edit + del + '</td></tr>');
+						+ esc(occLabels[e.status] || e.status || '') + '</td><td>' + edit + del + '</td></tr>');
 				});
 				occList.innerHTML = tableBox(
 					[BCK.t('Starts'), BCK.t('Ends'), BCK.t('Sold/Seats'), BCK.t('Status'), ''],

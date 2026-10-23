@@ -19,7 +19,7 @@ $badge = ['pending' => 'warn', 'published' => 'success', 'hidden' => 'neutral'];
 					<div class="bck-card__header-text">
 						<h2 class="bck-card__title"><?php p(str_repeat('★', (int)$r['rating']) . str_repeat('☆', 5 - (int)$r['rating'])); ?></h2>
 					</div>
-					<span class="bck-badge <?php p('bck-badge--' . ($badge[$r['status']] ?? 'neutral')); ?>"><?php p((string)$r['status']); ?></span>
+					<span class="bck-badge <?php p('bck-badge--' . ($badge[$r['status']] ?? 'neutral')); ?>"><?php p(\OCA\BookingCheck\Support\StatusLabels::reviewState($l, (string)$r['status'])); ?></span>
 				</div>
 				<div class="bck-card__body">
 					<p><?php p((string)$r['text']); ?></p>

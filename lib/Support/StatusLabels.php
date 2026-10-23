@@ -63,6 +63,30 @@ final class StatusLabels
 		'charged_back' => 'Charged back',
 	];
 
+	/** Offering lifecycle states. */
+	private const OFFERING_LABELS = [
+		'draft' => 'Draft',
+		'published' => 'Published',
+		'paused' => 'Paused',
+		'archived' => 'Archived',
+	];
+
+	/** Waitlist entry states (bc_waitlist.state). */
+	private const WAITLIST_LABELS = [
+		'waiting' => 'Waiting',
+		'offered' => 'Offered',
+		'claimed' => 'Claimed',
+		'expired' => 'Expired',
+		'declined' => 'Declined',
+	];
+
+	/** Review moderation states (bc_review.status). */
+	private const REVIEW_LABELS = [
+		'pending' => 'Pending',
+		'published' => 'Published',
+		'hidden' => 'Hidden',
+	];
+
 	public static function label(IL10N $l, string $status): string
 	{
 		return isset(self::LABELS[$status]) ? $l->t(self::LABELS[$status]) : $status;
@@ -71,6 +95,21 @@ final class StatusLabels
 	public static function badge(string $status): string
 	{
 		return self::BADGES[$status] ?? 'neutral';
+	}
+
+	public static function offeringStatus(IL10N $l, string $status): string
+	{
+		return isset(self::OFFERING_LABELS[$status]) ? $l->t(self::OFFERING_LABELS[$status]) : $status;
+	}
+
+	public static function waitlistState(IL10N $l, string $state): string
+	{
+		return isset(self::WAITLIST_LABELS[$state]) ? $l->t(self::WAITLIST_LABELS[$state]) : $state;
+	}
+
+	public static function reviewState(IL10N $l, string $state): string
+	{
+		return isset(self::REVIEW_LABELS[$state]) ? $l->t(self::REVIEW_LABELS[$state]) : $state;
 	}
 
 	public static function payment(IL10N $l, string $status): string

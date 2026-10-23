@@ -11,8 +11,28 @@ $oid = (int)($_['offeringId'] ?? 0);
 ?>
 <div class="bck-page-stack" data-bck-offering-detail="<?php p((string)$oid); ?>">
 	<div class="bck-card" id="bck-offering-summary" aria-live="polite">
-		<div class="bck-card__body">
+		<div class="bck-card__body" id="bck-offering-summary-body">
 			<p class="bck-empty-state__text"><?php p($l->t('Loading…')); ?></p>
+		</div>
+		<div class="bck-card__footer" id="bck-offering-actions" hidden>
+			<div class="bck-btn-row">
+				<button type="button" class="bck-btn bck-btn--primary" id="bck-offer-publish"
+					data-bck-offer-transition="<?php p((string)$oid); ?>" data-bck-to="published" hidden>
+					<?php p($l->t('Publish')); ?></button>
+				<button type="button" class="bck-btn bck-btn--secondary" id="bck-offer-unpublish"
+					data-bck-offer-transition="<?php p((string)$oid); ?>" data-bck-to="draft"
+					data-bck-confirm="unpublish" hidden>
+					<?php p($l->t('Unpublish')); ?></button>
+				<button type="button" class="bck-btn bck-btn--secondary" id="bck-offer-restore"
+					data-bck-offer-transition="<?php p((string)$oid); ?>" data-bck-to="draft" hidden>
+					<?php p($l->t('Restore to draft')); ?></button>
+				<button type="button" class="bck-btn bck-btn--danger" id="bck-offer-archive"
+					data-bck-offer-transition="<?php p((string)$oid); ?>" data-bck-to="archived"
+					data-bck-confirm="archive" hidden>
+					<?php p($l->t('Archive')); ?></button>
+				<button type="button" class="bck-btn bck-btn--secondary" id="bck-offer-duplicate">
+					<?php p($l->t('Duplicate')); ?></button>
+			</div>
 		</div>
 	</div>
 

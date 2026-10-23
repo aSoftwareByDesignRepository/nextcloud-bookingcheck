@@ -35,11 +35,20 @@ $typeLabel = ['event' => $l->t('Event'), 'series' => $l->t('Series'), 'slots' =>
 						<p class="bck-card__lead"><?php p($typeLabel[$o['type']] ?? $o['type']); ?></p>
 					</div>
 					<span class="bck-badge <?php p('bck-badge--' . (['published' => 'success', 'draft' => 'neutral', 'paused' => 'warn', 'archived' => 'neutral'][$o['status']] ?? 'neutral')); ?>">
-						<?php p((string)$o['status']); ?></span>
+						<?php p(\OCA\BookingCheck\Support\StatusLabels::offeringStatus($l, (string)$o['status'])); ?></span>
 				</div>
 				<div class="bck-card__body">
 					<p><?php p((string)$o['currency'] . ' ' . number_format(((int)$o['priceCents']) / 100, 2, ',', '.')); ?></p>
 				</div>
+				<?php if (($o['status'] ?? '') === 'draft'): ?>
+				<div class="bck-card__footer">
+					<div class="bck-btn-row">
+						<button type="button" class="bck-btn bck-btn--primary bck-btn--small"
+							data-bck-offer-transition="<?php p((int)$o['id']); ?>" data-bck-to="published">
+							<?php p($l->t('Publish')); ?></button>
+					</div>
+				</div>
+				<?php endif; ?>
 			</article>
 			<?php endforeach; ?>
 		</div>

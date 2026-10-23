@@ -19,7 +19,7 @@ $token = (string)($_['token'] ?? '');
 				<p class="bck-card__lead"><?php p((string)$order['buyer_name']); ?></p>
 			</div>
 			<span class="bck-badge <?php p('bck-badge--' . (['paid' => 'success', 'pending_payment' => 'warning', 'pending_approval' => 'info', 'refunded' => 'danger', 'cancelled' => 'info', 'failed' => 'danger'][$order['status']] ?? 'info')); ?>">
-				<?php p((string)$order['status']); ?></span>
+				<?php p(\OCA\BookingCheck\Support\StatusLabels::label($l, (string)$order['status'])); ?></span>
 		</div>
 		<div class="bck-card__body">
 			<p><strong><?php p((string)$order['currency'] . ' ' . number_format(((int)$order['amount_cents']) / 100, 2, ',', '.')); ?></strong></p>
