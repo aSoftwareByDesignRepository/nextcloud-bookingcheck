@@ -479,6 +479,10 @@
 	margin: 0 0 var(--bck-space-1);
 	font-size: var(--bck-fs-2xl);
 	line-height: var(--bck-line-tight);
+	/* Long compounds (de "Zugriffssteuerung") must wrap or hyphenate —
+	   never clip mid-glyph at the 320px viewport edge. */
+	overflow-wrap: anywhere;
+	hyphens: auto;
 }
 .bck-page-header__lead {
 	margin: 0;
@@ -570,6 +574,9 @@
 .bck-app .btn--primary {
 	background: var(--color-primary-element);
 	color: var(--color-primary-element-text);
+	/* Border == fill: painted edge like .bck-btn--danger — the boundary is the
+	   fill vs the surface (WCAG 1.4.11), never a transparent border. */
+	border-color: var(--color-primary-element);
 }
 .bck-btn--secondary,
 .bck-app .btn--secondary {
@@ -577,8 +584,66 @@
 	color: var(--bck-text);
 	border-color: var(--bck-control-border, var(--bck-border-strong));
 }
+/* NC core `button:not(.button-vue)` (0-1-1) repaints every <button> with
+   --color-primary-element-light + border:none, and its :hover/:focus leg
+   (0-2-1) repaints again — every single-class variant rule (0-1-0) loses,
+   so all <button> elements collapse to the identical pale tint. Same fix
+   as .bck-btn--danger: ID-scope + !important, full border shorthand (core
+   sets border-style:none, so border-color alone would paint nothing).
+   `#content.app-bookingcheck` also reaches guest/public pages — layout.public.php
+   has no #app-content wrapper. */
+#app-content.bck-app .bck-btn--primary,
+#app-content-wrapper .bck-btn--primary,
+#content.app-bookingcheck .bck-btn--primary,
+#app-content.bck-app .btn--primary,
+#app-content-wrapper .btn--primary,
+#content.app-bookingcheck .btn--primary {
+	background: var(--color-primary-element) !important;
+	color: var(--color-primary-element-text) !important;
+	border: 1px solid var(--color-primary-element) !important;
+}
+#app-content.bck-app .bck-btn--secondary,
+#app-content-wrapper .bck-btn--secondary,
+#content.app-bookingcheck .bck-btn--secondary,
+#app-content.bck-app .btn--secondary,
+#app-content-wrapper .btn--secondary,
+#content.app-bookingcheck .btn--secondary {
+	background: color-mix(in srgb, var(--color-main-background) 82%, var(--color-main-text) 18%) !important;
+	color: var(--bck-text) !important;
+	border: 1px solid var(--bck-control-border, var(--bck-border-strong)) !important;
+}
+#app-content.bck-app .bck-btn--ghost,
+#app-content-wrapper .bck-btn--ghost,
+#content.app-bookingcheck .bck-btn--ghost {
+	background: transparent !important;
+	color: var(--bck-text) !important;
+	border: 1px solid var(--bck-control-border, var(--bck-border-strong)) !important;
+}
+.bck-btn--flat {
+	background: transparent;
+	color: var(--bck-text);
+	border-color: transparent;
+}
+#app-content.bck-app .bck-btn--flat,
+#app-content-wrapper .bck-btn--flat,
+#content.app-bookingcheck .bck-btn--flat {
+	background: transparent !important;
+	color: var(--bck-text) !important;
+	border: 1px solid transparent !important;
+}
+/* Core hover repaint is also blocked by !important — restore hover feedback
+   the way .bck-btn--danger does (filter survives because core sets none). */
+.bck-btn--primary:hover,
+.bck-app .btn--primary:hover,
+.bck-btn--secondary:hover,
+.bck-app .btn--secondary:hover,
+.bck-btn--ghost:hover,
+.bck-btn--flat:hover {
+	filter: brightness(0.94);
+}
 #app-content.bck-app .bck-btn--danger,
 #app-content-wrapper .bck-btn--danger,
+#content.app-bookingcheck .bck-btn--danger,
 .bck-app .btn--danger {
 	/* Solid fill — never pale --color-error tint (WCAG 1.4.3 / design-system §3.3).
 	   ID-scoped + !important: NC core button:not(...) (0-1-1) otherwise paints
@@ -586,8 +651,10 @@
 	background: var(--bck-danger-fill) !important;
 	color: var(--bck-danger-on-fill) !important;
 	/* Border == fill so the control keeps a painted edge (boundary = fill vs
-	   surface, WCAG 1.4.11) instead of a transparent border. */
-	border-color: var(--bck-danger-fill) !important;
+	   surface, WCAG 1.4.11) instead of a transparent border. Full shorthand:
+	   core's `border:none` wins border-style at 0-1-1, so border-color alone
+	   paints nothing. */
+	border: 1px solid var(--bck-danger-fill) !important;
 }
 .bck-btn--danger:hover,
 .bck-app .btn--danger:hover {

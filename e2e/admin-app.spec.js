@@ -102,4 +102,146 @@ test.describe('staff app', () => {
 		const scrollW = await page.evaluate(() => document.documentElement.scrollWidth);
 		expect(scrollW).toBeLessThanOrEqual(376);
 	});
+
+	test('JS-built tables emit card rows — roster action cell reachable at 320px', async ({ page }) => {
+		// Regression: the roster table is built in admin.js, not a template —
+		// it shipped without bck-table--cards/data-cell and clipped the
+		// check-in button into a horizontal scroll trap on phones.
+		const { seedOffering, destroyOffering } = require('./helpers/seed.js');
+		await page.goto('/apps/bookingcheck/offerings', { waitUntil: 'domcontentloaded' });
+		const seeded = await seedOffering(page, { title: `Roster cards ${Date.now()}`, capacity: 3 });
+
+		// A guest order puts a real row on the roster.
+		const order = await page.request.post('/apps/bookingcheck/pub/api/orders', {
+			form: {
+				offering_id: String(seeded.id), buyer_name: 'Card Roster', buyer_email: `bck-cards-${Date.now()}@example.test`,
+				locale: 'en', consent: '1', idem_token: `cd${Date.now().toString(36)}x${Math.random().toString(36).slice(2, 12)}`,
+				'lines[0][target_type]': 'event', 'lines[0][target_id]': String(seeded.eventId), 'lines[0][seats]': '1',
+			},
+		});
+		expect(order.ok(), `guest order: ${order.status()}`).toBeTruthy();
+
+		try {
+			await page.setViewportSize({ width: 320, height: 800 });
+			await page.goto('/apps/bookingcheck/roster', { waitUntil: 'domcontentloaded' });
+			const picker = page.locator('[data-bck-roster-picker]');
+			await expect(picker).toBeVisible();
+			await picker.selectOption(`event:${seeded.eventId}`);
+			const table = page.locator('#bck-roster-list table.bck-table');
+			await expect(table).toBeVisible();
+			await expect(table).toHaveClass(/bck-table--cards/);
+
+			// Every labelled column carries data-cell; the action cell does not.
+			const unlabeled = await page.$$eval(
+				'#bck-roster-list .bck-table--cards tbody td',
+				(els) => els.filter((el) => !el.hasAttribute('data-cell')
+					&& !el.hasAttribute('colspan')
+					&& !el.classList.contains('bck-table-actions-col')).length,
+			);
+			expect(unlabeled).toBe(0);
+
+			// The check-in action renders INSIDE the 320px card row — never
+			// clipped off-screen behind the scroll wrap.
+			const action = page.locator('#bck-roster-list [data-bck-checkin]').first();
+			await expect(action).toBeVisible();
+			const box = await action.boundingBox();
+			expect(box).not.toBeNull();
+			expect(box.x).toBeGreaterThanOrEqual(0);
+			expect(box.x + box.width).toBeLessThanOrEqual(321);
+		} finally {
+			await destroyOffering(page, seeded.id);
+		}
+	});
+
+	test('page title wraps long compounds instead of clipping at 320px', async ({ page }) => {
+		// Regression: the settings H1 clipped "…steuerun|g" at the viewport
+		// edge — minmax(0,1fr) alone does not break unbreakable words.
+		await page.setViewportSize({ width: 320, height: 800 });
+		await page.goto('/apps/bookingcheck/settings/access', { waitUntil: 'domcontentloaded' });
+		const h1 = page.locator('.bck-page-header__text h1, .bck-page-title').first();
+		await expect(h1).toBeVisible();
+		// Locale-independent: synthesize the failing shape — a long German
+		// compound after the section separator — and measure the overflow.
+		const overflow = await h1.evaluate((el) => {
+			const orig = el.textContent;
+			el.textContent = `Einstellungen — Zugriffssteuerungsorganisationshilfe`;
+			const clipped = el.scrollWidth - el.clientWidth;
+			el.textContent = orig;
+			return clipped;
+		});
+		expect(overflow).toBeLessThanOrEqual(1);
+		const docOverflow = await page.evaluate(() => document.documentElement.scrollWidth);
+		expect(docOverflow).toBeLessThanOrEqual(321);
+	});
+
+	test('button variants keep declared chrome on <button> elements', async ({ page }) => {
+		// Regression: NC core `button:not(.button-vue)` (0-1-1) repainted every
+		// variant to pale primary-element-light + border:none — single-class
+		// rules (0-1-0) lost. Variants are now ID-scoped + !important, incl.
+		// #content.app-bookingcheck so guest/public surfaces are covered too.
+		await page.goto('/apps/bookingcheck/settings/access', { waitUntil: 'domcontentloaded' });
+		await expect(page.locator('#app-content, main').first()).toBeVisible();
+
+		const measured = await page.evaluate(() => {
+			const out = {};
+			const tokenProbe = document.createElement('div');
+			tokenProbe.style.backgroundColor = 'var(--color-primary-element)';
+			(document.body).appendChild(tokenProbe);
+			out.primaryToken = getComputedStyle(tokenProbe).backgroundColor;
+			out.paleLight = (() => {
+				const p = document.createElement('div');
+				p.style.backgroundColor = 'var(--color-primary-element-light)';
+				document.body.appendChild(p);
+				const v = getComputedStyle(p).backgroundColor;
+				p.remove();
+				return v;
+			})();
+			tokenProbe.remove();
+
+			// Probe once inside the staff shell and once under bare #content —
+			// the second shape is what public/guest pages look like (no
+			// #app-content wrapper in layout.public.php).
+			const scopes = {
+				staff: document.querySelector('#app-content .bck-page-stack')
+					|| document.querySelector('#app-content') || document.body,
+				pub: document.getElementById('content') || document.body,
+			};
+			for (const [scope, host] of Object.entries(scopes)) {
+				const wrap = document.createElement('div');
+				wrap.className = 'bck-pub';
+				host.appendChild(wrap);
+				for (const v of ['primary', 'secondary', 'ghost', 'flat', 'danger']) {
+					const btn = document.createElement('button');
+					btn.className = `bck-btn bck-btn--${v}`;
+					const anchor = document.createElement('a');
+					anchor.className = `bck-btn bck-btn--${v}`;
+					wrap.appendChild(btn); wrap.appendChild(anchor);
+					const cb = getComputedStyle(btn);
+					const ca = getComputedStyle(anchor);
+					out[`${scope}.${v}`] = {
+						btnBg: cb.backgroundColor, btnBorderStyle: cb.borderTopStyle,
+						btnBorderColor: cb.borderTopColor, anchorBg: ca.backgroundColor,
+						anchorBorderStyle: ca.borderTopStyle,
+					};
+					btn.remove(); anchor.remove();
+				}
+				wrap.remove();
+			}
+			return out;
+		});
+
+		for (const scope of ['staff', 'pub']) {
+			const p = measured[`${scope}.primary`];
+			expect(p.btnBg, `${scope} primary bg should be the solid token, got ${p.btnBg}`).toBe(measured.primaryToken);
+			expect(p.btnBg, `${scope} primary must not collapse to pale element-light`).not.toBe(measured.paleLight);
+			expect(p.btnBorderStyle, `${scope} primary border must render`).toBe('solid');
+			expect(p.btnBg).toBe(p.anchorBg); // <button> === <a> parity
+			for (const v of ['secondary', 'ghost', 'flat', 'danger']) {
+				const m = measured[`${scope}.${v}`];
+				expect(m.btnBg, `${scope} ${v} collapsed to pale element-light`).not.toBe(measured.paleLight);
+				expect(m.btnBg, `${scope} ${v} <button>/<a> parity`).toBe(m.anchorBg);
+				expect(m.btnBorderStyle, `${scope} ${v} border must render (core border:none must lose)`).toBe('solid');
+			}
+		}
+	});
 });

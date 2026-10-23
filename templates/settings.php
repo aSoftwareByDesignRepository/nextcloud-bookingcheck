@@ -32,7 +32,9 @@ if ($file === null) {
 	throw new \LogicException('Unknown settings section: ' . $section);
 }
 
-$_['pageTitle'] = $l->t('Settings') . ' — ' . \OCA\BookingCheck\Support\SettingsCatalog::label($l, $section);
+// NBSP before the em-dash keeps "Settings —" together on wrap — a bare dash
+// must never orphan onto its own line at narrow widths.
+$_['pageTitle'] = $l->t('Settings') . "\u{00a0}— " . \OCA\BookingCheck\Support\SettingsCatalog::label($l, $section);
 $_['pageHelp'] = \OCA\BookingCheck\Support\SettingsCatalog::help($l, $section);
 $_['pageIcon'] = \OCA\BookingCheck\Support\SettingsCatalog::icon($section);
 $_['settingsSection'] = $section;

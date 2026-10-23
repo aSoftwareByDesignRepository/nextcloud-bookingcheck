@@ -5,6 +5,33 @@
 
 	function reload() { window.location.reload(); }
 	function fail(e) { BCK.handleError(e); }
+	function esc(s) { return BCK.esc(s == null ? '' : String(s)); }
+	/* BCK.esc (textContent→innerHTML) leaves quotes intact — attribute-safe variant. */
+	function escAttr(s) { return esc(s).replace(/"/g, '&quot;'); }
+
+	/* List tables must emit bck-table--cards + data-cell per labelled column —
+	 * the shared card transform (≤768px) otherwise leaves trailing cells in a
+	 * clipped horizontal scroll trap (DS §3.7, applies to JS-built rows too). */
+	function tableBox(cols, rows, emptyMsg) {
+		if (!rows.length) {
+			return '<div class="bck-empty-state"><p class="bck-empty-state__text">'
+				+ esc(emptyMsg) + '</p></div>';
+		}
+		var head = cols.map(function (c) {
+			return '<th scope="col">' + (c === ''
+				? '<span class="bck-sr-only">' + esc(BCK.t('Actions')) + '</span>'
+				: esc(c)) + '</th>';
+		}).join('');
+		var body = rows.map(function (cells) {
+			return '<tr>' + cells.map(function (cell, i) {
+				return (cols[i] || '') === ''
+					? '<td class="bck-table-actions-col">' + cell + '</td>'
+					: '<td data-cell="' + escAttr(cols[i]) + '">' + cell + '</td>';
+			}).join('') + '</tr>';
+		}).join('');
+		return '<div class="bck-table-wrap"><table class="bck-table bck-table--cards bck-table--hover"><thead><tr>'
+			+ head + '</tr></thead><tbody>' + body + '</tbody></table></div>';
+	}
 
 	/* ---- offering edit: progressive disclosure ----
 	 * Fields that only apply under a given type/toggle stay hidden until
@@ -219,22 +246,25 @@
 							+ BCK.t('Nobody booked yet.') + '</p></div></div>';
 						return;
 					}
-					var html = '<div class="bck-card__body bck-card__body--table"><div class="bck-table-wrap"><table class="bck-table"><thead><tr>'
-						+ '<th>' + BCK.t('Name') + '</th><th>' + BCK.t('Seat') + '</th><th>' + BCK.t('Status') + '</th><th></th></tr></thead><tbody>';
-					rows.forEach(function (t) {
-						var checked = !!t.checked_in_at;
-						var notes = (t.answers || []).map(function (a) {
-							return BCK.esc(a.label + ': ' + a.value);
-						}).join(' · ');
-						html += '<tr><td>' + BCK.esc(t.attendee_name || '')
-							+ (notes ? '<br><span class="bck-roster-notes">' + notes + '</span>' : '') + '</td>'
-							+ '<td>' + BCK.esc(t.seat_no || '') + '</td>'
-							+ '<td>' + (checked ? BCK.t('In') : BCK.t('Out')) + '</td>'
-							+ '<td><button class="bck-btn bck-btn--small bck-btn--primary" data-bck-checkin="'
-							+ t.id + '" data-bck-undo="' + (checked ? '1' : '0') + '">'
-							+ (checked ? BCK.t('Undo') : BCK.t('Check in')) + '</button></td></tr>';
-					});
-					listBox.innerHTML = html + '</tbody></table></div></div>';
+					listBox.innerHTML = '<div class="bck-card__body bck-card__body--table">'
+						+ tableBox(
+							[BCK.t('Name'), BCK.t('Seat'), BCK.t('Status'), ''],
+							rows.map(function (t) {
+								var checked = !!t.checked_in_at;
+								var notes = (t.answers || []).map(function (a) {
+									return esc(a.label + ': ' + a.value);
+								}).join(' · ');
+								return [
+									esc(t.attendee_name || '')
+										+ (notes ? '<br><span class="bck-roster-notes">' + notes + '</span>' : ''),
+									esc(t.seat_no || ''),
+									checked ? BCK.t('In') : BCK.t('Out'),
+									'<button class="bck-btn bck-btn--small bck-btn--primary" data-bck-checkin="'
+										+ t.id + '" data-bck-undo="' + (checked ? '1' : '0') + '">'
+										+ (checked ? BCK.t('Undo') : BCK.t('Check in')) + '</button>'
+								];
+							}), BCK.t('Nobody booked yet.'))
+						+ '</div>';
 				})
 				.catch(fail);
 		});
@@ -622,19 +652,7 @@
 	if (detailRoot) {
 		var offeringId = detailRoot.getAttribute('data-bck-offering-detail');
 
-		function esc(s) { return BCK.esc(String(s == null ? '' : s)); }
 		function err(el, msg) { if (el) { el.hidden = !msg; el.textContent = msg || ''; } }
-
-		function tableBox(cols, rows, emptyMsg) {
-			if (!rows.length) {
-				return '<div class="bck-empty-state"><p class="bck-empty-state__text">'
-					+ esc(emptyMsg) + '</p></div>';
-			}
-			var html = '<div class="bck-table-wrap"><table class="bck-table"><thead><tr>'
-				+ cols.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('')
-				+ '</tr></thead><tbody>' + rows.join('') + '</tbody></table></div>';
-			return html;
-		}
 
 		function cents(c) { return (parseInt(c, 10) / 100).toFixed(2); }
 		function dt(s) { return s ? String(s).slice(0, 16).replace('T', ' ') : '—'; }
@@ -757,9 +775,12 @@
 						+ '" data-starts="' + esc(e.startsAt) + '" data-ends="' + esc(e.endsAt)
 						+ '" data-cap="' + parseInt(e.capacity, 10) + '">'
 						+ BCK.t('Edit') + '</button>';
-					rows.push('<tr><td>' + esc(dt(e.startsAt)) + '</td><td>' + esc(dt(e.endsAt))
-						+ '</td><td>' + e.sold + '/' + e.capacity + '</td><td>'
-						+ esc(occLabels[e.status] || e.status || '') + '</td><td>' + edit + del + '</td></tr>');
+					rows.push([
+						esc(dt(e.startsAt)), esc(dt(e.endsAt)),
+						e.sold + '/' + e.capacity,
+						esc(occLabels[e.status] || e.status || ''),
+						edit + del
+					]);
 				});
 				occList.innerHTML = tableBox(
 					[BCK.t('Starts'), BCK.t('Ends'), BCK.t('Sold/Seats'), BCK.t('Status'), ''],
@@ -778,12 +799,15 @@
 					[BCK.t('Name'), BCK.t('By'), BCK.t('Size'), BCK.t('Date'), ''],
 					items.map(function (u) {
 						var mb = (parseInt(u.sizeBytes, 10) / 1048576).toFixed(1);
-						return '<tr><td><a href="' + BCK.appBase() + '/api/uploads/'
-							+ u.id + '/file">' + BCK.tf('File #%s', [String(u.id)]) + '</a></td>'
-							+ '<td>' + esc(u.displayName) + '</td>'
-							+ '<td>' + mb + ' MB</td><td>' + esc(dt(u.createdAt)) + '</td>'
-							+ '<td><button class="bck-btn bck-btn--small" data-bck-delete="/uploads/'
-							+ u.id + '">' + BCK.t('Remove') + '</button></td></tr>';
+						return [
+							'<a href="' + BCK.appBase() + '/api/uploads/'
+								+ u.id + '/file">' + BCK.tf('File #%s', [String(u.id)]) + '</a>',
+							esc(u.displayName),
+							mb + ' MB',
+							esc(dt(u.createdAt)),
+							'<button class="bck-btn bck-btn--small" data-bck-delete="/uploads/'
+								+ u.id + '">' + BCK.t('Remove') + '</button>'
+						];
 					}), BCK.t('No shared files yet.'));
 			}).catch(function () {
 				upList.innerHTML = '';
@@ -803,9 +827,10 @@
 				bcList.innerHTML = tableBox(
 					[BCK.t('Subject'), BCK.t('Scope'), BCK.t('Sent'), BCK.t('Recipients')],
 					items.map(function (b) {
-						return '<tr><td>' + esc(b.subject) + '</td><td>' + esc(b.scope)
-							+ '</td><td>' + esc(dt(b.sentAt)) + '</td><td>' + esc(b.rcptCount)
-							+ '</td></tr>';
+						return [
+							esc(b.subject), esc(b.scope),
+							esc(dt(b.sentAt)), esc(b.rcptCount)
+						];
 					}), BCK.t('No messages sent yet.'));
 			}).catch(function () {
 				bcList.innerHTML = '';
@@ -890,11 +915,14 @@
 					tplList.innerHTML = tableBox(
 						[BCK.t('Pattern'), BCK.t('Length'), BCK.t('Seats'), BCK.t('Pool'), ''],
 						tpls.map(function (t) {
-							return '<tr><td><code>' + esc(String(t.weeklyRrule || '').replace(/\r?\n/g, ' · '))
-								+ '</code></td><td>' + t.durationMin + ' min</td><td>' + t.capPerSlot
-								+ '</td><td>' + esc(resNames[t.resourceId] || '—') + '</td>'
-								+ '<td><button class="bck-btn bck-btn--small" data-bck-del-tpl="'
-								+ t.id + '">' + BCK.t('Delete') + '</button></td></tr>';
+							return [
+								'<code>' + esc(String(t.weeklyRrule || '').replace(/\r?\n/g, ' · ')) + '</code>',
+								t.durationMin + ' min',
+								t.capPerSlot,
+								esc(resNames[t.resourceId] || '—'),
+								'<button class="bck-btn bck-btn--small" data-bck-del-tpl="'
+									+ t.id + '">' + BCK.t('Delete') + '</button>'
+							];
 						}), BCK.t('No recurring patterns yet — add one below.'));
 				}
 			}).catch(fail);
@@ -984,9 +1012,11 @@
 			'/offerings/' + offeringId + '/price-categories', 'pricecats',
 			[BCK.t('Name'), BCK.t('Price'), ''],
 			function (p) {
-				return '<tr><td>' + esc(p.name) + '</td><td>' + cents(p.priceCents) + '</td>'
-					+ '<td><button class="bck-btn bck-btn--small" data-bck-delete="/price-categories/'
-					+ p.id + '">' + BCK.t('Delete') + '</button></td></tr>';
+				return [
+					esc(p.name), cents(p.priceCents),
+					'<button class="bck-btn bck-btn--small" data-bck-delete="/price-categories/'
+						+ p.id + '">' + BCK.t('Delete') + '</button>'
+				];
 			},
 			document.getElementById('bck-pricecat-form'),
 			'/offerings/' + offeringId + '/price-categories',
@@ -996,9 +1026,11 @@
 			'/offerings/' + offeringId + '/addons', 'addons',
 			[BCK.t('Name'), BCK.t('Price'), ''],
 			function (a) {
-				return '<tr><td>' + esc(a.name) + '</td><td>' + cents(a.priceCents) + '</td>'
-					+ '<td><button class="bck-btn bck-btn--small" data-bck-delete="/addons/'
-					+ a.id + '">' + BCK.t('Delete') + '</button></td></tr>';
+				return [
+					esc(a.name), cents(a.priceCents),
+					'<button class="bck-btn bck-btn--small" data-bck-delete="/addons/'
+						+ a.id + '">' + BCK.t('Delete') + '</button>'
+				];
 			},
 			document.getElementById('bck-addon-form'),
 			'/offerings/' + offeringId + '/addons',
@@ -1019,9 +1051,11 @@
 					? '<button class="bck-btn bck-btn--small" data-bck-delete="/intake/'
 						+ q.id + '">' + BCK.t('Remove') + '</button>'
 					: '<span class="bck-badge bck-badge--info">' + BCK.t('inactive') + '</span>';
-				return '<tr><td>' + esc(q.label) + '</td><td>' + esc(q.kind) + '</td><td>'
-					+ (parseInt(q.required, 10) ? BCK.t('yes') : '—') + '</td><td>'
-					+ esc(q.visibleTo) + '</td><td>' + del + '</td></tr>';
+				return [
+					esc(q.label), esc(q.kind),
+					parseInt(q.required, 10) ? BCK.t('yes') : '—',
+					esc(q.visibleTo), del
+				];
 			},
 			document.getElementById('bck-intake-form'),
 			'/offerings/' + offeringId + '/intake',
@@ -1035,9 +1069,11 @@
 				var items = (d && d.materials) || [];
 				matList.innerHTML = tableBox([BCK.t('Title'), ''],
 					items.map(function (m) {
-						return '<tr><td>' + esc(m.title) + '</td>'
-							+ '<td><button class="bck-btn bck-btn--small" data-bck-delete="/materials/'
-							+ m.id + '">' + BCK.t('Delete') + '</button></td></tr>';
+						return [
+							esc(m.title),
+							'<button class="bck-btn bck-btn--small" data-bck-delete="/materials/'
+								+ m.id + '">' + BCK.t('Delete') + '</button>'
+						];
 					}), BCK.t('No materials yet.'));
 			}).catch(fail);
 		}
