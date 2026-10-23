@@ -964,7 +964,27 @@
     "valid": "gyldig",
     "Below the number already sold or held": "Under antallet allerede solgt eller reserveret",
     "Unknown event": "Ukendt hændelse",
-    "Seller role required": "Sælgerrolle påkrævet"
+    "Seller role required": "Sælgerrolle påkrævet",
+    "This answer is required.": "Dette svar er påkrævet.",
+    "A date and time are required.": "En dato og et tidspunkt er påkrævet.",
+    "Invalid date/time.": "Ugyldig dato/klokkeslæt.",
+    "Must be a positive duration.": "Skal være en positiv varighed.",
+    "Expected a JSON list of ids.": "En JSON-liste med id’er forventes.",
+    "Too many entries — keep the list under 500.": "For mange poster — hold listen under 500.",
+    "Unknown user": "Ukendt bruger",
+    "Unknown group": "Ukendt gruppe",
+    "Pass use limit reached.": "Kortets brugsgrænse er nået.",
+    "Pass is not valid right now.": "Dette kort er ikke gyldigt lige nu.",
+    "Pass does not cover this offering.": "Dette kort dækker ikke dette tilbud.",
+    "New paid booking": "Ny betalt booking",
+    "Booking cancelled": "Booking annulleret",
+    "Refund issued": "Refusion udstedt",
+    "Content report": "Indholdsrapport",
+    "Order %s paid.": "Ordre %s betalt.",
+    "Order %s was cancelled.": "Ordre %s blev annulleret.",
+    "Order %s was refunded.": "Ordre %s blev refunderet.",
+    "An attendee reported shared content for review.": "En deltager har rapporteret delt indhold til gennemgang.",
+    "Open BookingCheck.": "Åbn BookingCheck."
   },
   "pluralForm": "nplurals=2; plural=(n != 1);"
 }

@@ -964,7 +964,27 @@
     "valid": "valido",
     "Below the number already sold or held": "Sotto il numero già venduto o trattenuto",
     "Unknown event": "Evento sconosciuto",
-    "Seller role required": "Ruolo venditore richiesto"
+    "Seller role required": "Ruolo venditore richiesto",
+    "This answer is required.": "Questa risposta è obbligatoria.",
+    "A date and time are required.": "Sono richiesti una data e un orario.",
+    "Invalid date/time.": "Data/ora non valida.",
+    "Must be a positive duration.": "Deve essere una durata positiva.",
+    "Expected a JSON list of ids.": "È previsto un elenco JSON di ID.",
+    "Too many entries — keep the list under 500.": "Troppi elementi — mantieni l’elenco sotto i 500.",
+    "Unknown user": "Utente sconosciuto",
+    "Unknown group": "Gruppo sconosciuto",
+    "Pass use limit reached.": "Limite di utilizzo del pass raggiunto.",
+    "Pass is not valid right now.": "Questo pass non è valido al momento.",
+    "Pass does not cover this offering.": "Questo pass non copre questa offerta.",
+    "New paid booking": "Nuova prenotazione pagata",
+    "Booking cancelled": "Prenotazione annullata",
+    "Refund issued": "Rimborso emesso",
+    "Content report": "Segnalazione di contenuto",
+    "Order %s paid.": "Ordine %s pagato.",
+    "Order %s was cancelled.": "L’ordine %s è stato annullato.",
+    "Order %s was refunded.": "L’ordine %s è stato rimborsato.",
+    "An attendee reported shared content for review.": "Un partecipante ha segnalato un contenuto condiviso per la revisione.",
+    "Open BookingCheck.": "Apri BookingCheck."
   },
   "pluralForm": "nplurals=2; plural=(n != 1);"
 }

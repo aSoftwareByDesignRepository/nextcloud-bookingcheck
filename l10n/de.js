@@ -962,6 +962,26 @@ OC.L10N.register(
 	"valid" : "gültig",
 	"Below the number already sold or held" : "Unter der bereits verkauften oder reservierten Zahl",
 	"Unknown event" : "Unbekanntes Ereignis",
-	"Seller role required" : "Verkäuferrolle erforderlich"
+	"Seller role required" : "Verkäuferrolle erforderlich",
+	"This answer is required." : "Diese Antwort ist erforderlich.",
+	"A date and time are required." : "Datum und Uhrzeit sind erforderlich.",
+	"Invalid date\/time." : "Ungültige Datums-\/Zeitangabe.",
+	"Must be a positive duration." : "Muss eine positive Dauer sein.",
+	"Expected a JSON list of ids." : "Eine JSON-Liste mit IDs wird erwartet.",
+	"Too many entries — keep the list under 500." : "Zu viele Einträge — halten Sie die Liste unter 500.",
+	"Unknown user" : "Unbekannter Benutzer",
+	"Unknown group" : "Unbekannte Gruppe",
+	"Pass use limit reached." : "Nutzungslimit des Passes erreicht.",
+	"Pass is not valid right now." : "Der Pass ist derzeit nicht gültig.",
+	"Pass does not cover this offering." : "Der Pass deckt dieses Angebot nicht ab.",
+	"New paid booking" : "Neue bezahlte Buchung",
+	"Booking cancelled" : "Buchung storniert",
+	"Refund issued" : "Erstattung ausgestellt",
+	"Content report" : "Inhaltsmeldung",
+	"Order %s paid." : "Bestellung %s bezahlt.",
+	"Order %s was cancelled." : "Bestellung %s wurde storniert.",
+	"Order %s was refunded." : "Bestellung %s wurde erstattet.",
+	"An attendee reported shared content for review." : "Ein Teilnehmer hat geteilte Inhalte zur Prüfung gemeldet.",
+	"Open BookingCheck." : "BookingCheck öffnen."
 	}
 );

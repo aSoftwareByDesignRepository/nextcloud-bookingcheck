@@ -964,6 +964,26 @@
     "valid": "valid",
     "Below the number already sold or held": "Below the number already sold or held",
     "Unknown event": "Unknown event",
-    "Seller role required": "Seller role required"
+    "Seller role required": "Seller role required",
+    "This answer is required.": "This answer is required.",
+    "A date and time are required.": "A date and time are required.",
+    "Invalid date/time.": "Invalid date/time.",
+    "Must be a positive duration.": "Must be a positive duration.",
+    "Expected a JSON list of ids.": "Expected a JSON list of ids.",
+    "Too many entries — keep the list under 500.": "Too many entries — keep the list under 500.",
+    "Unknown user": "Unknown user",
+    "Unknown group": "Unknown group",
+    "Pass use limit reached.": "Pass use limit reached.",
+    "Pass is not valid right now.": "Pass is not valid right now.",
+    "Pass does not cover this offering.": "Pass does not cover this offering.",
+    "New paid booking": "New paid booking",
+    "Booking cancelled": "Booking cancelled",
+    "Refund issued": "Refund issued",
+    "Content report": "Content report",
+    "Order %s paid.": "Order %s paid.",
+    "Order %s was cancelled.": "Order %s was cancelled.",
+    "Order %s was refunded.": "Order %s was refunded.",
+    "An attendee reported shared content for review.": "An attendee reported shared content for review.",
+    "Open BookingCheck.": "Open BookingCheck."
   }
 }

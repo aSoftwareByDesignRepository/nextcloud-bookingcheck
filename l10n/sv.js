@@ -962,7 +962,27 @@ OC.L10N.register(
 	"valid" : "giltig",
 	"Below the number already sold or held" : "Under antalet som redan sålts eller hålls",
 	"Unknown event" : "Okänd händelse",
-	"Seller role required" : "Säljarroll krävs"
+	"Seller role required" : "Säljarroll krävs",
+	"This answer is required." : "Detta svar är obligatoriskt.",
+	"A date and time are required." : "Ett datum och en tid krävs.",
+	"Invalid date\/time." : "Ogiltigt datum\/tid.",
+	"Must be a positive duration." : "Måste vara en positiv varaktighet.",
+	"Expected a JSON list of ids." : "En JSON-lista med id:n förväntas.",
+	"Too many entries — keep the list under 500." : "För många poster — håll listan under 500.",
+	"Unknown user" : "Okänd användare",
+	"Unknown group" : "Okänd grupp",
+	"Pass use limit reached." : "Passets användningsgräns är nådd.",
+	"Pass is not valid right now." : "Det här passet är inte giltigt just nu.",
+	"Pass does not cover this offering." : "Det här passet täcker inte detta erbjudande.",
+	"New paid booking" : "Ny betald bokning",
+	"Booking cancelled" : "Bokning avbruten",
+	"Refund issued" : "Återbetalning utfärdad",
+	"Content report" : "Innehållsrapport",
+	"Order %s paid." : "Order %s betald.",
+	"Order %s was cancelled." : "Order %s avbröts.",
+	"Order %s was refunded." : "Order %s återbetalades.",
+	"An attendee reported shared content for review." : "En deltagare har rapporterat delat innehåll för granskning.",
+	"Open BookingCheck." : "Öppna BookingCheck."
 	},
 	"nplurals=2; plural=(n != 1);"
 );

@@ -9,8 +9,11 @@ declare(strict_types=1);
 
 namespace OCA\BookingCheck\Service;
 
+use OCA\BookingCheck\AppInfo\Application;
+use OCA\BookingCheck\Support\Locales;
 use OCP\Http\Client\IClientService;
 use OCP\IDBConnection;
+use OCP\L10N\IFactory;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -21,6 +24,12 @@ use Psr\Log\LoggerInterface;
  * via /capi/v1/push and live on bc_companion. Failures are logged, never
  * retried inline — a dead push endpoint must not stall the order path;
  * receipts are best-effort (Expo keeps its own retry).
+ *
+ * Payloads render on the device verbatim (system notification), so
+ * title/body are resolved per-recipient language: the device's own
+ * locale reported at push registration, else the shop's configured
+ * default_locale (l10n_unlocalized_error_surface — English payloads
+ * on non-English devices were the defect).
  */
 class PushService
 {
@@ -31,6 +40,8 @@ class PushService
 		private readonly IClientService $clientService,
 		private readonly IDBConnection $db,
 		private readonly LoggerInterface $logger,
+		private readonly IFactory $l10nFactory,
+		private readonly SettingsService $settings,
 	) {
 	}
 
@@ -40,44 +51,51 @@ class PushService
 	 */
 	public function notifyManagers(string $type, array $data): void
 	{
-		$tokens = $this->managerTokens();
-		if ($tokens === []) {
-			return;
+		$defaultLocale = Locales::canonicalize($this->settings->get('default_locale'));
+		$byLocale = [];
+		foreach ($this->managerTargets() as $target) {
+			$byLocale[$target['locale'] !== '' ? $target['locale'] : $defaultLocale][] = $target['token'];
 		}
-		$title = match ($type) {
-			'order.paid' => 'New paid booking',
-			'order.cancelled' => 'Booking cancelled',
-			'order.refunded' => 'Refund issued',
-			'abuse.reported' => 'Content report',
-			default => 'BookingCheck',
-		};
-		// never put buyer PII in the notification payload — lock screens leak
-		$body = match ($type) {
-			'order.paid' => 'Order ' . ($data['order_ref'] ?? '') . ' paid.',
-			'order.cancelled' => 'Order ' . ($data['order_ref'] ?? '') . ' was cancelled.',
-			'order.refunded' => 'Order ' . ($data['order_ref'] ?? '') . ' was refunded.',
-			'abuse.reported' => 'An attendee reported shared content for review.',
-			default => 'Open BookingCheck.',
-		};
-		foreach (array_chunk($tokens, self::MAX_BATCH) as $chunk) {
-			$messages = array_map(fn ($t) => [
-				'to' => $t, 'title' => $title, 'body' => $body,
-				'data' => ['type' => $type],
-			], $chunk);
-			$this->send($messages);
+		$ref = (string)($data['order_ref'] ?? '');
+		foreach ($byLocale as $locale => $tokens) {
+			$l = $this->l10nFactory->get(Application::APP_ID, $locale);
+			[$title, $body] = match ($type) {
+				'order.paid' => [$l->t('New paid booking'), $l->t('Order %s paid.', [$ref])],
+				'order.cancelled' => [$l->t('Booking cancelled'), $l->t('Order %s was cancelled.', [$ref])],
+				'order.refunded' => [$l->t('Refund issued'), $l->t('Order %s was refunded.', [$ref])],
+				'abuse.reported' => [$l->t('Content report'), $l->t('An attendee reported shared content for review.')],
+				// brand title stays literal; the body still translates
+				default => ['BookingCheck', $l->t('Open BookingCheck.')],
+			};
+			foreach (array_chunk($tokens, self::MAX_BATCH) as $chunk) {
+				$messages = array_map(fn ($t) => [
+					'to' => $t, 'title' => $title, 'body' => $body,
+					'data' => ['type' => $type],
+				], $chunk);
+				$this->send($messages);
+			}
 		}
 	}
 
-	/** @return list<string> */
-	private function managerTokens(): array
+	/** @return list<array{token: string, locale: string}> */
+	private function managerTargets(): array
 	{
 		$qb = $this->db->getQueryBuilder();
-		$qb->select('push_token')->from('bc_companion')
+		$qb->select('push_token', 'locale')->from('bc_companion')
 			->where($qb->expr()->eq('role', $qb->createNamedParameter('manager')))
 			->andWhere($qb->expr()->isNull('revoked_at'))
 			->andWhere($qb->expr()->isNotNull('push_token'))
 			->andWhere($qb->expr()->eq('push_kind', $qb->createNamedParameter('expo')));
-		return array_map('strval', array_column($qb->executeQuery()->fetchAll(), 'push_token'));
+		return array_map(
+			fn (array $r): array => [
+				'token' => (string)$r['push_token'],
+				// '' = never reported → notifyManagers falls back to the
+				// shop default_locale (canonicalize('') would pin 'en')
+				'locale' => trim((string)($r['locale'] ?? '')) === ''
+					? ''
+					: Locales::canonicalize($r['locale']),
+			],
+			$qb->executeQuery()->fetchAll());
 	}
 
 	/** @param list<array<string,mixed>> $messages */

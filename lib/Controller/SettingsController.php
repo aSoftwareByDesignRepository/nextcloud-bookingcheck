@@ -431,8 +431,9 @@ class SettingsController extends Controller
 				: (($u = $this->userManager->get($id)) !== null
 					&& (!method_exists($u, 'isEnabled') || $u->isEnabled()));
 			if (!$exists) {
-				throw new ValidationException([$field => 'Unknown '
-					. ($isGroupList ? 'group' : 'user') . ': ' . $id]);
+				throw new ValidationException([$field => ($isGroupList
+					? $this->tx('Unknown group')
+					: $this->tx('Unknown user')) . ': ' . $id]);
 			}
 			$out[] = $id;
 		}

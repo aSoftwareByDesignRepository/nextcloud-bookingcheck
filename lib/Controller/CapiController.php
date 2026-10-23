@@ -487,6 +487,14 @@ class CapiController extends Controller
 		}
 		$this->companionDevice->setPushToken($token);
 		$this->companionDevice->setPushKind($kind);
+		// Per-recipient push language: the device reports its own locale;
+		// absent param keeps the stored value (older clients never
+		// downgrade a newer registration's preference).
+		$locale = trim((string)$this->request->getParam('locale', ''));
+		if ($locale !== '') {
+			$this->companionDevice->setLocale(
+				\OCA\BookingCheck\Support\Locales::canonicalize($locale));
+		}
 		$this->companions->update($this->companionDevice);
 		return $this->ok(['registered' => true]);
 	}

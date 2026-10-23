@@ -964,7 +964,27 @@
     "valid": "geldig",
     "Below the number already sold or held": "Onder het aantal al verkocht of vastgehouden",
     "Unknown event": "Onbekende gebeurtenis",
-    "Seller role required": "Verkopersrol vereist"
+    "Seller role required": "Verkopersrol vereist",
+    "This answer is required.": "Dit antwoord is verplicht.",
+    "A date and time are required.": "Een datum en tijd zijn vereist.",
+    "Invalid date/time.": "Ongeldige datum/tijd.",
+    "Must be a positive duration.": "Moet een positieve duur zijn.",
+    "Expected a JSON list of ids.": "Een JSON-lijst met ids wordt verwacht.",
+    "Too many entries — keep the list under 500.": "Te veel items — houd de lijst onder de 500.",
+    "Unknown user": "Onbekende gebruiker",
+    "Unknown group": "Onbekende groep",
+    "Pass use limit reached.": "Gebruikslimiet van de pas bereikt.",
+    "Pass is not valid right now.": "Deze pas is momenteel niet geldig.",
+    "Pass does not cover this offering.": "Deze pas dekt deze aanbieding niet.",
+    "New paid booking": "Nieuwe betaalde boeking",
+    "Booking cancelled": "Boeking geannuleerd",
+    "Refund issued": "Terugbetaling uitgevoerd",
+    "Content report": "Inhoudsmelding",
+    "Order %s paid.": "Bestelling %s betaald.",
+    "Order %s was cancelled.": "Bestelling %s is geannuleerd.",
+    "Order %s was refunded.": "Bestelling %s is terugbetaald.",
+    "An attendee reported shared content for review.": "Een deelnemer heeft gedeelde inhoud ter beoordeling gemeld.",
+    "Open BookingCheck.": "Open BookingCheck."
   },
   "pluralForm": "nplurals=2; plural=(n != 1);"
 }

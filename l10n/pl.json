@@ -965,7 +965,27 @@
     "valid": "ważny",
     "Below the number already sold or held": "Poniżej liczby już sprzedanych lub zatrzymanych",
     "Unknown event": "Nieznane zdarzenie",
-    "Seller role required": "Wymagana rola sprzedawcy"
+    "Seller role required": "Wymagana rola sprzedawcy",
+    "This answer is required.": "Ta odpowiedź jest wymagana.",
+    "A date and time are required.": "Wymagana jest data i godzina.",
+    "Invalid date/time.": "Nieprawidłowa data/godzina.",
+    "Must be a positive duration.": "Musi być dodatnim czasem trwania.",
+    "Expected a JSON list of ids.": "Oczekiwano listy JSON identyfikatorów.",
+    "Too many entries — keep the list under 500.": "Za dużo pozycji — utrzymaj listę poniżej 500.",
+    "Unknown user": "Nieznany użytkownik",
+    "Unknown group": "Nieznana grupa",
+    "Pass use limit reached.": "Limit użyć karnetu został osiągnięty.",
+    "Pass is not valid right now.": "Ten karnet nie jest teraz ważny.",
+    "Pass does not cover this offering.": "Ten karnet nie obejmuje tej oferty.",
+    "New paid booking": "Nowa opłacona rezerwacja",
+    "Booking cancelled": "Rezerwacja anulowana",
+    "Refund issued": "Wystawiono zwrot",
+    "Content report": "Zgłoszenie treści",
+    "Order %s paid.": "Zamówienie %s opłacone.",
+    "Order %s was cancelled.": "Zamówienie %s zostało anulowane.",
+    "Order %s was refunded.": "Zamówienie %s zostało zwrócone.",
+    "An attendee reported shared content for review.": "Uczestnik zgłosił udostępnioną treść do weryfikacji.",
+    "Open BookingCheck.": "Otwórz BookingCheck."
   },
   "pluralForm": "nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);"
 }

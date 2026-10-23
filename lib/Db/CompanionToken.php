@@ -36,6 +36,8 @@ use OCP\AppFramework\Db\Entity;
  * @method void setPushToken(?string $pushToken)
  * @method string|null getPushKind()
  * @method void setPushKind(?string $pushKind)
+ * @method string|null getLocale()
+ * @method void setLocale(?string $locale)
  */
 class CompanionToken extends Entity
 {
@@ -49,6 +51,7 @@ class CompanionToken extends Entity
 	protected $revokedAt;
 	protected $pushToken;
 	protected $pushKind;
+	protected $locale;
 
 	public function __construct()
 	{
@@ -58,6 +61,7 @@ class CompanionToken extends Entity
 		$this->addType('revokedAt', 'datetime_immutable');
 		$this->addType('pushToken', 'string');
 		$this->addType('pushKind', 'string');
+		$this->addType('locale', 'string');
 	}
 
 	public function jsonSerialize(): array
