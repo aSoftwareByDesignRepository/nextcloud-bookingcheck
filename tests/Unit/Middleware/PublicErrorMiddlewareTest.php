@@ -212,6 +212,95 @@ final class PublicErrorMiddlewareTest extends TestCase
 		self::assertSame('NOT_FOUND', $resp->getData()['error']);
 	}
 
+	/** page_route_error_renders_json_blob — a staff page navigation that
+	 *  misses (stale or foreign id in the URL) must answer the core HTML
+	 *  404 page, not a JSON blob the browser shows as raw machine output.
+	 *  Same template for missing and foreign entities — the uniform-404
+	 *  collapse (no existence oracle) survives in HTML form. */
+	public function testNotFoundPageGetReturnsCore404(): void
+	{
+		$this->path = '/apps/bookingcheck/orders/999999999';
+		$req = $this->createMock(IRequest::class);
+		$req->method('getPathInfo')->willReturn($this->path);
+		$req->method('getMethod')->willReturn('GET');
+		$resp = (new PublicErrorMiddleware($req, $this->offerings,
+			$this->createMock(LoggerInterface::class)))
+			->afterException($this->controller(), 'show',
+				new \OCA\BookingCheck\Exception\NotFoundException());
+		self::assertInstanceOf(\OCP\AppFramework\Http\TemplateResponse::class, $resp);
+		self::assertSame(404, $resp->getStatus());
+		self::assertSame('404', $resp->getTemplateName());
+	}
+
+	/** Buyer-facing page GETs (manage link, invoice, ticket, claim)
+	 *  answer the branded "nothing here" card with a recovery CTA —
+	 *  the same body the controllers already render inline. */
+	public function testNotFoundPubGetReturnsBrandedPage(): void
+	{
+		$this->path = '/apps/bookingcheck/pub/m/deadbeef/invoice';
+		$req = $this->createMock(IRequest::class);
+		$req->method('getPathInfo')->willReturn($this->path);
+		$req->method('getMethod')->willReturn('GET');
+		$resp = (new PublicErrorMiddleware($req, $this->offerings,
+			$this->createMock(LoggerInterface::class)))
+			->afterException($this->controller(), 'invoice',
+				new \OCA\BookingCheck\Exception\NotFoundException());
+		self::assertInstanceOf(\OCP\AppFramework\Http\Template\PublicTemplateResponse::class, $resp);
+		self::assertSame(404, $resp->getStatus());
+		self::assertSame('public/not-found', $resp->getTemplateName());
+	}
+
+	/** JSON clients keep the canonical envelope — a fetch caller must
+	 *  not be handed an HTML error page it cannot parse. */
+	public function testNotFoundApiGetKeepsJsonEnvelope(): void
+	{
+		$this->path = '/apps/bookingcheck/api/orders/999999999';
+		$req = $this->createMock(IRequest::class);
+		$req->method('getPathInfo')->willReturn($this->path);
+		$req->method('getMethod')->willReturn('GET');
+		$resp = (new PublicErrorMiddleware($req, $this->offerings,
+			$this->createMock(LoggerInterface::class)))
+			->afterException($this->controller(), 'show',
+				new \OCA\BookingCheck\Exception\NotFoundException());
+		self::assertInstanceOf(\OCP\AppFramework\Http\JSONResponse::class, $resp);
+		self::assertSame(404, $resp->getStatus());
+		self::assertSame('NOT_FOUND', $resp->getData()['error']);
+	}
+
+	/** The public JSON API under /pub/api is still a JSON surface even
+	 *  though it shares the /pub/ prefix with buyer-facing pages. */
+	public function testNotFoundPubApiGetKeepsJsonEnvelope(): void
+	{
+		$this->path = '/apps/bookingcheck/pub/api/orders/ref-dead';
+		$req = $this->createMock(IRequest::class);
+		$req->method('getPathInfo')->willReturn($this->path);
+		$req->method('getMethod')->willReturn('GET');
+		$resp = (new PublicErrorMiddleware($req, $this->offerings,
+			$this->createMock(LoggerInterface::class)))
+			->afterException($this->controller(), 'status',
+				new \OCA\BookingCheck\Exception\NotFoundException());
+		self::assertInstanceOf(\OCP\AppFramework\Http\JSONResponse::class, $resp);
+		self::assertSame(404, $resp->getStatus());
+		self::assertSame('NOT_FOUND', $resp->getData()['error']);
+	}
+
+	/** Mutations are not browser navigations — a POST that misses stays
+	 *  on the envelope even on a non-/api/ route (e.g. manage actions). */
+	public function testNotFoundPostOnPagePathKeepsJsonEnvelope(): void
+	{
+		$this->path = '/apps/bookingcheck/pub/m/deadbeef/cancel';
+		$req = $this->createMock(IRequest::class);
+		$req->method('getPathInfo')->willReturn($this->path);
+		$req->method('getMethod')->willReturn('POST');
+		$resp = (new PublicErrorMiddleware($req, $this->offerings,
+			$this->createMock(LoggerInterface::class)))
+			->afterException($this->controller(), 'cancel',
+				new \OCA\BookingCheck\Exception\NotFoundException());
+		self::assertInstanceOf(\OCP\AppFramework\Http\JSONResponse::class, $resp);
+		self::assertSame(404, $resp->getStatus());
+		self::assertSame('NOT_FOUND', $resp->getData()['error']);
+	}
+
 	/** Page surfaces keep the framework 500 — HTML error page is the
 	 *  correct human UX and the exception is logged upstream. */
 	public function testUnknownExceptionOnPageRethrows(): void

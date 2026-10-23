@@ -467,7 +467,7 @@ test.describe('SCREENSHOT_MATRIX capture', () => {
 		if (portalPage) { await portalPage.context().close() }
 	})
 
-	test('captures dialogs, forms, error states and theme variants', async ({ page }) => {
+	test('captures dialogs, forms, error states and theme variants', async ({ page, browser }) => {
 		test.setTimeout(300_000)
 		await login(page, ADMIN)
 		await page.setViewportSize({ width: 1280, height: 800 })
@@ -491,9 +491,36 @@ test.describe('SCREENSHOT_MATRIX capture', () => {
 		await shot(page, 'bck-orders-populated-desktop-hc', 800)
 		await resetUserTheme(page)
 
-		// ── Uniform-404 door: a bogus order id collapses to NOT_FOUND ──
-		await gotoApp(page, `${APP}/orders/999999999`, { contentSel: 'body', retries: 0 })
+		// ── Uniform-404 door: page GETs answer a human HTML error page,
+		//    API GETs answer the canonical JSON envelope — one body for
+		//    missing and foreign entities (no existence oracle). ──
+		const nfPage = await page.request.get(`${APP}/orders/999999999`)
+		expect(nfPage.status()).toBe(404)
+		expect(nfPage.headers()['content-type'] || '').toContain('text/html')
+		const nfApi = await page.request.fetch(`${APP}/api/offerings/999999999`, {
+			headers: { requesttoken: await reqToken(page), 'OCS-APIRequest': 'true', Accept: 'application/json' },
+		})
+		expect(nfApi.status()).toBe(404)
+		const nfApiBody = await nfApi.json().catch(() => null)
+		expect(nfApiBody?.error).toBe('NOT_FOUND')
+
+		await gotoApp(page, `${APP}/orders/999999999`, { contentSel: '.body-login-container', retries: 0 })
 		await shot(page, 'bck-order-not-found-desktop', 800)
+
+		// Guest leg: a dead buyer link answers the branded not-found card
+		// with a recovery CTA, not the browser's raw JSON view.
+		const guest = await (await browser.newContext({ storageState: { cookies: [], origins: [] } })).newPage()
+		try {
+			const nfGuest = await guest.request.get(`${APP}/pub/m/bkc-mx-deadbeef/ics`)
+			expect(nfGuest.status()).toBe(404)
+			expect(nfGuest.headers()['content-type'] || '').toContain('text/html')
+			await guest.setViewportSize({ width: 1280, height: 800 })
+			await guest.goto(`${APP}/pub/m/bkc-mx-deadbeef/ics`, { waitUntil: 'domcontentloaded' })
+			await guest.waitForSelector('.bck-pub', { timeout: 10_000 })
+			await shot(guest, 'bck-pub-not-found-desktop', 800)
+		} finally {
+			await guest.context().close()
+		}
 	})
 
 	test.afterAll(async () => {

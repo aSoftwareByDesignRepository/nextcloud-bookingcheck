@@ -54,7 +54,29 @@ class PublicErrorMiddleware extends Middleware
 			return $this->envelope(400, 'VALIDATION', 'Please check the highlighted fields.', $exception->getFields());
 		}
 		if ($exception instanceof NotFoundException) {
-			return $this->envelope(404, 'NOT_FOUND', 'Not found.');
+			// Same surface split as the door-deny branch: API clients and
+			// non-GET mutations keep the canonical envelope, but a browser
+			// page navigation landing here followed a dead link — a JSON
+			// blob is a dead end (page_route_error_renders_json_blob).
+			// Both HTML answers are identical for missing and foreign
+			// entities, so the uniform-404 collapse survives.
+			$path = (string)$this->request->getPathInfo();
+			$isApi = str_contains($path, '/api/')
+				|| str_contains($path, '/capi/')
+				|| str_contains($path, '/ocs/')
+				|| $this->request->getMethod() !== 'GET';
+			if ($isApi) {
+				return $this->envelope(404, 'NOT_FOUND', 'Not found.');
+			}
+			if (str_contains($path, '/pub/')) {
+				// Buyer-facing pages get the branded "nothing here" card
+				// with a recovery CTA — the same answer the controllers
+				// already return inline for bad manage/claim links.
+				return \OCA\BookingCheck\Support\PublicNotFound::render();
+			}
+			$r = new TemplateResponse('core', '404', [], 'guest');
+			$r->setStatus(Http::STATUS_NOT_FOUND);
+			return $r;
 		}
 		if ($exception instanceof CapacityException) {
 			return $this->envelope(409, $exception->getCodeName(), $exception->getMessage());
