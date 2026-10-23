@@ -60,6 +60,19 @@ $patterns = [
 	'/(?<![a-zA-Z])t\(\s*[\'"]bookingcheck[\'"]\s*,\s*"((?:\\\\"|[^"])*)"\s*\)/',
 	'/(?<![a-zA-Z])t\(\s*[\'"]bookingcheck[\'"]\s*,\s*\'((?:\\\\\'|[^\'])*)\'\s*,/',
 	'/(?<![a-zA-Z])t\(\s*[\'"]bookingcheck[\'"]\s*,\s*"((?:\\\\"|[^"])*)"\s*,/',
+	// n() plural forms: capture BOTH the singular and the plural msgid —
+	// each English form is a separate catalog key at runtime.
+	'/\$this->l10n->n\(\s*\'((?:\\\\\'|[^\'])*)\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'/',
+	'/\$this->l10n->n\(\s*"((?:\\\\"|[^"])*)"\s*,\s*"((?:\\\\"|[^"])*)"/',
+	'/\$l->n\(\s*\'((?:\\\\\'|[^\'])*)\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'/',
+	'/\$l->n\(\s*"((?:\\\\"|[^"])*)"\s*,\s*"((?:\\\\"|[^"])*)"/',
+	'/(?<![a-zA-Z])window\.n\(\s*[\'"]bookingcheck[\'"]\s*,\s*\'((?:\\\\\'|[^\'])*)\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'/',
+	'/(?<![a-zA-Z])window\.n\(\s*[\'"]bookingcheck[\'"]\s*,\s*"((?:\\\\"|[^"])*)"\s*,\s*"((?:\\\\"|[^"])*)"/',
+	// Local plural helpers wrapping window.n (n/atn/aun/plural/*Plural/etc.) —
+	// any identifier ending in 'n' or 'plural' called with two literal msgid
+	// args; member calls (window.n) are handled by the dedicated patterns.
+	'/(?<![a-zA-Z.])(?:[a-zA-Z_]*n|[a-zA-Z_]*[Pp]lural)\(\s*\'((?:\\\\\'|[^\'])*)\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'\s*,/',
+	'/(?<![a-zA-Z.])(?:[a-zA-Z_]*n|[a-zA-Z_]*[Pp]lural)\(\s*"((?:\\\\"|[^"])*)"\s*,\s*"((?:\\\\"|[^"])*)"\s*,/',
 	'/(?<![a-zA-Z])BCK\.t\(\s*\'((?:\\\\\'|[^\'])*)\'/',
 	'/(?<![a-zA-Z])BCK\.t\(\s*"((?:\\\\"|[^"])*)"/',
 	'/(?<![a-zA-Z])BCK\.tf\(\s*\'((?:\\\\\'|[^\'])*)\'/',
@@ -72,8 +85,11 @@ $scanFiles = function (string $path) use ($patterns, &$found): void {
 	$content = (string)file_get_contents($path);
 	foreach ($patterns as $pattern) {
 		if (preg_match_all($pattern, $content, $matches)) {
-			foreach ($matches[1] as $raw) {
-				$found[stripcslashes($raw)] = true;
+			// n() patterns carry a second capture group (plural msgid).
+			for ($g = 1; $g < count($matches); $g++) {
+				foreach ($matches[$g] as $raw) {
+					$found[stripcslashes($raw)] = true;
+				}
 			}
 		}
 	}
