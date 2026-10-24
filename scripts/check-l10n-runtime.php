@@ -124,9 +124,22 @@ foreach ($scanDirs as $dir) {
 	}
 }
 
+// A msgid is covered when it is a plain catalog key OR embedded as a form in a
+// combined '_sg_::_pl_' plural key (Nextcloud stores $l->n() pairs under the
+// combined key — e.g. '_%n order_::_%n orders_' covers both '%n order' and
+// '%n orders'). Mirrors check-l10n-source-coverage.py embedded-part semantics.
+$embedded = [];
+foreach (array_keys($catalog) as $key) {
+	if (str_contains($key, '_::_')) {
+		foreach (explode('_::_', $key) as $part) {
+			$embedded[trim($part, '_')] = true;
+		}
+	}
+}
+
 $missing = [];
 foreach (array_keys($found) as $msgid) {
-	if (!array_key_exists($msgid, $catalog)) {
+	if (!array_key_exists($msgid, $catalog) && !isset($embedded[$msgid])) {
 		$missing[] = $msgid;
 	}
 }

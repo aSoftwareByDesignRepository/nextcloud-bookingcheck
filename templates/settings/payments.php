@@ -57,7 +57,7 @@
 			placeholder="<?php p($_['hasPaypalSecret'] ? '••••••••' : $l->t('Paste from the PayPal developer console')); ?>">
 	</div>
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-paypal-sandbox" <?php if ((string)$_['paypalSandbox'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('PayPal sandbox mode')); ?></span>
 		</label>
@@ -72,7 +72,7 @@
 			placeholder="<?php p($_['hasKlarnaSecret'] ? '••••••••' : 'klarna_live_…'); ?>">
 	</div>
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-klarna-sandbox" <?php if ((string)$_['klarnaSandbox'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('Klarna sandbox mode')); ?></span>
 		</label>

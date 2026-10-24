@@ -144,7 +144,7 @@
 
 #content.app-bookingcheck #app-navigation.bck-nav .bck-nav__link {
 	display: grid;
-	grid-template-columns: 1.5rem 1fr;
+	grid-template-columns: 1.5rem minmax(0, 1fr);
 	gap: var(--bck-space-2);
 	align-items: center;
 	min-height: var(--bck-touch-lg, 48px);

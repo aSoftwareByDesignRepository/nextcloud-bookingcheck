@@ -40,7 +40,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 		<div class="bck-card__header">
 			<div class="bck-card__header-text">
 				<h2 class="bck-card__title"><?php p($l->t('Share this offering')); ?></h2>
-				<p class="bck-card__subtitle"><?php p($l->t('Send the link or place the booking form on your website.')); ?></p>
+				<p class="bck-card__lead"><?php p($l->t('Send the link or place the booking form on your website.')); ?></p>
 			</div>
 		</div>
 		<div class="bck-card__body">
@@ -99,8 +99,8 @@ $oid = (int)($_['offeringId'] ?? 0);
 						<select class="bck-select" id="bck-occ-tpl" name="tpl_id"></select>
 					</div>
 					<div class="bck-field">
-						<label class="bck-check">
-							<input class="bck-check__input" type="checkbox" id="bck-occ-series">
+						<label class="bck-checkbox">
+							<input type="checkbox" id="bck-occ-series">
 							<span><?php p($l->t('Repeat weekly')); ?></span>
 						</label>
 					</div>
@@ -119,7 +119,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 		<div class="bck-card__header">
 			<div class="bck-card__header-text">
 				<h2 class="bck-card__title"><?php p($l->t('Recurring schedule')); ?></h2>
-				<p class="bck-card__subtitle"><?php p($l->t('Weekly patterns — the app keeps creating bookable slots for you.')); ?></p>
+				<p class="bck-card__lead"><?php p($l->t('Weekly patterns — the app keeps creating bookable slots for you.')); ?></p>
 			</div>
 		</div>
 		<div class="bck-card__body">
@@ -170,7 +170,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 		<div class="bck-card__header">
 			<div class="bck-card__header-text">
 				<h2 class="bck-card__title"><?php p($l->t('Price categories')); ?></h2>
-				<p class="bck-card__subtitle"><?php p($l->t('e.g. Adult, Child, Member — buyers pick one per seat.')); ?></p>
+				<p class="bck-card__lead"><?php p($l->t('e.g. Adult, Child, Member — buyers pick one per seat.')); ?></p>
 			</div>
 		</div>
 		<div class="bck-card__body">
@@ -194,7 +194,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 		<div class="bck-card__header">
 			<div class="bck-card__header-text">
 				<h2 class="bck-card__title"><?php p($l->t('Add-ons')); ?></h2>
-				<p class="bck-card__subtitle"><?php p($l->t('Extras buyers can add at checkout, e.g. lunch, materials.')); ?></p>
+				<p class="bck-card__lead"><?php p($l->t('Extras buyers can add at checkout, e.g. lunch, materials.')); ?></p>
 			</div>
 		</div>
 		<div class="bck-card__body">
@@ -218,7 +218,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 		<div class="bck-card__header">
 			<div class="bck-card__header-text">
 				<h2 class="bck-card__title"><?php p($l->t('Questions for attendees')); ?></h2>
-				<p class="bck-card__subtitle"><?php p($l->t('Asked per ticket on the manage page after payment.')); ?></p>
+				<p class="bck-card__lead"><?php p($l->t('Asked per ticket on the manage page after payment.')); ?></p>
 			</div>
 		</div>
 		<div class="bck-card__body">
@@ -250,8 +250,8 @@ $oid = (int)($_['offeringId'] ?? 0);
 					</select>
 				</div>
 				<div class="bck-field">
-					<label class="bck-check">
-						<input class="bck-check__input" type="checkbox" name="required" value="1">
+					<label class="bck-checkbox">
+						<input type="checkbox" name="required" value="1">
 						<span><?php p($l->t('Answer required')); ?></span>
 					</label>
 				</div>
@@ -265,7 +265,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 		<div class="bck-card__header">
 			<div class="bck-card__header-text">
 				<h2 class="bck-card__title"><?php p($l->t('Materials')); ?></h2>
-				<p class="bck-card__subtitle"><?php p($l->t('Files buyers can download from the portal.')); ?></p>
+				<p class="bck-card__lead"><?php p($l->t('Files buyers can download from the portal.')); ?></p>
 			</div>
 		</div>
 		<div class="bck-card__body">
@@ -290,7 +290,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 		<div class="bck-card__header">
 			<div class="bck-card__header-text">
 				<h2 class="bck-card__title"><?php p($l->t('Attendee files')); ?></h2>
-				<p class="bck-card__subtitle"><?php p($l->t('Files buyers shared via their manage link.')); ?></p>
+				<p class="bck-card__lead"><?php p($l->t('Files buyers shared via their manage link.')); ?></p>
 			</div>
 		</div>
 		<div class="bck-card__body">
@@ -304,7 +304,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 		<div class="bck-card__header">
 			<div class="bck-card__header-text">
 				<h2 class="bck-card__title"><?php p($l->t('Message attendees')); ?></h2>
-				<p class="bck-card__subtitle"><?php p($l->t('One email to every paid buyer of this offering.')); ?></p>
+				<p class="bck-card__lead"><?php p($l->t('One email to every paid buyer of this offering.')); ?></p>
 			</div>
 		</div>
 		<div class="bck-card__body">

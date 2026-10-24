@@ -31,9 +31,9 @@ test.describe('ATLAS_UI_INVARIANTS — staff', () => {
 			await page.goto(`${BASE}${path}`, { waitUntil: 'domcontentloaded' });
 			const findings = await assertA11yDom(page, {
 				content: CONTENT,
-				// .bck-check labels are the real ≥44px target; the 19px input
-				// inside is a deliberate sub-target (sibling allow-list class).
-				sizeAllow: '.bck-check input',
+				// .bck-checkbox/.bck-check labels are the real ≥44px target; the
+				// ~20px input inside is a deliberate sub-target (sibling allow-list class).
+				sizeAllow: '.bck-check input, .bck-checkbox input',
 			});
 			test.expect(findings).toEqual([]);
 			assertNoConsoleErrors(errs, { allow: [/favicon/] });

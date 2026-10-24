@@ -58,17 +58,17 @@ $action = $isNew
 
 		<fieldset class="bck-fieldset">
 			<legend class="bck-fieldset__legend"><?php p($l->t('Options')); ?></legend>
-			<label class="bck-check">
+			<label class="bck-checkbox">
 				<input type="hidden" name="approval_required" value="0">
 				<input type="checkbox" name="approval_required" value="1" <?php if ((int)($o['approvalRequired'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Bookings need my approval first')); ?></span>
 			</label>
-			<label class="bck-check" id="bck-bookseries-wrap">
+			<label class="bck-checkbox" id="bck-bookseries-wrap">
 				<input type="hidden" name="book_series" value="0">
 				<input type="checkbox" name="book_series" value="1" <?php if ((int)($o['bookSeries'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Buyers can book the whole series at once (courses)')); ?></span>
 			</label>
-			<label class="bck-check">
+			<label class="bck-checkbox">
 				<input type="hidden" name="list_in_directory" value="0">
 				<input type="checkbox" name="list_in_directory" value="1" <?php if ((int)($o['listInDirectory'] ?? 1) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Show in the public directory feed')); ?></span>
@@ -91,14 +91,14 @@ $action = $isNew
 		<fieldset class="bck-fieldset">
 			<legend class="bck-fieldset__legend"><?php p($l->t('Connected apps')); ?></legend>
 			<?php if (!empty($_['deckAvailable'])): ?>
-			<label class="bck-check">
+			<label class="bck-checkbox">
 				<input type="checkbox" data-bck-integration="deck" data-bck-offering="<?php p($oid); ?>"
 					<?php if (!empty($_['deckBoardId'])) { p('checked'); } ?>>
 				<span><?php p($l->t('Deck board for prep tasks')); ?></span>
 			</label>
 			<?php endif; ?>
 			<?php if (!empty($_['talkAvailable'])): ?>
-			<label class="bck-check">
+			<label class="bck-checkbox">
 				<input type="checkbox" data-bck-integration="talk" data-bck-offering="<?php p($oid); ?>"
 					<?php if (!empty($_['talkRoom'])) { p('checked'); } ?>>
 				<span><?php p($l->t('Talk room for attendees (join link shows in their portal)')); ?></span>
@@ -122,12 +122,12 @@ $action = $isNew
 		<?php if (!empty($_['pro'])): ?>
 		<fieldset class="bck-fieldset">
 			<legend class="bck-fieldset__legend"><?php p($l->t('Pro features')); ?></legend>
-			<label class="bck-check">
+			<label class="bck-checkbox">
 				<input type="hidden" name="review_display" value="0">
 				<input type="checkbox" name="review_display" value="1" <?php if ((int)($o['reviewDisplay'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Buyers can leave a review after attending')); ?></span>
 			</label>
-			<label class="bck-check">
+			<label class="bck-checkbox">
 				<input type="hidden" name="sharing_enabled" value="0">
 				<input type="checkbox" name="sharing_enabled" value="1" <?php if ((int)($o['sharingEnabled'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Attendees can upload and share files')); ?></span>
@@ -152,7 +152,7 @@ $action = $isNew
 						value="<?php p((int)($o['uploadQuotaMb'] ?? 5120)); ?>">
 				</div>
 			</div>
-			<label class="bck-check">
+			<label class="bck-checkbox">
 				<input type="hidden" name="invoice_pay" value="0">
 				<input type="checkbox" name="invoice_pay" value="1" <?php if ((int)($o['invoicePay'] ?? 0) === 1) { p('checked'); } ?>>
 				<span><?php p($l->t('Buyers may also pay by invoice')); ?></span>

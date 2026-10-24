@@ -4,7 +4,7 @@
 <form class="bck-card bck-settings-form" data-section="integrations" novalidate>
 	<div class="bck-card__body">
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-av" <?php if ((string)$_['avEnabled'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('Virus-scan attendee uploads (ClamAV/ICAP)')); ?></span>
 		</label>
@@ -55,7 +55,7 @@
 	<?php if (!empty($_['crmAvailable'])): ?>
 	<h4><?php p($l->t('CustomerCheck')); ?></h4>
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-crm-sync" <?php if ((string)$_['crmSyncEnabled'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('Send buyers to CustomerCheck (CRM)')); ?></span>
 		</label>

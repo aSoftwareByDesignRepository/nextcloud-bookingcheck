@@ -25,19 +25,14 @@ foreach ($argv ?? [] as $arg) {
 	}
 }
 
-$locales = array (
-  0 => 'en',
-  1 => 'de',
-  2 => 'fr',
-  3 => 'es',
-  4 => 'da',
-  5 => 'nl',
-  6 => 'it',
-  7 => 'pl',
-  8 => 'sv',
-  9 => 'nb',
-  10 => 'pt_BR',
-);
+// Locale set derives from the catalogs on disk — a hardcoded list silently
+// drops any locale added later (pt shipped 2026-10 without ever being listed
+// here, so sync runs skipped it).
+$locales = [];
+foreach (glob($appRoot . '/l10n/*.json') ?: [] as $jsonFile) {
+	$locales[] = basename($jsonFile, '.json');
+}
+sort($locales);
 $enPath = $appRoot . '/l10n/en.json';
 $en = json_decode((string)file_get_contents($enPath), true, 512, JSON_THROW_ON_ERROR);
 $catalog = $en['translations'] ?? [];
@@ -183,9 +178,21 @@ function mirror_variants(string $appRoot, array $variants, bool $dryRun): int {
 	return $touched;
 }
 
+// Msgids embedded as forms in a combined '_sg_::_pl_' plural key are already
+// catalogued ('_%n order_::_%n orders_' covers '%n order' + '%n orders') —
+// never re-add them as plain keys. Same semantics as check-l10n-runtime.php.
+$embedded = [];
+foreach (array_keys($catalog) as $key) {
+	if (str_contains($key, '_::_')) {
+		foreach (explode('_::_', $key) as $part) {
+			$embedded[trim($part, '_')] = true;
+		}
+	}
+}
+
 $missing = [];
 foreach (array_keys($found) as $msgid) {
-	if (!array_key_exists($msgid, $catalog)) {
+	if (!array_key_exists($msgid, $catalog) && !isset($embedded[$msgid])) {
 		$missing[] = $msgid;
 	}
 }

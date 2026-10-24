@@ -590,7 +590,7 @@
 			var evField = BCK.el('fieldset', { class: 'bck-fieldset' });
 			evField.appendChild(BCK.el('legend', { class: 'bck-fieldset__legend', text: BCK.t('Events') }));
 			events.forEach(function (name) {
-				var lab = BCK.el('label', { class: 'bck-check' });
+				var lab = BCK.el('label', { class: 'bck-checkbox' });
 				var cb = document.createElement('input');
 				cb.type = 'checkbox'; cb.name = 'events[]'; cb.value = name;
 				lab.appendChild(cb);

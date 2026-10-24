@@ -711,7 +711,9 @@
 
 /* ---- Guest surface: forms (scoped to .bck-pub — admin shell styles live
  * in the shared packs under #app-content.bck-app and must not bleed) ---- */
-.bck-pub .bck-form { padding: 0; }
+/* guest pages live under #content, not #app-content — keep the margin-owned
+ * field rhythm even if an admin-shell flex rule ever reaches .bck-pub */
+.bck-pub .bck-form { padding: 0; display: block; }
 .bck-pub .bck-field,
 .bck-pub .bck-fieldset {
 	display: flex;
@@ -722,9 +724,11 @@
 	border: 0;
 	min-width: 0;
 }
-.bck-pub .bck-fieldset legend {
+/* #body-public core centres every fieldset legend — outranks it on #content */
+#content .bck-pub .bck-fieldset legend {
 	padding: 0;
 	margin: 0 0 var(--bck-space-1);
+	text-align: start;
 }
 .bck-pub .bck-label,
 .bck-pub .bck-field__label {
@@ -943,7 +947,7 @@
 /* Definition list for order/payment details */
 .bck-kv {
 	display: grid;
-	grid-template-columns: max-content 1fr;
+	grid-template-columns: max-content minmax(0, 1fr);
 	gap: var(--bck-space-2) var(--bck-space-4);
 	margin: 0 0 var(--bck-space-4);
 }
@@ -1107,7 +1111,7 @@
 #app-content.bck-app .bck-access-groups__item:hover {
 	background: var(--bck-bg-hover, var(--color-background-hover));
 }
-#app-content.bck-app .bck-access-groups .bck-check {
+#app-content.bck-app .bck-access-groups .bck-checkbox {
 	display: flex;
 	min-height: 44px;
 	align-items: center;

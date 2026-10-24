@@ -31,13 +31,13 @@
 			maxlength="2" placeholder="DE" style="text-transform: uppercase;">
 	</div>
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-kleinunternehmer" <?php if ((string)$_['kleinunternehmer'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('Small-business exemption (§19 UStG) — invoices carry no VAT')); ?></span>
 		</label>
 	</p>
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-vies-online" <?php if ((string)$_['viesOnline'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('Verify buyer VAT IDs live against VIES (Pro)')); ?></span>
 		</label>
@@ -46,7 +46,7 @@
 		<?php p($l->t('With live verification, valid cross-border EU VAT IDs bill net (reverse charge). Without it, VAT IDs are stored on the invoice but VAT is always charged.')); ?>
 	</p>
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-oss" <?php if ((string)$_['ossEnabled'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('OSS VAT rates apply (one-stop shop)')); ?></span>
 		</label>

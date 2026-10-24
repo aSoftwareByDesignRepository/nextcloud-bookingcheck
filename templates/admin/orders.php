@@ -50,7 +50,7 @@ $pills = [
 						placeholder="<?php p($l->t('Reference, buyer name or email')); ?>">
 				</div>
 			</div>
-			<div class="bck-filter-field bck-filter-field--actions">
+			<div class="bck-filter-actions">
 				<?php if ($filterStatus !== ''): ?>
 				<input type="hidden" name="status" value="<?php p($filterStatus); ?>">
 				<?php endif; ?>

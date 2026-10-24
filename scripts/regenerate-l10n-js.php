@@ -25,7 +25,11 @@ foreach ($locales as $lang) {
 	}
 	$cat = json_decode((string)file_get_contents($jsonPath), true, 512, JSON_THROW_ON_ERROR);
 	$translations = $cat['translations'] ?? [];
-	$pluralForm = $cat['pluralForm'] ?? null;
+	// Do NOT pass pluralForm as a third argument to OC.L10N.register(): the
+	// legacy shim compiles it with new Function() which violates strict CSP
+	// (no unsafe-eval). Plural resolution is covered by core CLDR tables keyed
+	// on the active locale — see core/js/tests/specs/l10nSpec.js. The .json
+	// pluralForm stays: PHP $l->n() reads it there.
 
 	$lines = ["OC.L10N.register(\n", "\t\"bookingcheck\",\n", "\t{\n"];
 	$first = true;
@@ -42,14 +46,8 @@ foreach ($locales as $lang) {
 	$last = array_pop($lines);
 	$last = rtrim($last, ",\n") . "\n";
 	$lines[] = $last;
-	if ($pluralForm !== null && $pluralForm !== '') {
-		$lines[] = "\t},\n";
-		$lines[] = "\t" . json_encode($pluralForm) . "\n";
-		$lines[] = ");\n";
-	} else {
-		$lines[] = "\t}\n";
-		$lines[] = ");\n";
-	}
+	$lines[] = "\t}\n";
+	$lines[] = ");\n";
 	file_put_contents($jsPath, implode('', $lines));
 	echo "Wrote $jsPath (" . count($translations) . " keys)\n";
 }

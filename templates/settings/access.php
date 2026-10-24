@@ -36,7 +36,7 @@ $selectedGids = is_array($_['accessSelectedGroupIds'] ?? null) ? $_['accessSelec
 	<div id="bck-access-open-confirm-wrap" class="bck-callout bck-callout--warning" <?php if ($restrictionOn) { p('hidden'); } ?>>
 		<p><?php p($l->t('Open mode lets every logged-in user manage offerings, orders and customer data. Only choose this on instances where all users are trusted staff.')); ?></p>
 		<p>
-			<label class="bck-check">
+			<label class="bck-checkbox">
 				<input type="checkbox" id="bck-access-confirm-open">
 				<span><?php p($l->t('I understand — every user can manage bookings')); ?></span>
 			</label>
@@ -80,7 +80,7 @@ $selectedGids = is_array($_['accessSelectedGroupIds'] ?? null) ? $_['accessSelec
 			<ul class="bck-access-groups" role="list">
 				<?php foreach ($groups as $g): ?>
 					<li class="bck-access-groups__item">
-						<label class="bck-check">
+						<label class="bck-checkbox">
 							<input type="checkbox" name="access_allowed_groups" value="<?php p($g['id']); ?>"
 								<?php if (in_array($g['id'], $selectedGids, true)) { p('checked'); } ?>>
 							<span><?php p($g['displayName']); ?></span>

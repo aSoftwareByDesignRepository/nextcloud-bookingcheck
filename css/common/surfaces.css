@@ -182,7 +182,23 @@
 
 #app-content.bck-app .bck-fieldset legend {
 	font-weight: 600;
+	/* NC core centres legends on #body-public — pin ours to the start edge */
+	text-align: start;
 	padding: 0 var(--bck-space-2);
+}
+
+/* Stacked forms: the form owns the field rhythm. Without this, sibling
+   .bck-field blocks have 0px between them while label→input inside each
+   field is larger — labels visually attach to the previous control. */
+#app-content.bck-app .bck-form {
+	display: flex;
+	flex-direction: column;
+	gap: var(--bck-space-3);
+}
+/* Column stretch would balloon lone submit buttons to full width — keep
+   actions content-sized; .bck-form-actions rows handle grouped buttons. */
+#app-content.bck-app .bck-form > .bck-btn {
+	align-self: flex-start;
 }
 
 #app-content.bck-app .bck-field {
@@ -201,6 +217,7 @@
 
 #app-content.bck-app .bck-field-row > .bck-field {
 	flex: 1 1 180px;
+	min-width: 0;
 }
 
 #app-content.bck-app .bck-label {

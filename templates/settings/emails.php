@@ -5,7 +5,7 @@
 	<div class="bck-card__body">
 	<h3 class="bck-card__title"><?php p($l->t('Notifications')); ?></h3>
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-notify-paid" <?php if ((string)$_['notifyPaid'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('Notify me when a paid order arrives')); ?></span>
 		</label>

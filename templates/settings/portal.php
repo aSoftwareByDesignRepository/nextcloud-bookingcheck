@@ -4,13 +4,13 @@
 <form class="bck-card bck-settings-form" data-section="portal" novalidate>
 	<div class="bck-card__body">
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-directory" <?php if ((string)$_['directoryEnabled'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('Public directory feed (read-only catalog JSON)')); ?></span>
 		</label>
 	</p>
 	<p>
-		<label class="bck-check">
+		<label class="bck-checkbox">
 			<input type="checkbox" id="bck-portal-enabled" <?php if ((string)$_['portalEnabled'] === '1') { p('checked'); } ?>>
 			<span><?php p($l->t('Customer portal (passwordless sign-in)')); ?></span>
 		</label>
