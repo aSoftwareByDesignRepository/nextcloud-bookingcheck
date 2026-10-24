@@ -49,11 +49,30 @@ $patterns = [
 	'/\$l->n\(\s*"((?:\\\\"|[^"])*)"\s*,\s*"((?:\\\\"|[^"])*)"/',
 	'/(?<![a-zA-Z])window\.n\(\s*[\'"]bookingcheck[\'"]\s*,\s*\'((?:\\\\\'|[^\'])*)\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'/',
 	'/(?<![a-zA-Z])window\.n\(\s*[\'"]bookingcheck[\'"]\s*,\s*"((?:\\\\"|[^"])*)"\s*,\s*"((?:\\\\"|[^"])*)"/',
-	// Local plural helpers wrapping window.n (n/atn/aun/plural/*Plural/etc.) —
-	// any identifier ending in 'n' or 'plural' called with two literal msgid
-	// args; member calls (window.n) are handled by the dedicated patterns.
-	'/(?<![a-zA-Z.])(?:[a-zA-Z_]*n|[a-zA-Z_]*[Pp]lural)\(\s*\'((?:\\\\\'|[^\'])*)\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'\s*,/',
-	'/(?<![a-zA-Z.])(?:[a-zA-Z_]*n|[a-zA-Z_]*[Pp]lural)\(\s*"((?:\\\\"|[^"])*)"\s*,\s*"((?:\\\\"|[^"])*)"\s*,/',
+	// Local plural helpers wrapping window.n — short names only (n/tn/atn/aun/
+	// auN/azcN) or *plural/*Plural; long names like addColumn/ValidationException
+	// are deliberately excluded so constructor/config literals are not catalogued.
+	// First literal is additionally required to be msgid-shaped (starts
+	// uppercase/digit/% or contains space/punct) so tn('handle', 'sing',
+	// 'plur', c) style calls are not partially captured as handle+singular.
+	'/(?<![a-zA-Z.])(?:[a-zA-Z]{0,4}[nN]|[a-zA-Z_]*[Pp]lural)\(\s*\'((?:(?=[A-Z0-9%])|(?=[^\']*[ .,;:!?%()—–-]))(?:\\\\\'|[^\'])*)\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'\s*,/',
+	'/(?<![a-zA-Z.])(?:[a-zA-Z]{0,4}[nN]|[a-zA-Z_]*[Pp]lural)\(\s*"((?:(?=[A-Z0-9%])|(?=[^"]*[ .,;:!?%()—–-]))(?:\\\\"|[^"])*)"\s*,\s*"((?:\\\\"|[^"])*)"\s*,/',
+	// Handle-first plural helpers tn('handle', 'singular', 'plural', count) —
+	// msgids are the second and third literals; the handle is not catalogued.
+	'/(?<![a-zA-Z.])(?:[a-zA-Z]{0,4}[nN]|[a-zA-Z_]*[Pp]lural)\(\s*\'(?:\\\\\'|[^\'])*\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'\s*,/',
+	'/(?<![a-zA-Z.])(?:[a-zA-Z]{0,4}[nN]|[a-zA-Z_]*[Pp]lural)\(\s*"(?:\\\\"|[^"])*"\s*,\s*"((?:\\\\"|[^"])*)"\s*,\s*"((?:\\\\"|[^"])*)"\s*,/',
+	// Local t(key, fallback) / *Msg(handle, fallback) helpers — the English
+	// msgid is the SECOND literal (key/handle may differ from the msgid).
+	'/(?<![a-zA-Z.])(?:t|[a-zA-Z_]*[Mm]sg)\(\s*\'(?:\\\\\'|[^\'])*\'\s*,\s*\'((?:\\\\\'|[^\'])*)\'/',
+	'/(?<![a-zA-Z.])(?:t|[a-zA-Z_]*[Mm]sg)\(\s*"(?:\\\\"|[^"])*"\s*,\s*"((?:\\\\"|[^"])*)"/',
+	// Single-arg local t('msgid') — msgid is the first literal. Guarded to
+	// msgid-shaped strings (starts uppercase/digit/% or contains space/punct)
+	// so handle keys like t('correctionModalTitle') are not catalogued.
+	'/(?<![a-zA-Z.])t\(\s*\'((?=[A-Z0-9%])[^\']+|(?=[^\']*[ .,;:!?%()—–-])[^\']*)\'\s*\)/',
+	'/(?<![a-zA-Z.])t\(\s*"((?=[A-Z0-9%])[^"]+|(?=[^"]*[ .,;:!?%()—–-])[^"]*)"\s*\)/',
+	// TemplateL10n::translate($l|$this->l10n, 'msgid') — msgid is second arg.
+	'/TemplateL10n::translate\(\s*[^\'"]+?,\s*\'((?:\\\\\'|[^\'])*)\'/',
+	'/TemplateL10n::translate\(\s*[^\'"]+?,\s*"((?:\\\\"|[^"])*)"/',
 	'/(?<![a-zA-Z])BCK\.t\(\s*\'((?:\\\\\'|[^\'])*)\'/',
 	'/(?<![a-zA-Z])BCK\.t\(\s*"((?:\\\\"|[^"])*)"/',
 	'/(?<![a-zA-Z])BCK\.tf\(\s*\'((?:\\\\\'|[^\'])*)\'/',

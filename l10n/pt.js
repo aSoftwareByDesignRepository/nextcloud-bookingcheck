@@ -670,7 +670,7 @@ OC.L10N.register(
 	"Visible to" : "Visível para",
 	"Voucher created" : "Voucher criado",
 	"Voucher or promo code" : "Voucher ou código promocional",
-	"Vouchers" : "Vouchers",
+	"Vouchers" : "Vales",
 	"Vouchers, promotions, waitlists, the customer portal, embeds, webhooks, materials, reviews, resources, intake questions, reports and the companion apps ship with BookingCheck Pro." : "Vouchers, promoções, listas de espera, o portal do cliente, incorporações, webhooks, materiais, avaliações, recursos, perguntas de inscrição, relatórios e as aplicações complementares fazem parte do BookingCheck Pro.",
 	"Waiting" : "Em espera",
 	"Waitlist" : "Lista de espera",

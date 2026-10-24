@@ -983,6 +983,5 @@ OC.L10N.register(
 	"Order %s was refunded." : "Ordre %s blev refunderet.",
 	"An attendee reported shared content for review." : "En deltager har rapporteret delt indhold til gennemgang.",
 	"Open BookingCheck." : "Åbn BookingCheck."
-	},
-	"nplurals=2; plural=(n != 1);"
+	}
 );

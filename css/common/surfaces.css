@@ -420,6 +420,12 @@
 #app-content.bck-app .bck-deadline-list__meta {
 	font-size: var(--bck-fs-sm);
 	color: var(--bck-muted);
+	/* Long meta text must ellipsize — without min-width:0 the flex item
+	   can't shrink below content width and shoves the status badge
+	   (flex-shrink:0, margin-inline-start:auto) fully off the card. */
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
