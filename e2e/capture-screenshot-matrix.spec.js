@@ -473,15 +473,17 @@ test.describe('SCREENSHOT_MATRIX capture', () => {
 		await page.setViewportSize({ width: 1280, height: 800 })
 
 		// ── Field errors on the offering create form (required title) ──
+		// The JSON submit round-trips through the API — wait for the
+		// server-side validation envelope to paint aria-invalid + the
+		// error toast before shooting. A bare count() raced the fetch
+		// and silently skipped this cell, leaving stale craft sealed.
 		await gotoApp(page, `${APP}/offerings/new`)
 		const submitBtn = page.locator('button[type="submit"], input[type="submit"]').first()
-		if (await submitBtn.count()) {
-			await submitBtn.click()
-			const invalid = page.locator('[aria-invalid="true"]').first()
-			if (await invalid.count()) {
-				await shot(page, 'bck-offering-new-errors-desktop', 800)
-			}
-		}
+		await expect(submitBtn).toBeVisible()
+		await submitBtn.click()
+		await expect(page.locator('[aria-invalid="true"]').first()).toBeVisible()
+		await expect(page.locator('.bck-toast--error').first()).toBeVisible()
+		await shot(page, 'bck-offering-new-errors-desktop', 800)
 
 		// ── High-contrast variants (matrix covers dark at desktop) ──
 		await setUserTheme(page, 'light-highcontrast')
@@ -525,13 +527,27 @@ test.describe('SCREENSHOT_MATRIX capture', () => {
 
 	test.afterAll(async () => {
 		if (!written.length) { return }
-		writeFileSync(join(OUT, '_manifest-ds-chrome.json'), JSON.stringify({
+		// Merge into any existing manifest — a filtered rerun (-g) must
+		// not shrink the sealed file list to this run's subset. Entries
+		// for files removed from disk drop out.
+		const manifestPath = join(OUT, '_manifest-ds-chrome.json')
+		const byPath = new Map()
+		if (existsSync(manifestPath)) {
+			try {
+				const prev = JSON.parse(readFileSync(manifestPath, 'utf8'))
+				for (const f of (prev.files || [])) {
+					if (existsSync(join(OUT, `${f.id}.png`))) { byPath.set(f.path, f) }
+				}
+			} catch { /* unreadable prior manifest — start fresh */ }
+		}
+		for (const f of written) { byPath.set(f.path, f) }
+		writeFileSync(manifestPath, JSON.stringify({
 			app: 'bookingcheck',
 			lane: 'ds_chrome',
 			captured_at: new Date().toISOString(),
 			manifest: 'nextcloud/apps/bookingcheck/e2e/screenshot-matrix.json',
 			spec: 'nextcloud/apps/bookingcheck/e2e/capture-screenshot-matrix.spec.js',
-			files: written,
+			files: [...byPath.values()],
 		}, null, 1) + '\n')
 	})
 })
