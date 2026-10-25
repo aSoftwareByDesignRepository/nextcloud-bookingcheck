@@ -60,6 +60,7 @@ Souveränes Ticketing ohne Ticketprovision — Kundendaten bleiben auf Ihrem Ser
 		<admin-section>OCA\BookingCheck\Settings\AdminSection</admin-section>
 	</settings>	<commands>
 		<command>OCA\BookingCheck\Command\UpgradeBackupCommand</command>
+		<command>OCA\BookingCheck\Command\SeedDemoCommand</command>
 	</commands>
 
 	<repair-steps>
