@@ -1855,9 +1855,13 @@ final class OrderFlowIntegrationTest extends TestCase
 			'foreign event must stay hidden');
 
 		// manager stats mirror the same target kinds — but keep series
-		// member events as individual per-date rows
+		// member events as individual per-date rows. Scope the device to the
+		// fixture offerings: the endpoint merges all kinds, sorts by
+		// starts_at and slices at 200 rows, so leftover rows on a shared dev
+		// instance can push a +30d fixture slot past the cap when the device
+		// is unrestricted.
 		$device->setRole('manager');
-		$device->setOfferingIds(null);
+		$device->setOfferingIds(json_encode([$ev['offering'], $f2['offering'], $sl['offering']]));
 		$stats = $capi->stats()->getData()['data']['stats'];
 		$statTypes = [];
 		foreach ($stats as $r) {
