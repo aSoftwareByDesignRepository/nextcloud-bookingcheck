@@ -39,7 +39,7 @@ final class EnsureBookingCheckSchema implements IRepairStep
 
 		$missingBefore = $this->missingTables();
 		if ($missingBefore === []) {
-			$output->info('BookingCheck: all ' . count(UninstallDropTables::TABLES) . ' tables are present.');
+			$output->info('BookingCheck: all ' . count(SchemaTableCatalog::EXPECTED_TABLES) . ' tables are present.');
 			return;
 		}
 
@@ -70,7 +70,7 @@ final class EnsureBookingCheckSchema implements IRepairStep
 	private function missingTables(): array
 	{
 		$missing = [];
-		foreach (UninstallDropTables::TABLES as $table) {
+		foreach (SchemaTableCatalog::EXPECTED_TABLES as $table) {
 			if (!$this->connection->tableExists($table)) {
 				$missing[] = $table;
 			}
