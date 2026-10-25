@@ -16,9 +16,13 @@ use OCA\BookingCheck\Db\OrderMapper;
 use OCA\BookingCheck\Db\ReminderMapper;
 use OCA\BookingCheck\Db\SlotMapper;
 use OCA\BookingCheck\Service\EmailService;
+use OCA\BookingCheck\Service\UpgradeBackupService;
 use OCP\BackgroundJob\TimedJob;
 use OCP\AppFramework\Utility\ITimeFactory;
 use OCP\IURLGenerator;
+use OCP\Lock\ILockingProvider;
+use OCP\Lock\LockedException;
+use Psr\Log\LoggerInterface;
 
 /**
  * NH-20 — attendee reminder email N days before the booked start.
@@ -43,12 +47,38 @@ class AttendeeReminderJob extends TimedJob
 		private readonly EmailService $email,
 		private readonly IURLGenerator $urls,
 		private readonly \OCP\IDBConnection $db,
+		private readonly ILockingProvider $locking,
+		private readonly LoggerInterface $logger,
 	) {
 		parent::__construct($time);
 		$this->setInterval(3600); // hourly — day-granularity needs nothing faster
 	}
 
 	protected function run($argument): void
+	{
+		// Shared lock on the upgrade-backup key: a restore holds it
+		// exclusively (UpgradeBackupService::runExclusive) — app-table
+		// scans/writes must not interleave with a mid-restore
+		// truncate+reinsert. A skip is not a failure: TimedJobs re-run
+		// on their interval.
+		try {
+			$this->locking->acquireLock(
+				UpgradeBackupService::LOCK_KEY,
+				ILockingProvider::LOCK_SHARED,
+				'BookingCheck attendee reminders',
+			);
+		} catch (LockedException) {
+			$this->logger->info('BookingCheck: skipping attendee reminders — upgrade backup/restore in progress');
+			return;
+		}
+		try {
+			$this->doRun($argument);
+		} finally {
+			$this->locking->releaseLock(UpgradeBackupService::LOCK_KEY, ILockingProvider::LOCK_SHARED);
+		}
+	}
+
+	private function doRun($argument): void
 	{
 		// offerings with reminders enabled
 		$qb = $this->db->getQueryBuilder();

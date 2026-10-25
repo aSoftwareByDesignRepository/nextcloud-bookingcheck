@@ -1706,7 +1706,10 @@ final class OrderFlowIntegrationTest extends TestCase
 		$taskId = (int)$this->db->lastInsertId('oc_bc_sync_task');
 
 		$job = new \OCA\BookingCheck\BackgroundJob\RetentionPruneJob(
-			\OC::$server->get(\OCP\AppFramework\Utility\ITimeFactory::class), $this->db);
+			\OC::$server->get(\OCP\AppFramework\Utility\ITimeFactory::class),
+			$this->db,
+			\OC::$server->get(\OCP\Lock\ILockingProvider::class),
+			\OC::$server->get(\Psr\Log\LoggerInterface::class));
 		$job->start(\OC::$server->get(\OCP\BackgroundJob\IJobList::class));
 
 		foreach ([['bc_otp', $otpId], ['bc_portal_sess', $sessId],
