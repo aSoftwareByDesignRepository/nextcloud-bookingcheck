@@ -75,3 +75,47 @@
 	</p>
 	</div>
 </form>
+
+<div class="bck-card" id="bck-devices-card">
+	<div class="bck-card__body">
+	<h4><?php p($l->t('Device tokens')); ?></h4>
+	<p class="settings-hint">
+		<?php p($l->t('Pair the companion apps — BookingCheck Scan for the door, BookingCheck Manager for the back office. Each device gets one token, shown exactly once.')); ?>
+	</p>
+
+	<div class="bck-field">
+		<label for="bck-device-label"><?php p($l->t('Device name')); ?></label>
+		<input id="bck-device-label" type="text" maxlength="190"
+			placeholder="<?php p($l->t('e.g. Front door tablet')); ?>">
+	</div>
+	<div class="bck-field">
+		<label for="bck-device-role"><?php p($l->t('Role')); ?></label>
+		<select id="bck-device-role">
+			<option value="door"><?php p($l->t('Door (Scan app — scan + roster only)')); ?></option>
+			<option value="manager"><?php p($l->t('Manager (orders, refunds, roster)')); ?></option>
+			<option value="api"><?php p($l->t('API (read-only integration)')); ?></option>
+		</select>
+	</div>
+	<div class="bck-field">
+		<label for="bck-device-scope"><?php p($l->t('Limit to offering IDs (optional)')); ?></label>
+		<input id="bck-device-scope" type="text" maxlength="190"
+			placeholder="<?php p($l->t('e.g. 3, 7 — empty means all offerings')); ?>">
+	</div>
+	<p>
+		<button type="button" id="bck-device-issue" class="bck-btn bck-btn--primary"><?php p($l->t('Issue token')); ?></button>
+		<span class="bck-settings-status" id="bck-device-status" role="status" aria-live="polite"></span>
+	</p>
+
+	<div id="bck-device-new" class="bck-device-new" hidden>
+		<p class="settings-hint">
+			<?php p($l->t('New device token — copy it now, it is never shown again:')); ?>
+		</p>
+		<p class="bck-device-token-row">
+			<code id="bck-device-token" class="bck-device-token"></code>
+			<button type="button" id="bck-device-copy" class="bck-btn"><?php p($l->t('Copy')); ?></button>
+		</p>
+	</div>
+
+	<ul id="bck-device-list" class="bck-device-list" aria-live="polite"></ul>
+	</div>
+</div>

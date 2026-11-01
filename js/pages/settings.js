@@ -267,4 +267,121 @@
 				.catch(function () { b.disabled = false; });
 		});
 	}
+
+	/* ---------- device tokens (integrations page) ---------- */
+	var devList = document.getElementById('bck-device-list');
+	if (devList) {
+		var devStatus = document.getElementById('bck-device-status');
+		var devNew = document.getElementById('bck-device-new');
+		var devToken = document.getElementById('bck-device-token');
+		var ROLE_LABELS = { door: 'door', manager: 'manager', api: 'api' };
+
+		function scopeLabel(offeringIds) {
+			if (!offeringIds) { return t('all offerings'); }
+			var ids;
+			try { ids = JSON.parse(offeringIds); } catch (e) { ids = null; }
+			return (ids && ids.length) ? ('#' + ids.join(', #')) : t('all offerings');
+		}
+
+		function renderDevices(devices) {
+			devList.textContent = '';
+			if (!devices.length) {
+				var empty = document.createElement('li');
+				empty.className = 'bck-device-item';
+				empty.textContent = t('No devices paired yet.');
+				devList.appendChild(empty);
+				return;
+			}
+			devices.forEach(function (d) {
+				var li = document.createElement('li');
+				li.className = 'bck-device-item';
+				var revoked = !!d.revokedAt;
+				var meta = [
+					ROLE_LABELS[d.role] || d.role,
+					scopeLabel(d.offeringIds),
+					d.createdBy ? t('by %s').replace('%s', d.createdBy) : null,
+					d.lastSeenAt ? t('last seen %s').replace('%s', BCK.fmtDateTime(d.lastSeenAt)) : t('never used'),
+					revoked ? t('revoked %s').replace('%s', BCK.fmtDateTime(d.revokedAt)) : null
+				].filter(Boolean).join(' · ');
+				var name = document.createElement('span');
+				name.className = 'bck-device-item__name';
+				name.textContent = d.label;
+				var sub = document.createElement('span');
+				sub.className = 'bck-device-item__meta';
+				sub.textContent = meta;
+				var box = document.createElement('span');
+				box.className = 'bck-device-item__main';
+				box.appendChild(name);
+				box.appendChild(sub);
+				li.appendChild(box);
+				if (!revoked) {
+					var btn = document.createElement('button');
+					btn.type = 'button';
+					btn.className = 'bck-btn bck-btn--danger bck-device-revoke';
+					btn.dataset.id = d.id;
+					btn.textContent = t('Revoke');
+					li.appendChild(btn);
+				}
+				devList.appendChild(li);
+			});
+		}
+
+		function loadDevices() {
+			BCK.api('/settings/devices/list').then(function (res) {
+				renderDevices(res.devices || []);
+			}).catch(function (e) {
+				devList.innerHTML = '<li class="bck-device-item">' +
+					BCK.esc((e && e.message) || t('Could not load devices.')) + '</li>';
+			});
+		}
+		loadDevices();
+
+		document.getElementById('bck-device-issue').addEventListener('click', function () {
+			var btn = this;
+			btn.disabled = true;
+			devStatus.textContent = '';
+			BCK.api('/settings/devices', { method: 'POST', json: {
+				label: val('bck-device-label'),
+				role: val('bck-device-role'),
+				offering_ids: val('bck-device-scope')
+			}}).then(function (res) {
+				devToken.textContent = res.device.token;
+				devNew.hidden = false;
+				document.getElementById('bck-device-label').value = '';
+				loadDevices();
+			}).catch(function (e) {
+				devStatus.textContent = (e && e.message) || t('Issue failed.');
+			}).finally(function () {
+				btn.disabled = false;
+			});
+		});
+
+		document.getElementById('bck-device-copy').addEventListener('click', function () {
+			var btn = this;
+			if (navigator.clipboard && devToken.textContent) {
+				navigator.clipboard.writeText(devToken.textContent).then(function () {
+					btn.textContent = t('Copied');
+				});
+			}
+		});
+
+		devList.addEventListener('click', function (ev) {
+			var b = ev.target.closest('.bck-device-revoke');
+			if (!b) { return; }
+			BCK.confirmDialog(
+				t('Revoke this device?'),
+				t('The paired app on it loses access immediately. Pair it again with a new token if needed.'),
+				{ confirmLabel: t('Revoke') }
+			).then(function (ok) {
+				if (!ok) { return; }
+				b.disabled = true;
+				BCK.api('/settings/devices/' + encodeURIComponent(b.dataset.id), { method: 'DELETE' })
+					.then(loadDevices)
+					.catch(function (e) {
+						devStatus.textContent = (e && e.message) || t('Revoke failed.');
+						b.disabled = false;
+					});
+			});
+		});
+	}
 }());
