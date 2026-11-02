@@ -33,6 +33,12 @@ Souveränes Ticketing ohne Ticketprovision — Kundendaten bleiben auf Ihrem Ser
 	<category>integration</category>
 	<website>https://nextcloud.software-by-design.de/</website>
 	<bugs>https://github.com/aSoftwareByDesignRepository/nextcloud-bookingcheck/issues</bugs>
+	<screenshot>https://nextcloud.software-by-design.de/assets/screenshots/bookingcheck/01.png</screenshot>
+	<screenshot>https://nextcloud.software-by-design.de/assets/screenshots/bookingcheck/02.png</screenshot>
+	<screenshot>https://nextcloud.software-by-design.de/assets/screenshots/bookingcheck/03.png</screenshot>
+	<screenshot>https://nextcloud.software-by-design.de/assets/screenshots/bookingcheck/04.png</screenshot>
+	<screenshot>https://nextcloud.software-by-design.de/assets/screenshots/bookingcheck/05.png</screenshot>
+	<screenshot>https://nextcloud.software-by-design.de/assets/screenshots/bookingcheck/06.png</screenshot>
 	<repository>https://github.com/aSoftwareByDesignRepository/nextcloud-bookingcheck</repository>
 	<dependencies>
 		<nextcloud min-version="32" max-version="35"/>
