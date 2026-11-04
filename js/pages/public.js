@@ -211,7 +211,7 @@
 				BCK.openDialog({
 					title: BCK.t('Report this file?'),
 					body: wrap,
-					submitLabel: BCK.t('Report'),
+					submitLabel: BCK.t('Report this file'),
 					onSubmit: function () {
 						return fetch(BCK.appBase() + '/pub/m/' + encodeURIComponent(token)
 								+ '/uploads/' + encodeURIComponent(id) + '/report', {

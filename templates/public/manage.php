@@ -148,7 +148,7 @@ $token = (string)($_['token'] ?? '');
 					<?php else: ?>
 					<button type="button" class="bck-btn bck-btn--flat bck-upload-report"
 						data-upload-id="<?php p((int)$up['id']); ?>"
-						data-manage-token="<?php p($token); ?>"><?php p($l->t('Report')); ?></button>
+						data-manage-token="<?php p($token); ?>"><?php p($l->t('Report this file')); ?></button>
 					<?php endif; ?>
 				</li>
 				<?php endforeach; ?>
