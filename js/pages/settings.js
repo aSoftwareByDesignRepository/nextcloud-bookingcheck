@@ -269,8 +269,11 @@
 	}
 
 	/* ---------- device tokens (integrations page) ---------- */
+	var devCard = document.getElementById('bck-devices-card');
 	var devList = document.getElementById('bck-device-list');
-	if (devList) {
+	// Free tier: the card renders locked (all device APIs are Pro-gated) —
+	// skip the list fetch that can only 403 and the dead form bindings.
+	if (devList && devCard && devCard.getAttribute('data-companion-locked') !== '1') {
 		var devStatus = document.getElementById('bck-device-status');
 		var devNew = document.getElementById('bck-device-new');
 		var devToken = document.getElementById('bck-device-token');

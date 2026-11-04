@@ -11,3 +11,4 @@ enhetstoken # reviewed — valid nb compound enhet + token
 mva # abbrev — standard nb abbreviation for merverdiavgift (VAT)
 eus # abbrev — "EUs" genitive (EUs mva-direktiv)
 avpubliser # shared — standard nb compound av + publisere ("de-publish"; imperative form)
+idempotenstoken # reviewed — valid nb compound idempotens + token (mirrors da idempotenstoken)

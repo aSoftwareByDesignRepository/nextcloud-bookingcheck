@@ -429,6 +429,13 @@ test.describe('SCREENSHOT_MATRIX capture', () => {
 		// Public surfaces render for an anonymous guest context.
 		let guestPage = null
 		let portalPage = null
+		// The magic link in the mail carries the instance's canonical host
+		// (localhost), while baseURL may differ (127.0.0.1). The bck_portal
+		// cookie is domain-scoped — portal surfaces must navigate on the
+		// magic-link origin or the session never reaches the server and the
+		// home page silently renders the request template (sealed 2026-11-02
+		// captures were byte-identical to the request shots for this reason).
+		const portalOrigin = seed.portalMagic ? new URL(seed.portalMagic).origin : ''
 		const pageFor = async (surface) => {
 			if (surface.needsPortal) {
 				if (!portalPage) {
@@ -458,7 +465,10 @@ test.describe('SCREENSHOT_MATRIX capture', () => {
 			for (const { surface, state, vp } of matrixCells(theme)) {
 				const target = await pageFor(surface)
 				await target.setViewportSize({ width: vp.width, height: vp.height })
-				await gotoApp(target, surfaceUrl(surface), { contentSel: settleFor(surface) })
+				const nav = surface.needsPortal && portalOrigin
+					? portalOrigin + surfaceUrl(surface)
+					: surfaceUrl(surface)
+				await gotoApp(target, nav, { contentSel: settleFor(surface) })
 				await target.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
 				await shot(target, shotName(surface.id, state, vp.name, theme), vp.height)
 			}

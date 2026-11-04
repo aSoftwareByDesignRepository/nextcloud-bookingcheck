@@ -76,21 +76,26 @@
 	</div>
 </form>
 
-<div class="bck-card" id="bck-devices-card">
+<div class="bck-card" id="bck-devices-card" data-companion-locked="<?php p(empty($_['companionAvailable']) ? '1' : '0'); ?>">
 	<div class="bck-card__body">
-	<h4><?php p($l->t('Device tokens')); ?></h4>
+	<h4><?php p($l->t('Device tokens')); ?><?php if (empty($_['companionAvailable'])) { p(' ' . $l->t('(Pro)')); } ?></h4>
 	<p class="settings-hint">
 		<?php p($l->t('Pair the companion apps — BookingCheck Scan for the door, BookingCheck Manager for the back office. Each device gets one token, shown exactly once.')); ?>
 	</p>
+	<?php if (empty($_['companionAvailable'])): ?>
+	<p class="bck-callout bck-callout--info">
+		<?php p($l->t('This feature requires BookingCheck Pro.')); ?>
+	</p>
+	<?php endif; ?>
 
 	<div class="bck-field">
 		<label for="bck-device-label"><?php p($l->t('Device name')); ?></label>
-		<input id="bck-device-label" type="text" maxlength="190"
+		<input id="bck-device-label" type="text" maxlength="190"<?php if (empty($_['companionAvailable'])) { p(' disabled'); } ?>
 			placeholder="<?php p($l->t('e.g. Front door tablet')); ?>">
 	</div>
 	<div class="bck-field">
 		<label for="bck-device-role"><?php p($l->t('Role')); ?></label>
-		<select id="bck-device-role">
+		<select id="bck-device-role"<?php if (empty($_['companionAvailable'])) { p(' disabled'); } ?>>
 			<option value="door"><?php p($l->t('Door (Scan app — check-in, roster, walk-up sales)')); ?></option>
 			<option value="manager"><?php p($l->t('Manager (Manager app — full access incl. refunds)')); ?></option>
 			<option value="api"><?php p($l->t('API (read-only integration)')); ?></option>
@@ -98,11 +103,11 @@
 	</div>
 	<div class="bck-field">
 		<label for="bck-device-scope"><?php p($l->t('Limit to offering IDs (optional)')); ?></label>
-		<input id="bck-device-scope" type="text" maxlength="190"
+		<input id="bck-device-scope" type="text" maxlength="190"<?php if (empty($_['companionAvailable'])) { p(' disabled'); } ?>
 			placeholder="<?php p($l->t('e.g. 3, 7 — empty means all offerings')); ?>">
 	</div>
 	<p>
-		<button type="button" id="bck-device-issue" class="bck-btn bck-btn--primary"><?php p($l->t('Issue token')); ?></button>
+		<button type="button" id="bck-device-issue" class="bck-btn bck-btn--primary"<?php if (empty($_['companionAvailable'])) { p(' disabled'); } ?>><?php p($l->t('Issue token')); ?></button>
 		<span class="bck-settings-status" id="bck-device-status" role="status" aria-live="polite"></span>
 	</p>
 
