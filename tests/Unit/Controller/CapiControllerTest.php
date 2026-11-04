@@ -80,6 +80,120 @@ final class CapiControllerTest extends TestCase
 		self::assertSame(403, $this->ctrl->stats()->getStatus());
 	}
 
+	// ---- api role = read-only integration (label ↔ enforcement) ----
+
+	/** The settings picker labels `api` as "read-only integration" — the
+	 *  manifest must never advertise a mutation capability and every
+	 *  mutating endpoint must refuse the role (bkc api-role intake). */
+	public function testApiManifestAdvertisesReadsOnly(): void
+	{
+		$this->ctrl->companionDevice = $this->device(null, 'api');
+		$caps = $this->ctrl->manifest()->getData()['data']['capabilities'];
+		self::assertSame(['events', 'roster', 'stats', 'push'], $caps);
+	}
+
+	public function testManagerManifestIncludesOfferingWrite(): void
+	{
+		$this->ctrl->companionDevice = $this->device(null, 'manager');
+		$caps = $this->ctrl->manifest()->getData()['data']['capabilities'];
+		self::assertContains('offerings.write', $caps);
+		self::assertContains('orders', $caps);
+		self::assertContains('refund', $caps);
+	}
+
+	public function testApiDeviceCannotCheckIn(): void
+	{
+		$this->ctrl->companionDevice = $this->device(null, 'api');
+		$this->request->method('getParam')->willReturnCallback(
+			fn (string $k, $d = null) => $k === 'qr' ? 'BCK1:9:' . str_repeat('a', 40) : $d);
+		$this->tickets->expects(self::never())->method('checkInByToken');
+		self::assertSame(403, $this->ctrl->checkIn()->getStatus());
+	}
+
+	public function testApiDeviceCannotAdmitPass(): void
+	{
+		$this->ctrl->companionDevice = $this->device(null, 'api');
+		$this->request->method('getParam')->willReturnCallback(
+			fn (string $k, $d = null) => $k === 'payload' ? 'BCK1P-' . str_repeat('a', 48) : $d);
+		self::assertSame(403, $this->ctrl->admitPass()->getStatus());
+	}
+
+	public function testApiDeviceCannotSellWalkup(): void
+	{
+		$this->ctrl->companionDevice = $this->device(null, 'api');
+		self::assertSame(403, $this->ctrl->walkup()->getStatus());
+	}
+
+	public function testApiDeviceCannotCreateOffering(): void
+	{
+		$this->ctrl->companionDevice = $this->device(null, 'api');
+		self::assertSame(403, $this->ctrl->createOffering()->getStatus());
+	}
+
+	public function testDoorDeviceCannotCreateOffering(): void
+	{
+		$this->ctrl->companionDevice = $this->device(null, 'door');
+		self::assertSame(403, $this->ctrl->createOffering()->getStatus());
+	}
+
+	/** The read-only api role CAN read stats — reporting is its purpose
+	 *  and the manifest has always advertised it. */
+	public function testApiDeviceCanReadStats(): void
+	{
+		$rs = $this->createMock(\OCP\DB\IResult::class);
+		$rs->method('fetchAll')->willReturn([]);
+		$expr = $this->createMock(\OCP\DB\QueryBuilder\IExpressionBuilder::class);
+		$qb = $this->createMock(\OCP\DB\QueryBuilder\IQueryBuilder::class);
+		$qb->method('expr')->willReturn($expr);
+		$qb->method('createNamedParameter')->willReturn(':p');
+		$qb->method('createFunction')->willReturn('1');
+		foreach (['select', 'selectAlias', 'from', 'innerJoin', 'where',
+			'andWhere', 'orderBy', 'setMaxResults'] as $m) {
+			$qb->method($m)->willReturnSelf();
+		}
+		$qb->method('executeQuery')->willReturn($rs);
+		$this->db->method('getQueryBuilder')->willReturn($qb);
+		$this->ctrl->companionDevice = $this->device(null, 'api');
+		$res = $this->ctrl->stats();
+		self::assertSame(200, $res->getStatus());
+		self::assertSame([], $res->getData()['data']['stats']);
+	}
+
+	public function testApiDeviceCannotUndoOrSeeOrders(): void
+	{
+		$this->ctrl->companionDevice = $this->device(null, 'api');
+		$this->request->method('getParam')->willReturnCallback(
+			fn (string $k, $d = null) => $k === 'ticket_id' ? '9' : $d);
+		self::assertSame(403, $this->ctrl->undoCheckIn()->getStatus());
+		$ctrl = $this->mgrCtrl();
+		$ctrl->companionDevice = $this->device(null, 'api');
+		self::assertSame(403, $ctrl->orders()->getStatus());
+		self::assertSame(403, $ctrl->orderRefund(9)->getStatus());
+	}
+
+	/** NH-04 write API — a manager device can mint a quick offering. */
+	public function testManagerCanCreateOffering(): void
+	{
+		$orderSvc = $this->createMock(\OCA\BookingCheck\Service\OrderService::class);
+		$this->request->method('getParam')->willReturnCallback(
+			fn (string $k, $d = null) => match ($k) {
+				'title' => 'API event',
+				'capacity' => '25',
+				'starts_at' => '2099-01-01T10:00:00+00:00',
+				default => $d,
+			});
+		$orderSvc->expects(self::once())->method('createQuickOffering')
+			->with('API event', 0, 25, self::anything(), 60, 'device:test-device')
+			->willReturn([5, 9]);
+		$ctrl = new CapiController('bookingcheck', $this->request, $this->tickets,
+			$this->db, null, $orderSvc);
+		$ctrl->companionDevice = $this->device(null, 'manager');
+		$res = $ctrl->createOffering();
+		self::assertSame(201, $res->getStatus());
+		self::assertSame(5, $res->getData()['data']['offering_id']);
+		self::assertSame(9, $res->getData()['data']['event_id']);
+	}
+
 	// ---- manager orders + quick refund (NH-04) ----------------------
 
 	private \OCA\BookingCheck\Service\OrderService&MockObject $orderSvc;

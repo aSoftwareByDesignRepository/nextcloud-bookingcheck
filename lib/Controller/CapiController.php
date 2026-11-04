@@ -22,9 +22,13 @@ use OCP\IRequest;
 /**
  * Versioned companion API (v1) — bookingcheck-scan / bookingcheck-manager.
  * Auth via CompanionAuthMiddleware (Bearer device token); $companionDevice
- * is injected by the middleware. Door-role devices get check-in only;
- * manager adds undo + stats. `offering_ids` (JSON null = all) scopes
- * every data access — a door tablet at seller A never sees seller B.
+ * is injected by the middleware. Three machine roles: `door` does door
+ * work (events, roster, check-in, passes, walk-up sales), `manager` adds
+ * stats, orders, refunds and quick-offering creation (NH-04 merchant
+ * app), `api` is a read-only integration (events, roster, stats) — it
+ * can never mutate tickets, orders or offerings.
+ * `offering_ids` (JSON null = all) scopes every data access — a device
+ * at seller A never sees seller B.
  */
 class CapiController extends Controller
 {
@@ -56,8 +60,11 @@ class CapiController extends Controller
 			'api' => 'v1',
 			'role' => $this->companionDevice?->getRole() ?? 'door',
 			'capabilities' => match ($this->companionDevice?->getRole() ?? 'door') {
-				'manager' => ['events', 'roster', 'check-in', 'stats', 'push', 'pass', 'walkup', 'orders', 'refund'],
-				'api' => ['events', 'roster', 'check-in', 'stats', 'push', 'pass', 'walkup', 'offerings.write'],
+				'manager' => ['events', 'roster', 'check-in', 'stats', 'push', 'pass', 'walkup', 'orders', 'refund', 'offerings.write'],
+				// read-only integration — the manifest never advertises a
+				// capability enforcement would refuse (see the role gates
+				// on checkIn/admitPass/walkup/createOffering below)
+				'api' => ['events', 'roster', 'stats', 'push'],
 				default => ['events', 'roster', 'check-in', 'push', 'pass', 'walkup'],
 			},
 		]);
@@ -216,6 +223,10 @@ class CapiController extends Controller
 	#[NoCSRFRequired]
 	public function checkIn(): JSONResponse
 	{
+		// api devices are read-only — check-in is a door mutation
+		if (!in_array($this->companionDevice?->getRole(), ['door', 'manager'], true)) {
+			return $this->fail(403, 'FORBIDDEN', 'Door or manager devices only.');
+		}
 		$qr = (string)$this->request->getParam('qr', '');
 		if (str_starts_with($qr, 'BCK1P-')) {
 			return $this->admitPassPayload($qr);
@@ -295,8 +306,8 @@ class CapiController extends Controller
 	#[NoCSRFRequired]
 	public function stats(): JSONResponse
 	{
-		if ($this->companionDevice?->getRole() !== 'manager') {
-			return $this->fail(403, 'FORBIDDEN', 'Manager devices only.');
+		if (!in_array($this->companionDevice?->getRole(), ['manager', 'api'], true)) {
+			return $this->fail(403, 'FORBIDDEN', 'Manager or API devices only.');
 		}
 		$scope = $this->deviceScope();
 		$since = new \DateTime('-1 day');
@@ -385,6 +396,10 @@ class CapiController extends Controller
 
 	private function admitPassPayload(string $payload): JSONResponse
 	{
+		// api devices are read-only — pass admission claims a use
+		if (!in_array($this->companionDevice?->getRole(), ['door', 'manager'], true)) {
+			return $this->fail(403, 'FORBIDDEN', 'Door or manager devices only.');
+		}
 		if ($this->passes === null || !preg_match('/^BCK1P-[a-f0-9]{48}$/', $payload)) {
 			return $this->fail(400, 'BAD_QR', 'Not a BookingCheck pass.');
 		}
@@ -422,7 +437,7 @@ class CapiController extends Controller
 	#[NoCSRFRequired]
 	public function walkup(): JSONResponse
 	{
-		if (!in_array($this->companionDevice?->getRole(), ['door', 'manager', 'api'], true)) {
+		if (!in_array($this->companionDevice?->getRole(), ['door', 'manager'], true)) {
 			return $this->fail(403, 'FORBIDDEN', 'Device role cannot sell.');
 		}
 		if ($this->orderService === null) {
@@ -500,17 +515,18 @@ class CapiController extends Controller
 	}
 
 	/**
-	 * NH-04 write API — `api` role devices create a simple published
+	 * NH-04 write API — `manager` role devices create a simple published
 	 * event offering (single event, fixed capacity). Deliberately narrow:
-	 * complex offerings go through the web UI.
+	 * complex offerings go through the web UI. The read-only `api` role
+	 * must never mint sellable inventory.
 	 */
 	#[PublicPage]
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
 	public function createOffering(): JSONResponse
 	{
-		if ($this->companionDevice?->getRole() !== 'api') {
-			return $this->fail(403, 'FORBIDDEN', 'API devices only.');
+		if ($this->companionDevice?->getRole() !== 'manager') {
+			return $this->fail(403, 'FORBIDDEN', 'Manager devices only.');
 		}
 		$title = trim((string)$this->request->getParam('title', ''));
 		// strict digit parse — (int) would turn "abc" into a free offering

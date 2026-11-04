@@ -412,7 +412,12 @@ class UpgradeBackupService
 	{
 		try {
 			$this->getSnapshotFolder($snapshotId)->delete();
-		} catch (\Throwable) {
+		} catch (NotFoundException) {
+			// best-effort cleanup — already gone is the expected no-op path
+			$this->logger->debug('Snapshot folder ' . $snapshotId . ' already absent');
+		} catch (\Throwable $e) {
+			// best-effort cleanup — a failed delete must not abort rotation
+			$this->logger->warning('Snapshot folder delete failed for ' . $snapshotId . ': ' . $e->getMessage());
 		}
 	}
 
@@ -617,6 +622,8 @@ class UpgradeBackupService
 		try {
 			$this->rootFolder->get($destPath)->delete();
 		} catch (NotFoundException) {
+			// best-effort clear — an absent destination is the expected path
+			$this->logger->debug('Restore destination ' . $destPath . ' absent');
 		}
 
 		try {

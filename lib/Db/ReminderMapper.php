@@ -11,12 +11,15 @@ namespace OCA\BookingCheck\Db;
 
 use OCP\AppFramework\Db\QBMapper;
 use OCP\IDBConnection;
+use Psr\Log\LoggerInterface;
 
 /** @template-extends QBMapper<Reminder> */
 class ReminderMapper extends QBMapper
 {
-	public function __construct(IDBConnection $db)
-	{
+	public function __construct(
+		IDBConnection $db,
+		private readonly ?LoggerInterface $logger = null,
+	) {
 		parent::__construct($db, 'bc_reminder', Reminder::class);
 	}
 
@@ -56,8 +59,10 @@ class ReminderMapper extends QBMapper
 			->andWhere($qb->expr()->eq('target_id', $qb->createNamedParameter($targetId)));
 		try {
 			$qb->executeStatement();
-		} catch (\Throwable) {
-			// best-effort — a stuck claim just skips the reminder once
+		} catch (\Throwable $e) {
+			// best-effort — a stuck claim just skips the reminder once,
+			// but the failure must be visible in the log
+			$this->logger?->warning('Reminder claim release failed for order ' . $orderId . ': ' . $e->getMessage());
 		}
 	}
 }

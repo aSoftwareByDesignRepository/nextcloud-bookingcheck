@@ -16,6 +16,7 @@ use OCA\BookingCheck\Exception\NotFoundException;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\StreamResponse;
 use OCP\Files\IAppData;
+use Psr\Log\LoggerInterface;
 
 /**
  * Material storage + gated delivery.
@@ -30,6 +31,7 @@ class MaterialService
 		private readonly MaterialMapper $materials,
 		private readonly MaterialLibMapper $library,
 		private readonly IAppData $appData,
+		private readonly ?LoggerInterface $logger = null,
 	) {
 	}
 
@@ -154,8 +156,9 @@ class MaterialService
 			if ($dir->fileExists($fileRef)) {
 				$dir->getFile($fileRef)->delete();
 			}
-		} catch (\Throwable) {
-			// orphan cleanup is a job, not a fatal
+		} catch (\Throwable $e) {
+			// best-effort orphan cleanup — a failed delete is janitor work
+			$this->logger?->warning('Material delete failed for ' . $fileRef . ': ' . $e->getMessage());
 		}
 	}
 

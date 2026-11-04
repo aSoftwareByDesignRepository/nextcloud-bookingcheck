@@ -12,6 +12,7 @@ namespace OCA\BookingCheck\Service;
 use OCA\BookingCheck\Db\OfferingMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
+use Psr\Log\LoggerInterface;
 
 /**
  * Offering end-of-life (§9.11).
@@ -28,6 +29,7 @@ class EolService
 		private readonly AuditService $audit,
 		private readonly IDBConnection $db,
 		private readonly \OCP\Files\IAppData $appData,
+		private readonly ?LoggerInterface $logger = null,
 	) {
 	}
 
@@ -209,9 +211,10 @@ class EolService
 						$dir->getFile((string)$ref)->delete();
 					}
 				}
-			} catch (\Throwable) {
-				// blob purge is best-effort inside the txn; orphan blobs are
+			} catch (\Throwable $e) {
+				// best-effort blob purge inside the txn — orphan blobs are
 				// worthless without their row and get janitor-cleaned
+				$this->logger?->warning('EOL blob purge failed for offering ' . $offeringId . ': ' . $e->getMessage());
 			}
 			$qb = $this->db->getQueryBuilder();
 			$qb->delete('bc_upload')

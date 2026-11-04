@@ -91,8 +91,8 @@
 	<div class="bck-field">
 		<label for="bck-device-role"><?php p($l->t('Role')); ?></label>
 		<select id="bck-device-role">
-			<option value="door"><?php p($l->t('Door (Scan app — scan + roster only)')); ?></option>
-			<option value="manager"><?php p($l->t('Manager (orders, refunds, roster)')); ?></option>
+			<option value="door"><?php p($l->t('Door (Scan app — check-in, roster, walk-up sales)')); ?></option>
+			<option value="manager"><?php p($l->t('Manager (Manager app — full access incl. refunds)')); ?></option>
 			<option value="api"><?php p($l->t('API (read-only integration)')); ?></option>
 		</select>
 	</div>

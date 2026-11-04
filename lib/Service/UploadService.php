@@ -19,6 +19,7 @@ use OCA\BookingCheck\Exception\StateConflictException;
 use OCA\BookingCheck\Exception\ValidationException;
 use OCP\AppFramework\Http\StreamResponse;
 use OCP\Files\IAppData;
+use Psr\Log\LoggerInterface;
 
 /**
  * Attendee uploads — buyers share files (certificates, docs) with each
@@ -39,6 +40,7 @@ class UploadService
 		private readonly AvScanService $av,
 		private readonly \OCP\IDBConnection $db,
 		private readonly \OCA\BookingCheck\Db\OfferingMapper $offerings,
+		private readonly ?LoggerInterface $logger = null,
 	) {
 	}
 
@@ -140,7 +142,10 @@ class UploadService
 					if ($dir->fileExists($orphan)) {
 						$dir->getFile($orphan)->delete();
 					}
-				} catch (\Throwable) {
+				} catch (\Throwable $oe) {
+					// best-effort orphan purge — the rethrow below reports
+					// the real failure, leftover blobs are janitor work
+					$this->logger?->warning('Orphan upload blob ' . $orphan . ' not purged: ' . $oe->getMessage());
 				}
 			}
 			throw $e;
@@ -211,8 +216,9 @@ class UploadService
 			if ($dir->fileExists((string)$u->getFileRef())) {
 				$dir->getFile((string)$u->getFileRef())->delete();
 			}
-		} catch (\Throwable) {
-			// orphan files are janitor work, not a fatal
+		} catch (\Throwable $e) {
+			// best-effort file purge — orphan files are janitor work
+			$this->logger?->warning('Upload file purge failed for ' . (string)$u->getFileRef() . ': ' . $e->getMessage());
 		}
 	}
 
