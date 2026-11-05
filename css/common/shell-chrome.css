@@ -545,7 +545,7 @@
 	padding: 0.5rem 2.25rem 0.5rem 0.75rem;
 	border: 1px solid var(--bck-border-strong);
 	border-radius: var(--bck-radius-sm);
-	background: var(--bck-bg-card);
+	background-color: var(--bck-bg-card);
 	color: var(--bck-text);
 	font: inherit;
 	font-weight: 600;

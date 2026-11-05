@@ -999,6 +999,7 @@ OC.L10N.register(
 	"e.g. Adult, Child, Member — buyers pick one per seat." : "z. B. Erwachsener, Kind, Mitglied — Käufer wählen eine Option pro Platz.",
 	"e.g. Anna M." : "z. B. Anna M.",
 	"e.g. Front door tablet" : "z. B. Tablet am Eingang",
+	"from and to must be ISO dates (YYYY-MM-DD)." : "„from“ und „to“ müssen ISO-Daten sein (YYYY-MM-DD).",
 	"from must be before to (max 5 years)." : "„from“ muss vor „to“ liegen (max. 5 Jahre).",
 	"host:port expected." : "host:port erwartet.",
 	"https:\/\/ only — verified again at delivery time." : "Nur https:\/\/ — wird zum Versandzeitpunkt erneut geprüft.",

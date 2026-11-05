@@ -1001,6 +1001,7 @@
 		"e.g. Adult, Child, Member — buyers pick one per seat.": "f.eks. Voksen, Barn, Medlem — kjøpere velger én per plass.",
 		"e.g. Anna M.": "f.eks. Anna M.",
 		"e.g. Front door tablet": "f.eks. nettbrett ved hovedinngangen",
+		"from and to must be ISO dates (YYYY-MM-DD).": "'from' og 'to' må være ISO-datoer (YYYY-MM-DD).",
 		"from must be before to (max 5 years).": "'from' må være før 'to' (maks. 5 år).",
 		"host:port expected.": "host:port forventet.",
 		"https:// only — verified again at delivery time.": "Bare https:// — verifiseres på nytt ved sending.",

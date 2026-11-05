@@ -70,18 +70,31 @@ class ReportController extends Controller
 	/**
 	 * NH-05 — DATEV EXTF Buchungsstapel. `from`/`to` are ISO dates;
 	 * default = last complete month (the accountant's rhythm).
+	 * #[NoCSRFRequired] is mandatory: the only caller is the method=get
+	 * form in templates/admin/reports.php — a tokenless navigation the
+	 * SecurityMiddleware would 412 before this method ever ran. The
+	 * export is read-only and AppAccessMiddleware re-checks authz.
 	 */
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function datev(): DataDownloadResponse
 	{
-		$from = \DateTimeImmutable::createFromFormat('Y-m-d',
-			(string)$this->request->getParam('from', ''));
-		$to = \DateTimeImmutable::createFromFormat('Y-m-d',
-			(string)$this->request->getParam('to', ''));
-		if ($from === false || $to === false) {
-			$first = new \DateTimeImmutable('first day of last month');
-			$from = $first;
-			$to = $first->modify('first day of this month');
+		$fromRaw = (string)$this->request->getParam('from', '');
+		$toRaw = (string)$this->request->getParam('to', '');
+		if ($fromRaw === '' && $toRaw === '') {
+			// Default = last complete month at date granularity. Both
+			// bounds resolve against today — `->modify('first day of this
+			// month')` on a "first day of last month" object stays in
+			// October, which collapses the range and 400s.
+			$from = (new \DateTimeImmutable('first day of last month'))->setTime(0, 0);
+			$to = (new \DateTimeImmutable('first day of this month'))->setTime(0, 0);
+		} else {
+			$from = \DateTimeImmutable::createFromFormat('Y-m-d', $fromRaw);
+			$to = \DateTimeImmutable::createFromFormat('Y-m-d', $toRaw);
+			if ($from === false || $to === false) {
+				throw new \OCA\BookingCheck\Exception\ValidationException(
+					['range' => 'from and to must be ISO dates (YYYY-MM-DD).']);
+			}
 		}
 		if ($to <= $from || $to->diff($from)->days > 366 * 5) {
 			throw new \OCA\BookingCheck\Exception\ValidationException(
@@ -94,8 +107,13 @@ class ReportController extends Controller
 	/**
 	 * NH-16 — full offering export (roster + materials + uploads) as zip.
 	 * Temp file streams, then unlinks — nothing lingers in /tmp.
+	 * #[NoCSRFRequired] is mandatory: the only caller is a raw <a href>
+	 * download link in templates/admin/reports.php — a tokenless
+	 * navigation the SecurityMiddleware would 412 before this method
+	 * ever ran. Read-only; AppAccessMiddleware re-checks authz.
 	 */
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function exportZip(int $offeringId): \OCP\AppFramework\Http\Response
 	{
 		$offering = $this->offerings->find($offeringId);
@@ -119,8 +137,15 @@ class ReportController extends Controller
 		return $resp;
 	}
 
-	/** NH-30 — material download stats for the seller dashboard. */
+	/**
+	 * NH-30 — material download stats for the seller dashboard.
+	 * #[NoCSRFRequired] is mandatory: the only caller is a raw <a href>
+	 * in templates/admin/reports.php — a tokenless navigation the
+	 * SecurityMiddleware would 412 before this method ever ran.
+	 * Read-only; AppAccessMiddleware re-checks authz.
+	 */
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function downloadStats(int $offeringId): \OCP\AppFramework\Http\JSONResponse
 	{
 		$qb = $this->db->getQueryBuilder();

@@ -1002,6 +1002,7 @@
 		"e.g. Adult, Child, Member — buyers pick one per seat.": "np. Dorosły, Dziecko, Członek — kupujący wybierają jedno na miejsce.",
 		"e.g. Anna M.": "np. Anna M.",
 		"e.g. Front door tablet": "np. tablet przy wejściu",
+		"from and to must be ISO dates (YYYY-MM-DD).": "'from' i 'to' muszą być datami ISO (YYYY-MM-DD).",
 		"from must be before to (max 5 years).": "'from' musi być przed 'to' (maks. 5 lat).",
 		"host:port expected.": "Oczekiwano host:port.",
 		"https:// only — verified again at delivery time.": "Tylko https:// — weryfikowane ponownie przy wysyłce.",
