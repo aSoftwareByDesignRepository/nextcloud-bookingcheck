@@ -258,4 +258,5 @@ return [
 	'ocs' => [
 		['name' => 'ocsApi#offeringsOcs', 'url' => '/api/v1/offerings',            'verb' => 'GET'],
 	],
+		['name' => 'dashboard#widgetSnapshot', 'url' => '/api/widget-snapshot', 'verb' => 'GET'],
 ];
