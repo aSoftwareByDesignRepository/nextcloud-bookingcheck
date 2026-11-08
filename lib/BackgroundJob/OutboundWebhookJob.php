@@ -92,6 +92,13 @@ class OutboundWebhookJob extends TimedJob
 					'headers' => $this->headerArray($headers),
 					'body' => $d->getPayloadJson(),
 					'timeout' => 10,
+					// Platform SSRF guard: verifies the address dialed at
+					// connect time (closes the DNS-rebind TOCTOU the
+					// assertUrlAllowed() pre-check cannot cover alone).
+					'nextcloud' => ['allow_local_address' => false],
+					// Never follow a redirect into an unvalidated target —
+					// assertUrlAllowed only covers the configured URL itself.
+					'allow_redirects' => false,
 				]);
 				$this->service->markDelivered($id, $epoch);
 			} catch (\Throwable) {
