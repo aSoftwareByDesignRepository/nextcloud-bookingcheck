@@ -32,6 +32,7 @@ use OCP\IRequest;
  */
 class CapiController extends Controller
 {
+	// unique-conflict:ok — the flagged write is a push-token UPDATE on the caller's own companion row; token_hash (bc_comp_tok_uq) is never rewritten, and order refs mint server-side unique values.
 	use ApiControllerTrait;
 
 	/** @var CompanionToken|null injected by middleware */

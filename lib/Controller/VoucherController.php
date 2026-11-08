@@ -23,6 +23,7 @@ use OCP\IRequest;
 
 class VoucherController extends Controller
 {
+	// unique-conflict:ok — voucher codes mint server-side via tokens->voucherCode() (random); a collision is cryptographically impossible and a loud failure would be correct.
 	use ApiControllerTrait;
 
 	public function __construct(

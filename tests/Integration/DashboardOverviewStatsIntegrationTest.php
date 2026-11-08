@@ -10,8 +10,10 @@ declare(strict_types=1);
 namespace OCA\BookingCheck\Tests\Integration;
 
 use OCA\BookingCheck\Controller\DashboardController;
+use OCP\ICacheFactory;
 use OCP\IDBConnection;
 use OCP\IRequest;
+use OCP\IUserSession;
 use Test\TestCase;
 
 /**
@@ -36,6 +38,8 @@ final class DashboardOverviewStatsIntegrationTest extends TestCase
 			'bookingcheck',
 			\OC::$server->get(IRequest::class),
 			$this->db,
+			\OC::$server->get(IUserSession::class),
+			\OC::$server->get(ICacheFactory::class),
 		);
 	}
 

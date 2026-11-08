@@ -27,6 +27,7 @@ use Psr\Log\LoggerInterface;
  */
 class WaitlistService
 {
+	// unique-conflict:ok — join() carries the REASON_UNIQUE catch on bc_wl_dedup_uq (:113+); the flagged lines are state/claim-token updates on existing rows, which cannot violate (email,target) dedupe.
 	public function __construct(
 		private readonly WaitlistEntryMapper $waitlist,
 		private readonly ReservationService $inventory,

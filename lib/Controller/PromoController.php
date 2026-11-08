@@ -22,6 +22,7 @@ use OCP\IRequest;
 
 class PromoController extends Controller
 {
+	// unique-conflict:ok — store carries the REASON_UNIQUE catch → 'code already taken'; destroy's deactivate update writes active only.
 	use ApiControllerTrait;
 
 	public function __construct(
@@ -83,7 +84,14 @@ class PromoController extends Controller
 		}
 		$p->setScope('all');
 		$p->setActive(1);
-		$this->items->insert($p);
+		try {
+			$this->items->insert($p);
+		} catch (\OCP\DB\Exception $e) {
+			if ($e->getReason() === \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw new ValidationException(['code' => 'That code is already taken.']);
+			}
+			throw $e;
+		}
 		return $this->ok(['id' => (int)$p->getId()], 201);
 	}
 

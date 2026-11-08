@@ -16,6 +16,7 @@ use OCP\IDBConnection;
 /** @template-extends QBMapper<Payment> */
 class PaymentMapper extends QBMapper
 {
+	// unique-conflict:ok — the flagged writes are status/refund-claim/dispute UPDATEs; updateStatus may set psp_event_id from PSP webhook data, where a (provider,event_id) collision signals corrupt provider input and a loud DbException is the designed outcome.
 	public function __construct(IDBConnection $db)
 	{
 		parent::__construct($db, 'bc_payment', Payment::class);

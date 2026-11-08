@@ -31,6 +31,7 @@ use Psr\Log\LoggerInterface;
  */
 class UploadService
 {
+	// unique-conflict:ok — upload rows carry no user-keyed unique column; the flagged writes are the upload row insert and its deleted_at update inside a rollback-guarded TX.
 	public function __construct(
 		private readonly UploadMapper $uploads,
 		private readonly OrderLineMapper $lines,

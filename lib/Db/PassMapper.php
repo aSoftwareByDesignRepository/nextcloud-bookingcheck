@@ -16,6 +16,7 @@ use OCP\IDBConnection;
 /** @template-extends QBMapper<Pass> */
 class PassMapper extends QBMapper
 {
+	// unique-conflict:ok — claimUse() is a CAS UPDATE on (id,status,uses<max); it never writes token_hash, so bc_pas_tok_uq cannot fire.
 	public function __construct(IDBConnection $db)
 	{
 		parent::__construct($db, 'bc_pass', Pass::class);

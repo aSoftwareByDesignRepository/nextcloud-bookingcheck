@@ -21,6 +21,7 @@ use OCP\IRequest;
 
 class PricecatController extends Controller
 {
+	// unique-conflict:ok — PriceCat rows carry no unique index; the bc_offering blame is an unattributed mapper write.
 	use ApiControllerTrait;
 
 	public function __construct(

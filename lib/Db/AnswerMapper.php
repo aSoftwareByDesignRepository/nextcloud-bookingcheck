@@ -16,6 +16,7 @@ use OCP\IDBConnection;
 /** @template-extends QBMapper<Answer> */
 class AnswerMapper extends QBMapper
 {
+	// unique-conflict:ok — the upsert insert carries the REASON_UNIQUE catch → winner-row update; the update path never writes the (ticket_id,question_id) key columns.
 	public function __construct(IDBConnection $db)
 	{
 		parent::__construct($db, 'bc_answer', Answer::class);
@@ -85,13 +86,7 @@ class AnswerMapper extends QBMapper
 			->setMaxResults(1);
 		$existing = $qb->executeQuery()->fetchOne();
 		if ($existing !== false) {
-			$u = $this->db->getQueryBuilder();
-			$u->update($this->getTableName())
-				->set('value', $u->createNamedParameter($value))
-				->set('answered_at', $u->createNamedParameter(new \DateTime(), 'datetime'))
-				->set('wording_rev', $u->createNamedParameter($wordingRev))
-				->where($u->expr()->eq('id', $u->createNamedParameter((int)$existing)));
-			$u->executeStatement();
+			$this->updateAnswer((int)$existing, $value, $wordingRev);
 			return;
 		}
 		$a = new Answer();
@@ -100,6 +95,33 @@ class AnswerMapper extends QBMapper
 		$a->setValue($value);
 		$a->setWordingRev($wordingRev);
 		$a->setAnsweredAt(new \DateTimeImmutable());
-		$this->insert($a);
+		try {
+			$this->insert($a);
+		} catch (\OCP\DB\Exception $e) {
+			// a racing first answer for the same (ticket,question) won — the
+			// unique index decides; we apply the update to the winner's row
+			if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			$u = $this->db->getQueryBuilder();
+			$u->update($this->getTableName())
+				->set('value', $u->createNamedParameter($value))
+				->set('answered_at', $u->createNamedParameter(new \DateTime(), 'datetime'))
+				->set('wording_rev', $u->createNamedParameter($wordingRev))
+				->where($u->expr()->eq('ticket_id', $u->createNamedParameter($ticketId)))
+				->andWhere($u->expr()->eq('question_id', $u->createNamedParameter($questionId)));
+			$u->executeStatement();
+		}
+	}
+
+	private function updateAnswer(int $id, string $value, int $wordingRev): void
+	{
+		$u = $this->db->getQueryBuilder();
+		$u->update($this->getTableName())
+			->set('value', $u->createNamedParameter($value))
+			->set('answered_at', $u->createNamedParameter(new \DateTime(), 'datetime'))
+			->set('wording_rev', $u->createNamedParameter($wordingRev))
+			->where($u->expr()->eq('id', $u->createNamedParameter($id)));
+		$u->executeStatement();
 	}
 }

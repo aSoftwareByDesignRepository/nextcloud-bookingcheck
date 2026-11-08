@@ -30,6 +30,7 @@ use OCP\IDBConnection;
  */
 class SlotMaterializer
 {
+	// unique-conflict:ok — the slot insert sits in a REASON_UNIQUE catch (:114+); the slot_res link is keyed by the just-minted slot id so it cannot collide with any other row.
 	private const DOW = ['MO' => 1, 'TU' => 2, 'WE' => 3, 'TH' => 4, 'FR' => 5, 'SA' => 6, 'SU' => 7];
 	private const MAX_PER_RUN = 400;
 

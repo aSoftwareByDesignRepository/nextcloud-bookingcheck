@@ -37,6 +37,7 @@ use OCP\IURLGenerator;
  */
 class OrderService
 {
+	// unique-conflict:ok — createQuickOffering slugs carry a random_bytes(4) suffix; the order-create paths already catch REASON_UNIQUE on idem_token (:313,:639,:825,:930); remaining flagged lines are CAS updates inside withLock() that never write the unique columns.
 	public const ST_CREATED = 'created';
 	public const ST_PENDING_PAYMENT = 'pending_payment';
 	public const ST_PENDING_APPROVAL = 'pending_approval';

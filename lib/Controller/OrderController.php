@@ -31,6 +31,7 @@ use OCP\IUserSession;
 
 class OrderController extends Controller
 {
+	// unique-conflict:ok — flagged lines update abuse-report status and staff_note on existing rows; neither writes a unique-indexed column.
 	use ApiControllerTrait;
 
 	public function __construct(

@@ -16,6 +16,7 @@ use OCP\IDBConnection;
 /** @template-extends QBMapper<Order> */
 class OrderMapper extends QBMapper
 {
+	// unique-conflict:ok — rotateManageToken() updates manage_token_hash only; ref/idem_token (bc_ord_ref_uq/bc_ord_idem_uq) are never rewritten — create-path inserts are caught in OrderService.
 	public function __construct(IDBConnection $db)
 	{
 		parent::__construct($db, 'bc_order', Order::class);

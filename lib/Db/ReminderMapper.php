@@ -16,6 +16,7 @@ use Psr\Log\LoggerInterface;
 /** @template-extends QBMapper<Reminder> */
 class ReminderMapper extends QBMapper
 {
+	// unique-conflict:ok — claim() carries the REASON_UNIQUE catch (:37+) — the insert-builder line is scanner-misattributed; undo() deletes by (order,target) id.
 	public function __construct(
 		IDBConnection $db,
 		private readonly ?LoggerInterface $logger = null,

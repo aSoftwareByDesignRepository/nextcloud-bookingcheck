@@ -23,6 +23,7 @@ use OCP\IURLGenerator;
  */
 class PaySessionService
 {
+	// unique-conflict:ok — the Payment insert leaves psp_event_id NULL; NULLs never equal in a unique index, so bc_pay_evt_uq cannot fire on this write.
 	public function __construct(
 		private readonly PspManager $psp,
 		private readonly PaymentMapper $payments,

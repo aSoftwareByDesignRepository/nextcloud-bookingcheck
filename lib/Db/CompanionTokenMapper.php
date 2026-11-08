@@ -16,6 +16,7 @@ use OCP\IDBConnection;
 /** @template-extends QBMapper<CompanionToken> */
 class CompanionTokenMapper extends QBMapper
 {
+	// unique-conflict:ok — touch() updates last_seen_at only; token_hash is set once at mint (crypto-random, cannot collide).
 	public function __construct(IDBConnection $db)
 	{
 		parent::__construct($db, 'bc_companion', CompanionToken::class);

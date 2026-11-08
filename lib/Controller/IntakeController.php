@@ -22,6 +22,7 @@ use OCP\IRequest;
 /** Per-attendee intake questions (wording_rev freezes consent text). */
 class IntakeController extends Controller
 {
+	// unique-conflict:ok — Question rows carry no unique index; insert/update/delete writes cannot violate one.
 	use ApiControllerTrait;
 
 	public function __construct(

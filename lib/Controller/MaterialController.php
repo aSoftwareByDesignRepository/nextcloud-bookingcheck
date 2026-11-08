@@ -23,6 +23,7 @@ use OCP\IRequest;
 
 class MaterialController extends Controller
 {
+	// unique-conflict:ok — material rows have no user-keyed unique column; the insert writes uploader/file refs only.
 	use ApiControllerTrait;
 
 	public function __construct(

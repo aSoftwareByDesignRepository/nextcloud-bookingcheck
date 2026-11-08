@@ -28,6 +28,7 @@ use OCP\Security\ICrypto;
  */
 class TicketService
 {
+	// unique-conflict:ok — ticket rows mint crypto-random qr_token_hash values (cannot collide); the resource lookup is read-only.
 	public function __construct(
 		private readonly TicketMapper $tickets,
 		private readonly OrderLineMapper $lines,

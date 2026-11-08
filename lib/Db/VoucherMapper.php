@@ -16,6 +16,7 @@ use OCP\IDBConnection;
 /** @template-extends QBMapper<Voucher> */
 class VoucherMapper extends QBMapper
 {
+	// unique-conflict:ok — every flagged write is a CAS UPDATE on redemption counters (remaining_cents/uses); the code column is never written after insert.
 	public function __construct(IDBConnection $db)
 	{
 		parent::__construct($db, 'bc_voucher', Voucher::class);

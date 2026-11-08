@@ -30,6 +30,7 @@ use OCP\IUserSession;
  */
 final class DemoSeedService
 {
+	// unique-conflict:ok — ensureOffering carries the REASON_UNIQUE catch → adopt winner's id; the remaining inserts are events/series (no unique index) and crypto-random companion token hashes.
 	public const SLUG = 'demo-night-riverside';
 	private const IDEM_PREFIX = 'seed-demo-';
 
@@ -128,7 +129,21 @@ final class DemoSeedService
 		$o->setDepositBp(0);
 		$o->setInvoicePay(0);
 		$o->setPassScope(null);
-		return (int)$this->offerings->insert($o)->getId();
+		// findBySlug→insert is check-then-act: a concurrent seed run wins —
+		// the unique index decides, we adopt the winner's id and stay
+		// idempotent instead of crashing the second run.
+		try {
+			return (int)$this->offerings->insert($o)->getId();
+		} catch (\OCP\DB\Exception $e) {
+			if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			$winner = $this->offerings->findBySlug(self::SLUG);
+			if ($winner === null) {
+				throw $e;
+			}
+			return (int)$winner->getId();
+		}
 	}
 
 	/**

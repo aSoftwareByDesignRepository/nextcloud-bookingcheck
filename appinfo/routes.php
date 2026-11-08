@@ -30,6 +30,7 @@ return [
 		// Overview / dashboard
 		['name' => 'dashboard#index',   'url' => '/overview',                      'verb' => 'GET'],
 		['name' => 'dashboard#stats',   'url' => '/api/overview/stats',            'verb' => 'GET'],
+		['name' => 'dashboard#widgetSnapshot', 'url' => '/api/widget-snapshot',    'verb' => 'GET'],
 
 		// Offerings
 		['name' => 'offering#index',    'url' => '/offerings',                     'verb' => 'GET'],
@@ -258,5 +259,4 @@ return [
 	'ocs' => [
 		['name' => 'ocsApi#offeringsOcs', 'url' => '/api/v1/offerings',            'verb' => 'GET'],
 	],
-		['name' => 'dashboard#widgetSnapshot', 'url' => '/api/widget-snapshot', 'verb' => 'GET'],
 ];

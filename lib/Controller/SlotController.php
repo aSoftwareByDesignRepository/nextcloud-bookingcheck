@@ -26,6 +26,7 @@ use OCP\IRequest;
 /** Event occurrences + timeslot materialization. */
 class SlotController extends Controller
 {
+	// unique-conflict:ok — the real unique edge (manual slot create/move onto an occupied tpl_id+starts_at) converts to a starts_at field error in the TX catches; the rest are unattributed mapper writes (events/series/tpl inserts with no user-keyed index, fresh-id slot_res links, deletes).
 	use ApiControllerTrait;
 
 	public function __construct(
@@ -222,6 +223,12 @@ class SlotController extends Controller
 				$this->db->commit();
 			} catch (\Throwable $e) {
 				$this->db->rollBack();
+				// a manual slot onto an occupied (tpl_id, starts_at) is a
+				// user error — surface it as a field error, not a 500
+				if ($e instanceof \OCP\DB\Exception
+					&& $e->getReason() === \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+					throw new ValidationException(['starts_at' => 'A slot already exists at that time.']);
+				}
 				throw $e;
 			}
 			return $this->ok(['id' => (int)$s->getId()], 201);
@@ -334,6 +341,10 @@ class SlotController extends Controller
 				return $this->ok(['id' => $id]);
 			} catch (\Throwable $ex) {
 				$this->db->rollBack();
+				if ($ex instanceof \OCP\DB\Exception
+					&& $ex->getReason() === \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+					throw new ValidationException(['starts_at' => 'A slot already exists at that time.']);
+				}
 				throw $ex;
 			}
 		}

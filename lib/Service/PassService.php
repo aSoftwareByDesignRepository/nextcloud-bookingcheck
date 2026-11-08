@@ -33,6 +33,7 @@ use OCP\IDBConnection;
  */
 class PassService
 {
+	// unique-conflict:ok — pass rows mint sha256(random) token hashes (cannot collide; a loud violation is correct), and revokeForOrder writes status only. record() on bc_pass_use is mapper-side reason-checked (PassUseMapper:38).
 	public function __construct(
 		private readonly PassMapper $passes,
 		private readonly PassUseMapper $uses,

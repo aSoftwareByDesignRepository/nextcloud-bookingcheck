@@ -20,6 +20,7 @@ use OCP\IDBConnection;
  */
 class PortalSessionService
 {
+	// unique-conflict:ok — portal sessions mint crypto-random token_hash (cannot collide); a loud violation is the correct outcome for corrupt entropy.
 	private const ABS_CAP_DAYS = 365;
 
 	public function __construct(

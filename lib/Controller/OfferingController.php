@@ -25,6 +25,7 @@ use OCP\IUserSession;
 /** Seller-side offering CRUD. */
 class OfferingController extends Controller
 {
+	// unique-conflict:ok — slug-bearing creates route through insertWithUniqueSlug() (REASON_UNIQUE retry); the remaining flagged writes are updates/deletes on loaded rows whose slug is unchanged.
 	use ApiControllerTrait;
 
 	public function __construct(
@@ -115,13 +116,12 @@ class OfferingController extends Controller
 		$data = $this->validateOffering($in);
 
 		$o = new Offering();
-		$o->setSlug($this->slugify($data['title']));
 		$this->applyOffering($o, $data);
 		$o->setCreatedBy($this->userSession->getUser()?->getUID() ?? 'system');
 		$now = new \DateTimeImmutable();
 		$o->setCreatedAt($now);
 		$o->setUpdatedAt($now);
-		$this->offerings->insert($o);
+		$this->insertWithUniqueSlug($o, $data['title']);
 		$this->audit->log(null, (int)$o->getId(), $o->getCreatedBy(), 'offering.created', null, $o->getStatus());
 		return $this->ok(['id' => (int)$o->getId(), 'slug' => $o->getSlug()], 201);
 	}
@@ -258,7 +258,6 @@ class OfferingController extends Controller
 		// on the column) and fail with SQLSTATE 1364.
 		$o = new Offering();
 		$o->setType($src->getType());
-		$o->setSlug($this->slugify($src->getTitle() . ' copy'));
 		$o->setTitle($src->getTitle() . ' (copy)');
 		$o->setDescr($src->getDescr());
 		$o->setStatus('draft');
@@ -300,7 +299,7 @@ class OfferingController extends Controller
 		$now = new \DateTimeImmutable();
 		$o->setCreatedAt($now);
 		$o->setUpdatedAt($now);
-		$this->offerings->insert($o);
+		$this->insertWithUniqueSlug($o, $src->getTitle() . ' copy');
 		$this->audit->log(null, (int)$o->getId(), $this->userSession->getUser()?->getUID() ?? 'system',
 			'offering.duplicated', (string)$id, (string)$o->getId());
 		return $this->ok(['id' => (int)$o->getId()], 201);
@@ -539,6 +538,27 @@ class OfferingController extends Controller
 			$slug = $base . '-' . $i;
 		}
 		return mb_substr($slug, 0, 190);
+	}
+
+	/**
+	 * Slug-unique insert: slugify()'s findBySlug walk is a pre-check, so a
+	 * concurrent create can still claim the same suffix — the bc_off_slug_uq
+	 * index decides, and the loser simply walks the suffixes again.
+	 */
+	private function insertWithUniqueSlug(Offering $o, string $title): void
+	{
+		for ($attempt = 0; $attempt < 4; $attempt++) {
+			$o->setSlug($this->slugify($title));
+			try {
+				$this->offerings->insert($o);
+				return;
+			} catch (\OCP\DB\Exception $e) {
+				if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION
+					|| $attempt === 3) {
+					throw $e;
+				}
+			}
+		}
 	}
 
 	/** @param array<string,mixed> $in */

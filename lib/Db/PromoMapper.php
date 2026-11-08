@@ -16,6 +16,7 @@ use OCP\IDBConnection;
 /** @template-extends QBMapper<Promo> */
 class PromoMapper extends QBMapper
 {
+	// unique-conflict:ok — every flagged write is a CAS UPDATE on use counters; the code column is never rewritten after insert.
 	public function __construct(IDBConnection $db)
 	{
 		parent::__construct($db, 'bc_promo', Promo::class);

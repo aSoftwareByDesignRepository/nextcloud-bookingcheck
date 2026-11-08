@@ -21,6 +21,7 @@ use OCP\IRequest;
 
 class AddonController extends Controller
 {
+	// unique-conflict:ok — Addon rows carry no unique index; the bc_offering blame is an unattributed mapper write.
 	use ApiControllerTrait;
 
 	public function __construct(

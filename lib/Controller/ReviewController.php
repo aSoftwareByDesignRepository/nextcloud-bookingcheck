@@ -21,6 +21,7 @@ use OCP\IRequest;
 
 class ReviewController extends Controller
 {
+	// unique-conflict:ok — moderate() only updates status/published_at on an existing review; bc_rev_line_uq (line_id) is written at insert time by PubReviewController, which carries the REASON_UNIQUE catch.
 	use ApiControllerTrait;
 
 	public function __construct(

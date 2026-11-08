@@ -16,6 +16,7 @@ use OCP\IDBConnection;
 /** @template-extends QBMapper<WebhookEvent> */
 class WebhookEventMapper extends QBMapper
 {
+	// unique-conflict:ok — claim() carries the REASON_UNIQUE catch plus the stale-claim CAS takeover; markProcessed/release update processed_at only.
 	public function __construct(IDBConnection $db)
 	{
 		parent::__construct($db, 'bc_webhook_evt', WebhookEvent::class);

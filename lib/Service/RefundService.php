@@ -23,6 +23,7 @@ use OCA\BookingCheck\Psp\PspManager;
 
 final class RefundService
 {
+	// unique-conflict:ok — the flagged write updates refund_ref on the winning CAS claimant (claimRefund); it never writes the bc_pay_evt_uq columns.
 	public function __construct(
 		private readonly OrderService $orders,
 		private readonly PaymentMapper $payments,

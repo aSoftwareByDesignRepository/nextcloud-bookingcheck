@@ -16,6 +16,7 @@ use OCP\IDBConnection;
 /** @template-extends QBMapper<MailTpl> */
 class MailTplMapper extends QBMapper
 {
+	// unique-conflict:ok — upsert carries the REASON_UNIQUE catch → winner-row update; the update path never rewrites the (kind,locale) key to a colliding value.
 	public function __construct(IDBConnection $db)
 	{
 		parent::__construct($db, 'bc_mail_tpl', MailTpl::class);
@@ -50,7 +51,25 @@ class MailTplMapper extends QBMapper
 		$tpl->setLocale($locale);
 		$tpl->setSubject($subject === null || $subject === '' ? null : $subject);
 		$tpl->setExtraText($extraText === null || $extraText === '' ? null : $extraText);
-		return $tpl->getId() === null ? $this->insert($tpl) : $this->update($tpl);
+		if ($tpl->getId() !== null) {
+			return $this->update($tpl);
+		}
+		try {
+			return $this->insert($tpl);
+		} catch (\OCP\DB\Exception $e) {
+			// findFor→insert is check-then-act: a concurrent upsert of the
+			// same (kind,locale) wins; apply our values to the winner's row
+			if ($e->getReason() !== \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw $e;
+			}
+			$winner = $this->findFor($kind, $locale);
+			if ($winner === null) {
+				throw $e;
+			}
+			$winner->setSubject($tpl->getSubject());
+			$winner->setExtraText($tpl->getExtraText());
+			return $this->update($winner);
+		}
 	}
 
 	public function find(int $id): ?MailTpl

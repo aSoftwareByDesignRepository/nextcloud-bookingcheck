@@ -14,8 +14,10 @@ use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\TemplateResponse;
+use OCP\ICacheFactory;
 use OCP\IDBConnection;
 use OCP\IRequest;
+use OCP\IUserSession;
 
 class DashboardController extends Controller
 {
@@ -25,6 +27,8 @@ class DashboardController extends Controller
 		string $appName,
 		IRequest $request,
 		private readonly IDBConnection $db,
+		private readonly IUserSession $userSession,
+		private readonly ICacheFactory $cacheFactory,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -88,18 +92,31 @@ class DashboardController extends Controller
 	}
 	/** Compact widget snapshot (NH-P2): one doc per sync + serverNow (MH-P18), 60 s/user cache. */
 	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function widgetSnapshot(): JSONResponse
 	{
-		$uid = \OCP\Server::get(\OCP\IUserSession::class)->getUser()?->getUID();
-		if ($uid === null) return new JSONResponse(['error' => 'unauthenticated'], 401);
-		$cache = \OCP\Server::get(\OCP\ICacheFactory::class)->createDistributed('bookingcheck_wsnap');
+		$uid = $this->userSession->getUser()?->getUID();
+		if ($uid === null) {
+			return $this->fail(401, 'UNAUTHORIZED', 'Unauthorized.');
+		}
+		$cache = $this->cacheFactory->createDistributed('bookingcheck_wsnap');
 		$key = $uid . ':stats';
-		if (($hit = $cache->get($key)) !== null) return new JSONResponse($hit);
-		$status = $this->stats()->getData();
-		$payload = ['status' => $status,
-			'serverNow' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(\DateTimeInterface::ATOM)];
-		$cache->set($key, $payload, 60);
-		return new JSONResponse($payload);
+		if (($hit = $cache->get($key)) !== null) {
+			return new JSONResponse($hit);
+		}
+		$statsResp = $this->stats();
+		$status = $statsResp->getData();
+		// Error envelopes pass through uncached — a transient failure must not
+		// stick to the user for the TTL window.
+		if (!is_array($status) || ($status['success'] ?? false) !== true) {
+			return $statsResp;
+		}
+		$resp = $this->ok([
+			'status' => $status['data'] ?? [],
+			'serverNow' => (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format(\DateTimeInterface::ATOM),
+		]);
+		$cache->set($key, $resp->getData(), 60);
+		return $resp;
 	}
 
 }

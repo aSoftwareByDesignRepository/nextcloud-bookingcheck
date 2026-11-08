@@ -27,6 +27,7 @@ use OCP\IRequest;
  */
 class ResourceController extends Controller
 {
+	// unique-conflict:ok — store/update carry the REASON_UNIQUE catch → name field error; destroy's deactivate update writes active only, never the (offering_id,name) key.
 	use ApiControllerTrait;
 
 	public function __construct(
@@ -75,7 +76,14 @@ class ResourceController extends Controller
 		$r->setName($name);
 		$r->setCapacity($capacity);
 		$r->setActive(1);
-		$this->items->insert($r);
+		try {
+			$this->items->insert($r);
+		} catch (\OCP\DB\Exception $e) {
+			if ($e->getReason() === \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw new ValidationException(['name' => 'A resource with this name already exists.']);
+			}
+			throw $e;
+		}
 		return $this->ok(['id' => (int)$r->getId()], 201);
 	}
 
@@ -98,7 +106,14 @@ class ResourceController extends Controller
 		if ($capacity !== null) {
 			$r->setCapacity($capacity);
 		}
-		$this->items->update($r);
+		try {
+			$this->items->update($r);
+		} catch (\OCP\DB\Exception $e) {
+			if ($e->getReason() === \OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+				throw new ValidationException(['name' => 'A resource with this name already exists.']);
+			}
+			throw $e;
+		}
 		return $this->ok(['id' => $id]);
 	}
 
