@@ -32,6 +32,11 @@ abstract class AbstractProvider implements PaymentProviderInterface
 				'headers' => $headers + ['Content-Type' => 'application/json'],
 				'body' => json_encode($body),
 				'timeout' => self::TIMEOUT,
+				// Hardcoded provider endpoints today, but keep the SSRF
+				// guard on — a provider host that ever becomes configurable
+				// must not dial an unverified address.
+				'nextcloud' => ['allow_local_address' => false],
+				'allow_redirects' => false,
 			]);
 			return self::bodyJson($res);
 		} catch (\Throwable $e) {
@@ -44,7 +49,12 @@ abstract class AbstractProvider implements PaymentProviderInterface
 	{
 		try {
 			$client = $this->clientService->newClient();
-			$res = $client->get($url, ['headers' => $headers, 'timeout' => self::TIMEOUT]);
+			$res = $client->get($url, [
+				'headers' => $headers,
+				'timeout' => self::TIMEOUT,
+				'nextcloud' => ['allow_local_address' => false],
+				'allow_redirects' => false,
+			]);
 			return self::bodyJson($res);
 		} catch (\Throwable $e) {
 			throw new PspException('PSP request failed: ' . $e->getMessage(), 0, $e);

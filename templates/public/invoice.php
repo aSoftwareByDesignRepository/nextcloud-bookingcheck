@@ -24,7 +24,7 @@ $klein = !empty($seller['kleinunternehmer']);
 				</p>
 			</div>
 			<button type="button" class="bck-btn bck-btn--secondary bck-no-print"
-				onclick="window.print()"><?php p($l->t('Print')); ?></button>
+				data-bck-print><?php p($l->t('Print')); ?></button>
 		</header>
 
 		<div class="bck-invoice__parties">

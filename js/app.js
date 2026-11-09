@@ -51,6 +51,7 @@
 				if (k === 'class') node.className = attrs[k];
 				else if (k === 'text') node.textContent = attrs[k];
 				else if (k === 'html') node.innerHTML = attrs[k];
+				else if (k.slice(0, 2) === 'on' && typeof attrs[k] === 'function') node.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
 				else node.setAttribute(k, attrs[k]);
 			});
 		}
@@ -665,6 +666,66 @@
 	}
 
 	/* ---------- field errors ---------- */
+	// delegated print trigger — data-bck-print (works on admin + public
+	// pages alike; an inline onclick would violate the CSP)
+	document.addEventListener('click', function (ev) {
+		var btn = ev.target.closest ? ev.target.closest('[data-bck-print]') : null;
+		if (btn) { window.print(); }
+	});
+
+
+	// claim form (public page) — was an inline <script>, moved here for CSP
+	(function () {
+		var claimForm = document.querySelector('[data-bck-claim]');
+		if (claimForm) {
+			claimForm.addEventListener('submit', async function (e) {
+				e.preventDefault();
+				const f = e.target;
+				const btn = f.querySelector('button[type=submit]');
+				btn.disabled = true;
+				f.querySelectorAll('.bck-field-error').forEach(el => { el.hidden = true; el.textContent = ''; });
+				try {
+					const res = await fetch(f.action, {
+						method: 'POST',
+						headers: {'Content-Type': 'application/json'},
+						body: JSON.stringify({buyer_name: f.buyer_name.value,
+							consent: f.consent && f.consent.checked ? '1' : ''}),
+					});
+					const data = await res.json();
+					if (data.success && data.checkout_url) { window.location.href = data.checkout_url; return; }
+					if (data.success && data.manage_url) { window.location.href = data.manage_url; return; }
+					if (data.success) { window.location.reload(); return; }
+					btn.disabled = false;
+					const fields = data.fields || {};
+					let shown = false;
+					Object.keys(fields).forEach(k => {
+						const el = f.querySelector('[data-field-error="' + k + '"]');
+						const input = f.querySelector('[name="' + k + '"]');
+						if (input) { input.setAttribute('aria-invalid', 'true'); }
+						if (el) { el.textContent = fields[k]; el.hidden = false; shown = true; }
+					});
+					if (!shown && window.BCK && BCK.toast) { BCK.toast.error(data.message || BCK.t('Could not claim this seat.')); }
+				} catch (err) {
+					btn.disabled = false;
+					if (window.BCK && BCK.toast) { BCK.toast.error(BCK.t('Could not claim this seat.')); }
+				}
+			});
+		}
+
+		// sandbox settle buttons (public page) — was an inline <script>
+		document.querySelectorAll('[data-sandbox-settle]').forEach(function(btn){
+			btn.addEventListener('click', function(){
+				fetch(btn.dataset.sandboxSettle !== undefined
+					? OC.generateUrl('/apps/bookingcheck/pub/sandbox/settle/' + btn.dataset.sandboxSettle)
+					: '#', {
+					method: 'POST',
+					headers: {'Content-Type':'application/json'},
+					body: JSON.stringify({outcome: btn.dataset.outcome}),
+				}).then(function(){ window.location.href = OC.generateUrl('/apps/bookingcheck/pub/sandbox/pay/' + btn.dataset.sandboxSettle); });
+			});
+		});
+	})();
+
 	if (window.CheckFieldErrors) {
 		CheckFieldErrors.install({ prefix: 'bck' });
 	}

@@ -47,20 +47,20 @@ $oid = (int)($_['offeringId'] ?? 0);
 			<div class="bck-field">
 				<label class="bck-label" for="bck-share-link"><?php p($l->t('Booking link')); ?></label>
 				<div class="bck-field--row">
-					<input class="bck-input" id="bck-share-link" readonly onfocus="this.select()">
+					<input class="bck-input" id="bck-share-link" readonly data-bck-select>
 					<button type="button" class="bck-btn bck-btn--secondary" data-bck-copy="#bck-share-link"><?php p($l->t('Copy')); ?></button>
 				</div>
 			</div>
 			<div id="bck-share-embed" hidden>
 				<div class="bck-field">
 					<label class="bck-label" for="bck-share-iframe"><?php p($l->t('Embed — simple (iframe)')); ?></label>
-					<textarea class="bck-input" id="bck-share-iframe" rows="3" readonly onfocus="this.select()"></textarea>
+					<textarea class="bck-input" id="bck-share-iframe" rows="3" readonly data-bck-select></textarea>
 					<p class="bck-field__hint"><?php p($l->t('Paste this where your website allows iframes.')); ?></p>
 					<button type="button" class="bck-btn bck-btn--secondary" data-bck-copy="#bck-share-iframe"><?php p($l->t('Copy')); ?></button>
 				</div>
 				<div class="bck-field">
 					<label class="bck-label" for="bck-share-sdk"><?php p($l->t('Embed — seamless (recommended)')); ?></label>
-					<textarea class="bck-input" id="bck-share-sdk" rows="3" readonly onfocus="this.select()"></textarea>
+					<textarea class="bck-input" id="bck-share-sdk" rows="3" readonly data-bck-select></textarea>
 					<p class="bck-field__hint"><?php p($l->t('Paste this into your website HTML — the form blends into your page.')); ?></p>
 					<button type="button" class="bck-btn bck-btn--secondary" data-bck-copy="#bck-share-sdk"><?php p($l->t('Copy')); ?></button>
 				</div>

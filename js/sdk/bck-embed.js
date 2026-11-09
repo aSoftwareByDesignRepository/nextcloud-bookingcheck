@@ -114,7 +114,10 @@
 
 	function el(tag, attrs, text) {
 		var n = document.createElement(tag);
-		if (attrs) { for (var k in attrs) { n.setAttribute(k, attrs[k]); } }
+		if (attrs) { for (var k in attrs) {
+			if (k.slice(0, 2) === 'on' && typeof attrs[k] === 'function') { n.addEventListener(k.slice(2).toLowerCase(), attrs[k]); }
+			else { n.setAttribute(k, attrs[k]); }
+		} }
 		if (text !== undefined && text !== null) { n.textContent = text; }
 		return n;
 	}

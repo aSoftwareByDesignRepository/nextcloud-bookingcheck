@@ -21,16 +21,3 @@ $l = \OCP\Util::getL10N('bookingcheck');
 		</div>
 	</div>
 </div>
-<script>
-document.querySelectorAll('[data-sandbox-settle]').forEach(function(btn){
-	btn.addEventListener('click', function(){
-		fetch(btn.dataset.sandboxSettle !== undefined
-			? OC.generateUrl('/apps/bookingcheck/pub/sandbox/settle/' + btn.dataset.sandboxSettle)
-			: '#', {
-			method: 'POST',
-			headers: {'Content-Type':'application/json'},
-			body: JSON.stringify({outcome: btn.dataset.outcome}),
-		}).then(function(){ window.location.href = OC.generateUrl('/apps/bookingcheck/pub/sandbox/pay/' + btn.dataset.sandboxSettle); });
-	});
-});
-</script>

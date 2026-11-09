@@ -616,6 +616,13 @@
 		});
 	}
 
+	// share fields select their contents on focus — data-bck-select
+	// (inline onfocus would violate the CSP)
+	document.addEventListener('focusin', function (ev) {
+		var f = ev.target.closest ? ev.target.closest('[data-bck-select]') : null;
+		if (f && f.select) { f.select(); }
+	});
+
 	// webhook secret rotation
 	// copy-to-clipboard for share snippets — data-bck-copy="#elementId"
 	document.addEventListener('click', function (ev) {
