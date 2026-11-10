@@ -303,7 +303,7 @@ OC.L10N.register(
 	"Embed — seamless (recommended)" : "Osadź — bezszwowo (zalecane)",
 	"Embed — simple (iframe)" : "Osadź — proste (iframe)",
 	"End must be after start." : "Koniec musi być po początku.",
-	"Endpoint" : "Endpoint",
+	"Endpoint" : "Punkt końcowy",
 	"Endpoint URL" : "URL endpointu",
 	"Ends" : "Kończy się",
 	"Enter a valid amount." : "Podaj prawidłową kwotę.",
