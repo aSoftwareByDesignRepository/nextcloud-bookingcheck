@@ -51,7 +51,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 					<button type="button" class="bck-btn bck-btn--secondary" data-bck-copy="#bck-share-link"><?php p($l->t('Copy')); ?></button>
 				</div>
 			</div>
-			<div id="bck-share-embed" hidden>
+			<div id="bck-share-embed" class="bck-form" hidden>
 				<div class="bck-field">
 					<label class="bck-label" for="bck-share-iframe"><?php p($l->t('Embed — simple (iframe)')); ?></label>
 					<textarea class="bck-input" id="bck-share-iframe" rows="3" readonly data-bck-select></textarea>

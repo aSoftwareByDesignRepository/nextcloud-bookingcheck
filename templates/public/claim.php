@@ -17,7 +17,7 @@ $action = \OCP\Server::get(\OCP\IURLGenerator::class)->linkToRoute('bookingcheck
 			<div class="bck-callout bck-callout--warning" role="status">
 				<p class="bck-callout__text"><?php p($l->t('Claim it now — the hold expires soon.')); ?></p>
 			</div>
-			<form method="post" action="<?php p($action); ?>" data-bck-claim>
+			<form method="post" class="bck-form" action="<?php p($action); ?>" data-bck-claim>
 				<label class="bck-field">
 					<span class="bck-field__label"><?php p($l->t('Your name')); ?></span>
 					<input class="bck-input" type="text" name="buyer_name" required minlength="2" maxlength="190" autocomplete="name">

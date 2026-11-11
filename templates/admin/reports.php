@@ -26,8 +26,8 @@ $abuse = $_['abuseReports'] ?? [];
 		<div class="bck-card__header"><h2 id="bck-datev-h" class="bck-card__title"><?php p($l->t('DATEV export')); ?></h2></div>
 		<div class="bck-card__body">
 			<p><?php p($l->t('Booking ledger (EXTF format) for your tax advisor. Defaults to last month when the dates are empty.')); ?></p>
-			<form method="get" action="<?php p($url->linkToRoute('bookingcheck.report.datev')); ?>"
-				class="bck-field-row" style="align-items:flex-end">
+			<form method="get" class="bck-field-row" action="<?php p($url->linkToRoute('bookingcheck.report.datev')); ?>"
+				style="align-items:flex-end">
 				<div class="bck-field">
 					<label class="bck-label" for="bck-datev-from"><?php p($l->t('From')); ?></label>
 					<input id="bck-datev-from" name="from" type="date">
