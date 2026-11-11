@@ -19,7 +19,7 @@ namespace OCA\BookingCheck\Tests\Unit\ConfigTransfer;
 
 use OCA\BookingCheck\ConfigTransfer\AbstractTransferManifest;
 use OCA\BookingCheck\ConfigTransfer\TransferManifest;
-use Test\TestCase;
+use PHPUnit\Framework\TestCase;
 
 final class TransferManifestContractTest extends TestCase
 {
