@@ -25,7 +25,7 @@ final class SettingsCatalog
 	/** Ordered section ids — index route redirects to the first one. */
 	public const SECTIONS = [
 		'access', 'payments', 'invoicing', 'flow',
-		'portal', 'integrations', 'emails', 'license',
+		'portal', 'integrations', 'emails', 'license', 'transfer',
 	];
 
 	private function __construct()
@@ -48,6 +48,7 @@ final class SettingsCatalog
 			'integrations' => $l->t('Integrations'),
 			'emails' => $l->t('Emails'),
 			'license' => $l->t('License'),
+			'transfer' => $l->t('Transfer'),
 			default => $section,
 		};
 	}
@@ -63,6 +64,7 @@ final class SettingsCatalog
 			'integrations' => $l->t('Connected apps and optional upload scanning.'),
 			'emails' => $l->t('Notification preferences and outgoing mail text.'),
 			'license' => $l->t('Pro license key and live verification state.'),
+			'transfer' => $l->t('Move this configuration (and catalog data) to your production instance as one encrypted file.'),
 			default => '',
 		};
 	}
@@ -79,6 +81,7 @@ final class SettingsCatalog
 			'integrations' => 'layout-grid',
 			'emails' => 'inbox',
 			'license' => 'shield',
+			'transfer' => 'download',
 			default => 'settings',
 		};
 	}

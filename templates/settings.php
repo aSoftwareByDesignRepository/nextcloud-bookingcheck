@@ -25,6 +25,7 @@ $file = match ($section) {
 	'integrations' => 'integrations.php',
 	'emails' => 'emails.php',
 	'license' => 'license.php',
+	'transfer' => 'transfer.php',
 	default => null,
 };
 if ($file === null) {

@@ -153,6 +153,55 @@ class AccessControlService
 		return false;
 	}
 
+	/**
+	 * Single normaliser for access-door writes — the settings controller
+	 * and the config-transfer hooks share it (NN-08 parity).
+	 *
+	 * @throws \InvalidArgumentException code-style message on bad input
+	 */
+	public function normalizeForWrite(string $key, string $value): string
+	{
+		if ($key === self::KEY_RESTRICTION_ENABLED) {
+			return in_array($value, ['1', 'true'], true) ? '1' : '0';
+		}
+		if (in_array($key, [
+			self::KEY_APP_ADMIN_USER_IDS,
+			self::KEY_ALLOWED_USER_IDS,
+			self::KEY_ALLOWED_GROUP_IDS,
+		], true)) {
+			return self::normalizeIdListJson($value);
+		}
+		throw new \InvalidArgumentException('UNKNOWN_SETTING');
+	}
+
+	/**
+	 * Decode a JSON list of ids → trimmed non-empty unique strings →
+	 * re-encoded canonical JSON. Existence checks stay at the write site —
+	 * this normalises form only.
+	 *
+	 * @return string canonical JSON list
+	 */
+	public static function normalizeIdListJson(string $value): string
+	{
+		$list = json_decode($value, true, 8, JSON_THROW_ON_ERROR);
+		if (!is_array($list) || !array_is_list($list)) {
+			throw new \InvalidArgumentException('INVALID_ID_LIST');
+		}
+		if (count($list) > 500) {
+			throw new \InvalidArgumentException('TOO_MANY_ENTRIES');
+		}
+		$clean = [];
+		foreach ($list as $id) {
+			if (is_string($id) || is_int($id)) {
+				$id = trim((string)$id);
+				if ($id !== '') {
+					$clean[] = $id;
+				}
+			}
+		}
+		return json_encode(array_values(array_unique($clean)), JSON_THROW_ON_ERROR);
+	}
+
 	/** @return list<string> */
 	public function getAppAdminUserIds(): array
 	{

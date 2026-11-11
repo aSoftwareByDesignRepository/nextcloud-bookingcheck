@@ -33,6 +33,7 @@ class PageController extends Controller
 		private readonly SettingsViewData $settingsViewData,
 		private readonly DirectoryOptionsService $directory,
 		private readonly IURLGenerator $urlGenerator,
+		private readonly \OCA\BookingCheck\ConfigTransfer\TransferReceiptStore $transferReceipts,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -111,8 +112,15 @@ class PageController extends Controller
 
 		$params = $this->settingsViewData->get();
 		$params['settingsSection'] = $section;
+		$params['isSystemAdmin'] = $this->accessControl->isSystemAdmin($uid);
 		if ($section === 'access') {
 			$params += $this->accessViewData();
+		}
+		if ($section === 'transfer') {
+			$params['transferLastReceipt'] = $this->transferReceipts->lastReceipt();
+			\OCP\Util::addStyle($this->appName, 'common/transfer');
+			\OCP\Util::addScript($this->appName, 'transfer-bridge');
+			\OCP\Util::addScript($this->appName, 'transfer');
 		}
 
 		return new TemplateResponse($this->appName, 'settings', $params);

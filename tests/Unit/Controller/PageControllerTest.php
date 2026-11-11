@@ -35,6 +35,12 @@ final class PageControllerTest extends TestCase
 			$this->createMock(SettingsViewData::class),
 			$this->createMock(DirectoryOptionsService::class),
 			$this->createMock(IURLGenerator::class),
+			// final class — cannot be mocked; a real instance on a mocked
+			// IConfig reads '[]' receipts and yields a null lastReceipt.
+			new \OCA\BookingCheck\ConfigTransfer\TransferReceiptStore(
+				$this->createMock(\OCP\IConfig::class),
+				'bookingcheck',
+			),
 		);
 	}
 

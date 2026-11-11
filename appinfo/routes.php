@@ -25,7 +25,14 @@ return [
 		['name' => 'page#pro',          'url' => '/pro',                           'verb' => 'GET'],
 		['name' => 'page#settings',     'url' => '/settings',                      'verb' => 'GET'],
 		['name' => 'page#settingsSection', 'url' => '/settings/{section}',         'verb' => 'GET',
-			'requirements' => ['section' => 'access|payments|invoicing|flow|portal|integrations|emails|license']],
+			'requirements' => ['section' => 'access|payments|invoicing|flow|portal|integrations|emails|license|transfer']],
+
+		// ── Config & data transfer (test → production, app-admin only) ──
+		['name' => 'transfer_api#status',    'url' => '/api/admin/transfer/status',    'verb' => 'GET'],
+		['name' => 'transfer_api#export',    'url' => '/api/admin/transfer/export',    'verb' => 'POST'],
+		['name' => 'transfer_api#preview',   'url' => '/api/admin/transfer/preview',   'verb' => 'POST'],
+		['name' => 'transfer_api#apply',     'url' => '/api/admin/transfer/apply',     'verb' => 'POST'],
+		['name' => 'transfer_api#reconcile', 'url' => '/api/admin/transfer/reconcile', 'verb' => 'POST'],
 
 		// Overview / dashboard
 		['name' => 'dashboard#index',   'url' => '/overview',                      'verb' => 'GET'],

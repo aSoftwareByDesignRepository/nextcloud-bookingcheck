@@ -18,6 +18,7 @@ use OCA\BookingCheck\BackgroundJob\OrderExpiryJob;
 use OCA\BookingCheck\BackgroundJob\OutboundWebhookJob;
 use OCA\BookingCheck\BackgroundJob\RetentionPruneJob;
 use OCA\BookingCheck\BackgroundJob\SlotMaterializeJob;
+use OCA\BookingCheck\BackgroundJob\TransferApplyJob;
 use OCA\BookingCheck\BackgroundJob\WaitlistAllocationJob;
 use OCA\BookingCheck\BackgroundJob\WaitlistExpiryJob;
 use OCA\BookingCheck\Service\EolService;
@@ -51,6 +52,7 @@ final class UpgradeBackupSharedLockTest extends TestCase
 		OutboundWebhookJob::class,
 		RetentionPruneJob::class,
 		SlotMaterializeJob::class,
+		TransferApplyJob::class,
 		WaitlistAllocationJob::class,
 		WaitlistExpiryJob::class,
 	];

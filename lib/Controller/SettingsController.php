@@ -310,63 +310,10 @@ class SettingsController extends Controller
 				}
 				continue;
 			}
-			if ($k === 'psp_provider' && !in_array($v, ['', 'mollie', 'stripe', 'sumup', 'paypal', 'klarna'], true)) {
-				throw new ValidationException(['psp_provider' => 'Unknown provider.']);
-			}
-			if (in_array($k, ['kleinunternehmer', 'vies_online', 'directory_enabled',
-				'crm_sync_enabled', 'portal_enabled', 'oss_enabled', 'av_enabled',
-				'paypal_sandbox', 'klarna_sandbox'], true)) {
-				$v = in_array($v, ['1', 'true'], true) ? '1' : '0';
-			}
-			if ($k === 'seller_country' && !preg_match('/^[A-Z]{2}$/', $v)) {
-				throw new ValidationException(['seller_country' => 'ISO country code.']);
-			}
-			if ($k === 'seller_email' && $v !== '' && !filter_var($v, FILTER_VALIDATE_EMAIL)) {
-				throw new ValidationException(['seller_email' => 'Valid email address expected.']);
-			}
-			if ($k === 'invoice_prefix' && !preg_match('/^[A-Za-z0-9\-]{0,20}$/', $v)) {
-				throw new ValidationException(['invoice_prefix' => 'Letters, digits and dashes only.']);
-			}
-			if ($k === 'default_locale' && $v !== '' && !preg_match('/^[a-z]{2}$/', $v)) {
-				throw new ValidationException(['default_locale' => 'Language code like en or de.']);
-			}
-			if (in_array($k, ['order_hold_min', 'approval_hold_min', 'payment_ttl_min',
-				'otp_ttl_min', 'portal_sess_days', 'waitlist_offer_h'], true)) {
-				if (!is_numeric($v) || (int)$v < 1 || (int)$v > 525600) {
-					throw new ValidationException([$k => 'Must be a positive duration.']);
-				}
-				$v = (string)(int)$v;
-			}
-			if ($k === 'oss_vat_map' && trim($v) !== '') {
-				$map = json_decode($v, true);
-				if (!is_array($map)) {
-					throw new ValidationException(['oss_vat_map' => 'JSON map of country code → VAT basis points.']);
-				}
-				foreach ($map as $cc => $bp) {
-					if (!preg_match('/^[A-Z]{2}$/', (string)$cc) || !is_numeric($bp)
-						|| (int)$bp < 0 || (int)$bp > 10000) {
-						throw new ValidationException(['oss_vat_map' => 'Keys are ISO country codes; values 0–10000 bp.']);
-					}
-				}
-			}
-			if ($k === 'ical_feed_token' && $v !== '' && !preg_match('/^[A-Za-z0-9_-]{16,64}$/', $v)) {
-				throw new ValidationException(['ical_feed_token' => 'Token must be 16–64 url-safe chars.']);
-			}
-			if ($k === 'av_icap_endpoint' && trim($v) !== ''
-				&& !preg_match('/^[A-Za-z0-9.\-]+:\\d{1,5}$/', trim($v))) {
-				throw new ValidationException(['av_icap_endpoint' => 'host:port expected.']);
-			}
-			if ($k === 'cors_origins' && trim($v) !== '') {
-				foreach (preg_split('/[\s,]+/', trim($v)) ?: [] as $origin) {
-					if ($origin === '*') {
-						throw new ValidationException(['cors_origins' => 'Wildcard origins are not allowed.']);
-					}
-					$u = parse_url($origin);
-					if (empty($u['host']) || !in_array($u['scheme'] ?? '', ['https', 'http'], true)
-						|| (($u['scheme'] === 'http') && !in_array($u['host'], ['localhost', '127.0.0.1'], true))) {
-						throw new ValidationException(['cors_origins' => 'Only https:// origins (or http://localhost) are allowed.']);
-					}
-				}
+			try {
+				$v = $this->settings->normalizeForWrite($k, $v);
+			} catch (\InvalidArgumentException $e) {
+				throw new ValidationException([$k => $e->getMessage()]);
 			}
 			$this->settings->set($k, $v);
 		}
@@ -389,16 +336,23 @@ class SettingsController extends Controller
 	private function putAccess(array $in): JSONResponse
 	{
 		if (array_key_exists(AccessControlService::KEY_RESTRICTION_ENABLED, $in)) {
-			$v = (string)$in[AccessControlService::KEY_RESTRICTION_ENABLED];
 			$this->settings->set(AccessControlService::KEY_RESTRICTION_ENABLED,
-				in_array($v, ['1', 'true'], true) ? '1' : '0');
+				$this->accessControl->normalizeForWrite(
+					AccessControlService::KEY_RESTRICTION_ENABLED,
+					(string)$in[AccessControlService::KEY_RESTRICTION_ENABLED],
+				));
 		}
 		foreach (self::ACCESS_LIST_KEYS as $storeKey => $field) {
 			if (!array_key_exists($storeKey, $in)) {
 				continue;
 			}
+			try {
+				$normalized = $this->accessControl->normalizeForWrite($storeKey, (string)$in[$storeKey]);
+			} catch (\InvalidArgumentException|\JsonException) {
+				throw new ValidationException([$field => 'Expected a JSON list of ids.']);
+			}
 			$this->settings->set($storeKey,
-				json_encode($this->validatedDirectoryIds((string)$in[$storeKey], $field)) ?: '[]');
+				json_encode($this->validatedDirectoryIds($normalized, $field)) ?: '[]');
 		}
 		return $this->ok(['saved' => true]);
 	}

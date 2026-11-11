@@ -82,6 +82,63 @@ class Application extends App implements IBootstrap
 			);
 		});
 
+		// ── Config & data transfer (test → production) ──────────────────
+		$context->registerService(\OCA\BookingCheck\ConfigTransfer\TransferManifest::class, fn () => new \OCA\BookingCheck\ConfigTransfer\TransferManifest());
+		$context->registerService(\OCA\BookingCheck\ConfigTransfer\TransferHooks::class, function ($c): \OCA\BookingCheck\ConfigTransfer\TransferHooks {
+			return new \OCA\BookingCheck\ConfigTransfer\TransferHooks(
+				$c->get(\OCA\BookingCheck\Service\SettingsService::class),
+				$c->get(\OCA\BookingCheck\Service\AccessControlService::class),
+				$c->get(UpgradeBackupService::class),
+				$c->get(\OCA\BookingCheck\Service\AuditService::class),
+				$c->get(\OCP\Security\ICrypto::class),
+				$c->get(\OCP\IUserManager::class),
+				$c->get(\OCP\IGroupManager::class),
+				$c->get(\Psr\Log\LoggerInterface::class),
+			);
+		});
+		$context->registerService(\OCA\BookingCheck\ConfigTransfer\TransferPendingStore::class, fn ($c) => new \OCA\BookingCheck\ConfigTransfer\TransferPendingStore($c->get(\OCP\Files\IRootFolder::class), $c->get(\OCP\IConfig::class), 'bookingcheck'));
+		$context->registerService(\OCA\BookingCheck\ConfigTransfer\TransferReceiptStore::class, fn ($c) => new \OCA\BookingCheck\ConfigTransfer\TransferReceiptStore($c->get(\OCP\IConfig::class), 'bookingcheck'));
+		$context->registerService(\OCA\BookingCheck\ConfigTransfer\TransferService::class, function ($c): \OCA\BookingCheck\ConfigTransfer\TransferService {
+			return new \OCA\BookingCheck\ConfigTransfer\TransferService(
+				$c->get(\OCP\IDBConnection::class),
+				$c->get(\OCP\IConfig::class),
+				$c->get(\OCP\IUserManager::class),
+				$c->get(\OCP\IGroupManager::class),
+				$c->get(\OCP\Files\IRootFolder::class),
+				$c->get(\OCP\App\IAppManager::class),
+				$c->get(\OCP\Lock\ILockingProvider::class),
+				$c->get(\OCP\IURLGenerator::class),
+				$c->get(\Psr\Log\LoggerInterface::class),
+				$c->get(\OCA\BookingCheck\ConfigTransfer\TransferManifest::class),
+				$c->get(\OCA\BookingCheck\ConfigTransfer\TransferHooks::class),
+				$c->get(\OCA\BookingCheck\ConfigTransfer\TransferPendingStore::class),
+				$c->get(\OCA\BookingCheck\ConfigTransfer\TransferReceiptStore::class),
+				'bookingcheck',
+				$c->get(\OCP\IAppConfig::class),
+			);
+		});
+		$context->registerService(\OCA\BookingCheck\BackgroundJob\TransferApplyJob::class, function ($c): \OCA\BookingCheck\BackgroundJob\TransferApplyJob {
+			return new \OCA\BookingCheck\BackgroundJob\TransferApplyJob(
+				$c->get(\OCP\AppFramework\Utility\ITimeFactory::class),
+				$c->get(\OCA\BookingCheck\ConfigTransfer\TransferService::class),
+				$c->get(\OCP\Lock\ILockingProvider::class),
+				$c->get(\OCP\BackgroundJob\IJobList::class),
+				$c->get(\Psr\Log\LoggerInterface::class),
+			);
+		});
+		$context->registerService(\OCA\BookingCheck\Controller\TransferApiController::class, function ($c): \OCA\BookingCheck\Controller\TransferApiController {
+			return new \OCA\BookingCheck\Controller\TransferApiController(
+				'bookingcheck',
+				$c->get(\OCP\IRequest::class),
+				$c->get(\OCA\BookingCheck\ConfigTransfer\TransferHooks::class),
+				$c->get(\OCA\BookingCheck\ConfigTransfer\TransferService::class),
+				$c->get(\OCP\BackgroundJob\IJobList::class),
+				$c->get(\OCP\Security\Bruteforce\IThrottler::class),
+				$c->get(\OCP\IGroupManager::class),
+				$c->get(\OCP\IUserSession::class),
+			);
+		});
+
 		// ---------------------------------------------------------------
 		// Middleware — registration order matters: afterException iterates
 		// in REVERSE order, so the generic envelope registers FIRST and is

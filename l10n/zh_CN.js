@@ -990,7 +990,7 @@ OC.L10N.register(
 	"Your sign-in code" : "您的登录验证码",
 	"Your ticket" : "您的门票",
 	"ZIP" : "ZIP",
-	"_%n order_::_%n orders_" : ["%n order"],
+	"_%n order_::_%n orders_" : ["%n 个订单"],
 	"active" : "生效中",
 	"all offerings" : "全部项目",
 	"already checked in" : "已签到",

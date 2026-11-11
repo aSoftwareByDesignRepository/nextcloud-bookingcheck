@@ -38,7 +38,9 @@ class SettingsViewData
 	public function get(): array
 	{
 		return [
-			'pspProvider' => $this->config->getAppValue('psp_provider', 'mollie'),
+			// default preselects Mollie when nothing is stored (the payments
+			// section offers no "none" option — '' renders identically).
+			'pspProvider' => $this->config->getAppValue('psp_provider', '') ?: 'mollie',
 			'hasMollieKey' => $this->config->getAppValue('mollie_api_key_enc', '') !== '',
 			'hasStripeKey' => $this->config->getAppValue('stripe_secret_key_enc', '') !== '',
 			'companyName' => $this->config->getAppValue('seller_name', ''),

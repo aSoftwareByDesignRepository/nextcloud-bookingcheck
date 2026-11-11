@@ -120,6 +120,91 @@ class SettingsService
 		$this->config->setAppValue(Application::APP_ID, $key . '_enc', $this->crypto->encrypt($plain));
 	}
 
+	/**
+	 * The ONE normaliser for non-secret settings writes — the settings
+	 * controller and the config-transfer hooks share it (NN-08 parity).
+	 * Returns the exact string {@see set()} would persist.
+	 *
+	 * @throws \InvalidArgumentException 'UNKNOWN_SETTING' for keys outside
+	 *         the writable set; a human-readable message otherwise
+	 */
+	public function normalizeForWrite(string $key, string $value): string
+	{
+		if (!array_key_exists($key, self::DEFAULTS) && $key !== 'license_key') {
+			throw new \InvalidArgumentException('UNKNOWN_SETTING');
+		}
+		if ($key === 'psp_provider'
+			&& !in_array($value, ['', 'mollie', 'stripe', 'sumup', 'paypal', 'klarna'], true)) {
+			throw new \InvalidArgumentException('Unknown provider.');
+		}
+		if (in_array($key, ['kleinunternehmer', 'vies_online', 'directory_enabled',
+			'crm_sync_enabled', 'portal_enabled', 'oss_enabled', 'av_enabled',
+			'paypal_sandbox', 'klarna_sandbox'], true)) {
+			return in_array($value, ['1', 'true'], true) ? '1' : '0';
+		}
+		if ($key === 'seller_country' && !preg_match('/^[A-Z]{2}$/', $value)) {
+			throw new \InvalidArgumentException('ISO country code.');
+		}
+		if ($key === 'seller_email' && $value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
+			throw new \InvalidArgumentException('Valid email address expected.');
+		}
+		if ($key === 'invoice_prefix' && !preg_match('/^[A-Za-z0-9\-]{0,20}$/', $value)) {
+			throw new \InvalidArgumentException('Letters, digits and dashes only.');
+		}
+		if ($key === 'default_locale' && $value !== '' && !preg_match('/^[a-z]{2}$/', $value)) {
+			throw new \InvalidArgumentException('Language code like en or de.');
+		}
+		if (in_array($key, ['order_hold_min', 'approval_hold_min', 'payment_ttl_min',
+			'otp_ttl_min', 'portal_sess_days', 'waitlist_offer_h'], true)) {
+			if (!is_numeric($value) || (int)$value < 1 || (int)$value > 525600) {
+				throw new \InvalidArgumentException('Must be a positive duration.');
+			}
+			return (string)(int)$value;
+		}
+		if ($key === 'otp_max_attempts') {
+			if (!is_numeric($value) || (int)$value < 1 || (int)$value > 100) {
+				throw new \InvalidArgumentException('Must be a positive attempt count.');
+			}
+			return (string)(int)$value;
+		}
+		if ($key === 'oss_vat_map' && trim($value) !== '') {
+			$map = json_decode($value, true);
+			if (!is_array($map)) {
+				throw new \InvalidArgumentException('JSON map of country code → VAT basis points.');
+			}
+			foreach ($map as $cc => $bp) {
+				if (!preg_match('/^[A-Z]{2}$/', (string)$cc) || !is_numeric($bp)
+					|| (int)$bp < 0 || (int)$bp > 10000) {
+					throw new \InvalidArgumentException('Keys are ISO country codes; values 0–10000 bp.');
+				}
+			}
+			return $value;
+		}
+		if ($key === 'ical_feed_token' && $value !== '' && !preg_match('/^[A-Za-z0-9_-]{16,64}$/', $value)) {
+			throw new \InvalidArgumentException('Token must be 16–64 url-safe chars.');
+		}
+		if ($key === 'av_icap_endpoint' && trim($value) !== ''
+			&& !preg_match('/^[A-Za-z0-9.\-]+:\\d{1,5}$/', trim($value))) {
+			throw new \InvalidArgumentException('host:port expected.');
+		}
+		if ($key === 'cors_origins' && trim($value) !== '') {
+			foreach (preg_split('/[\s,]+/', trim($value)) ?: [] as $origin) {
+				if ($origin === '*') {
+					throw new \InvalidArgumentException('Wildcard origins are not allowed.');
+				}
+				$u = parse_url($origin);
+				if (empty($u['host']) || !in_array($u['scheme'] ?? '', ['https', 'http'], true)
+					|| (($u['scheme'] === 'http') && !in_array($u['host'], ['localhost', '127.0.0.1'], true))) {
+					throw new \InvalidArgumentException('Only https:// origins (or http://localhost) are allowed.');
+				}
+			}
+		}
+		if (strlen($value) > 65536) {
+			throw new \InvalidArgumentException('TOO_LONG');
+		}
+		return $value;
+	}
+
 	public function getInt(string $key, int $default = 0): int
 	{
 		$v = $this->get($key);

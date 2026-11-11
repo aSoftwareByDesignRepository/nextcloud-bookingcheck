@@ -36,6 +36,14 @@ class ReservationService
 	public const TARGET_SERIES = 'series';
 	public const TARGET_SLOT = 'slot';
 
+	/** Target type → table it addresses (explicit map — never 'bc_'.$type
+	    concatenation: every reachable table name is a full literal). */
+	private const TARGET_TABLE = [
+		self::TARGET_EVENT => 'bc_event',
+		self::TARGET_SERIES => 'bc_series',
+		self::TARGET_SLOT => 'bc_slot',
+	];
+
 	/** @var array<int, list<int>> member event ids per series, resolved at prelock */
 	private array $seriesMembers = [];
 
@@ -185,7 +193,7 @@ class ReservationService
 			}
 			$qb = $this->db->getQueryBuilder();
 			$count = (int)$qb->select($qb->func()->count('id'))
-				->from('bc_' . $type)
+				->from(self::TARGET_TABLE[$type])
 				->where($qb->expr()->in('id', $qb->createNamedParameter(
 					array_map('intval', array_keys($idSet)), IQueryBuilder::PARAM_INT_ARRAY)))
 				->andWhere($qb->expr()->eq('offering_id',
