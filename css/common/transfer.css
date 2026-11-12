@@ -5,6 +5,20 @@
 .bck-section__header { margin: 0 0 var(--bck-space-4, 16px); }
 .bck-section__sub { color: var(--color-text-maxcontrast, #6b6b6b); margin: var(--bck-space-1, 4px) 0 0; }
 .bck-form-row { margin: 0 0 var(--bck-space-4, 16px); }
+/* The transfer forms are wrap-flex containers at ≥1024 and column stacks
+   below (.bck-form is app css). Direct children are flex items — and a
+   fieldset cannot shrink below its content width (Blink/WebKit fieldset
+   quirk), dragging sibling rows out with it. Pin every direct child of the
+   two transfer forms to a real full-width column so label and hint text
+   wraps inside the sheet on narrow viewports instead of clipping mid-word
+   at its right edge. Scoped by form id — .bck-form/.bck-form-row are
+   app-wide classes that also mark up deliberate side-by-side filter rows. */
+#bck-transfer-export-form > *,
+#bck-transfer-import-form > * {
+	min-width: 0;
+	width: 100%;
+	box-sizing: border-box;
+}
 .bck-form-row > label,
 .bck-form-row legend { display: block; font-weight: 600; margin-bottom: var(--bck-space-1, 4px); }
 .bck-form-row input[type="password"],
@@ -48,8 +62,14 @@
 .bck-fieldset legend { font-weight: 600; padding: 0 0 var(--bck-space-2, 8px); }
 .bck-radio { display: flex; gap: var(--bck-space-2, 8px); align-items: flex-start; min-height: 44px; padding: var(--bck-space-1, 4px) 0; }
 .bck-radio input { margin-top: 4px; min-width: 20px; min-height: 20px; }
+.bck-radio span { min-width: 0; }
 .bck-radio--danger strong { color: var(--color-element-error, #e9322d); }
-.bck-file-input {
+/* NC core pins input[type=file] to width:auto (inputs.css, 0-1-1) — the
+   intrinsic ~320px min-size overflows narrow sheets. check-shell
+   form-controls.css re-pins it at #content.app-* #app-content level (2-2-1)
+   which loads AFTER this file, so the extra .bck-form-row class hop (2-3-1)
+   is needed for the 100% column width to land regardless of sheet order. */
+#content #app-content .bck-form-row input[type="file"].bck-file-input {
 	min-height: 44px;
 	padding: var(--bck-space-2, 8px);
 	border: 1px dashed var(--bck-form-border, var(--color-border-maxcontrast, var(--color-border, #c8c8c8)));
