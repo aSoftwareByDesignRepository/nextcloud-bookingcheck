@@ -191,7 +191,7 @@ test.describe('craft transfer', () => {
 
 		// Dialog-open sweep — listAllow: .bck-transfer-group uls are mono-font
 		// machine-name manifest readouts inside <details> disclosures —
-		// marker-less by design (same class as the ptl r24/r25 adjudication).
+		// marker-less by design (same class as the kzc r24/r25 adjudication).
 		await assertAtlasRenderedSurface(page, {
 			content: '#bck-main-content',
 			listAllow: '.bck-transfer-group',
