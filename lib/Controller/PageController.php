@@ -116,6 +116,10 @@ class PageController extends Controller
 		if ($section === 'access') {
 			$params += $this->accessViewData();
 		}
+		if ($section === 'license') {
+			\OCP\Util::addStyle($this->appName, 'common/license-page');
+			\OCP\Util::addScript($this->appName, 'common/license-page');
+		}
 		if ($section === 'transfer') {
 			$params['transferLastReceipt'] = $this->transferReceipts->lastReceipt();
 			\OCP\Util::addStyle($this->appName, 'common/transfer');

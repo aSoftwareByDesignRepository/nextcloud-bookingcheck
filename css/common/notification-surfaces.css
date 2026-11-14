@@ -636,6 +636,26 @@
 	outline-offset: 2px;
 }
 
+/* Overlay control armor — same mechanism as the .bck-btn variant armor:
+   <button class="bck-toast__close"> renders inside the body-mounted toast
+   stack (#bck-toasts, outside #app-content.bck-app), so app-scoped rules
+   can never reach it and the bare (0,1,0) class rule loses to core's
+   button:not(.button-vue,[class^=vs__]) repaint (width / pale fill /
+   border / padding / margin). The overlay-scoped selectors pin every
+   repainted property !important (overlay_toast_button_armor_gap;
+   donor shape: whistlecheck #wc-toasts button.wc-toast__close). */
+#bck-toasts button.bck-toast__close,
+.bck-toasts button.bck-toast__close {
+	width: auto !important;
+	margin: 0 !important;
+	margin-left: auto !important;
+	padding: var(--bck-space-2, 8px) !important;
+	background: transparent !important;
+	border: 0 !important;
+	min-width: 44px;
+	min-height: 44px;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.bck-toast {
 		animation: none !important;

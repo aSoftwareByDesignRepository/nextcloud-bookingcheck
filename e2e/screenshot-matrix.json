@@ -178,6 +178,14 @@
    "settle": "#bck-settings-root"
   },
   {
+   "id": "settings-license",
+   "path": "/settings/license",
+   "states": [
+    "current"
+   ],
+   "settle": "#bck-settings-root"
+  },
+  {
    "id": "scan",
    "path": "/scan",
    "states": [

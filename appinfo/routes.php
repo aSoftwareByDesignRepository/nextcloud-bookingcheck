@@ -155,7 +155,7 @@ return [
 		['name' => 'settings#issueDevice','url' => '/api/settings/devices',        'verb' => 'POST'],
 		['name' => 'settings#revokeDevice','url' => '/api/settings/devices/{id}',  'verb' => 'DELETE', 'requirements' => ['id' => '\\d+']],
 		['name' => 'settings#put',      'url' => '/api/settings/{section}',        'verb' => 'PUT'],
-		['name' => 'settings#put',      'url' => '/api/settings/{section}',        'verb' => 'POST'],
+		['name' => 'settings#put',      'url' => '/api/settings/{section}',        'verb' => 'POST', 'postfix' => 'post'],
 		['name' => 'settings#clearLicense','url' => '/api/license/clear',          'verb' => 'POST'],
 
 		// ---------------------------------------------------------------

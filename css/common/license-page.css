@@ -325,6 +325,187 @@
 	display: block;
 }
 
+/* ── Button-variant armor ──────────────────────────────────────
+ * NC core inputs.scss repaints every button:not(.button-vue,
+ * [class^=vs__]) at specificity (0,1,1) with the pale
+ * --color-primary-element-light fill + light-text ink — stronger
+ * than the lone .bck-license-btn--{variant} rules above (0,1,0),
+ * so every variant collapses to the same pale skin
+ * (button_variant_specificity_collapse; dutycheck visual r40:
+ * destructive "Remove license" ≡ secondary "Cancel").
+ *
+ * Canonical fix shape (same as the .dc-btn armor in app
+ * css/app.css): ONE scope list — the pack page root, the app's
+ * content canvas, and every body-mounted overlay scope the pack
+ * <dialog> modals can land under — applying !important fills for
+ * EVERY variant incl. :hover/:focus-visible/:active. A new
+ * overlay is armored by landing on the scope list, never by a
+ * per-dialog-class rule. */
+.bck-license-page .bck-license-btn--primary,
+#app-content .bck-license-btn--primary,
+#app-content-wrapper .bck-license-btn--primary,
+.bck-license-modal .bck-license-btn--primary,
+.bck-modal .bck-license-btn--primary,
+.bck-dialog .bck-license-btn--primary,
+dialog .bck-license-btn--primary,
+[role="dialog"] .bck-license-btn--primary,
+[role="alertdialog"] .bck-license-btn--primary {
+	background: var(--color-primary-element) !important;
+	border-color: var(--color-primary-element) !important;
+	color: var(--color-primary-element-text, var(--color-primary-text)) !important;
+}
+.bck-license-page .bck-license-btn--primary:hover,
+#app-content .bck-license-btn--primary:hover,
+#app-content-wrapper .bck-license-btn--primary:hover,
+.bck-license-modal .bck-license-btn--primary:hover,
+.bck-modal .bck-license-btn--primary:hover,
+.bck-dialog .bck-license-btn--primary:hover,
+dialog .bck-license-btn--primary:hover,
+[role="dialog"] .bck-license-btn--primary:hover,
+[role="alertdialog"] .bck-license-btn--primary:hover {
+	background: var(--color-primary-element-hover, var(--color-primary-element)) !important;
+	border-color: var(--color-primary-element-hover, var(--color-primary-element)) !important;
+	color: var(--color-primary-element-text, var(--color-primary-text)) !important;
+}
+.bck-license-page .bck-license-btn--primary:focus-visible,
+#app-content .bck-license-btn--primary:focus-visible,
+#app-content-wrapper .bck-license-btn--primary:focus-visible,
+.bck-license-modal .bck-license-btn--primary:focus-visible,
+.bck-modal .bck-license-btn--primary:focus-visible,
+.bck-dialog .bck-license-btn--primary:focus-visible,
+dialog .bck-license-btn--primary:focus-visible,
+[role="dialog"] .bck-license-btn--primary:focus-visible,
+[role="alertdialog"] .bck-license-btn--primary:focus-visible {
+	background: var(--color-primary-element-hover, var(--color-primary-element)) !important;
+	border-color: var(--color-primary-element-hover, var(--color-primary-element)) !important;
+	color: var(--color-primary-element-text, var(--color-primary-text)) !important;
+	outline: 3px solid color-mix(in srgb, var(--color-primary-element) 55%, transparent);
+	outline-offset: 2px;
+}
+.bck-license-page .bck-license-btn--primary:active,
+#app-content .bck-license-btn--primary:active,
+#app-content-wrapper .bck-license-btn--primary:active,
+.bck-license-modal .bck-license-btn--primary:active,
+.bck-modal .bck-license-btn--primary:active,
+.bck-dialog .bck-license-btn--primary:active,
+dialog .bck-license-btn--primary:active,
+[role="dialog"] .bck-license-btn--primary:active,
+[role="alertdialog"] .bck-license-btn--primary:active {
+	background: var(--color-primary-element) !important;
+	border-color: var(--color-primary-element) !important;
+	color: var(--color-primary-element-text, var(--color-primary-text)) !important;
+}
+
+.bck-license-page .bck-license-btn--secondary,
+#app-content .bck-license-btn--secondary,
+#app-content-wrapper .bck-license-btn--secondary,
+.bck-license-modal .bck-license-btn--secondary,
+.bck-modal .bck-license-btn--secondary,
+.bck-dialog .bck-license-btn--secondary,
+dialog .bck-license-btn--secondary,
+[role="dialog"] .bck-license-btn--secondary,
+[role="alertdialog"] .bck-license-btn--secondary {
+	background: var(--color-main-background) !important;
+	border-color: var(--color-border-maxcontrast, var(--color-border)) !important;
+	color: var(--color-main-text) !important;
+}
+.bck-license-page .bck-license-btn--secondary:hover,
+#app-content .bck-license-btn--secondary:hover,
+#app-content-wrapper .bck-license-btn--secondary:hover,
+.bck-license-modal .bck-license-btn--secondary:hover,
+.bck-dialog .bck-license-btn--secondary:hover,
+.bck-modal .bck-license-btn--secondary:hover,
+dialog .bck-license-btn--secondary:hover,
+[role="dialog"] .bck-license-btn--secondary:hover,
+[role="alertdialog"] .bck-license-btn--secondary:hover {
+	background: var(--color-background-hover, var(--color-main-background)) !important;
+	border-color: var(--color-border-maxcontrast, var(--color-border)) !important;
+	color: var(--color-main-text) !important;
+}
+.bck-license-page .bck-license-btn--secondary:focus-visible,
+#app-content .bck-license-btn--secondary:focus-visible,
+#app-content-wrapper .bck-license-btn--secondary:focus-visible,
+.bck-license-modal .bck-license-btn--secondary:focus-visible,
+.bck-dialog .bck-license-btn--secondary:focus-visible,
+.bck-modal .bck-license-btn--secondary:focus-visible,
+dialog .bck-license-btn--secondary:focus-visible,
+[role="dialog"] .bck-license-btn--secondary:focus-visible,
+[role="alertdialog"] .bck-license-btn--secondary:focus-visible {
+	background: var(--color-background-hover, var(--color-main-background)) !important;
+	border-color: var(--color-border-maxcontrast, var(--color-border)) !important;
+	color: var(--color-main-text) !important;
+	outline: 3px solid color-mix(in srgb, var(--color-primary-element) 55%, transparent);
+	outline-offset: 2px;
+}
+.bck-license-page .bck-license-btn--secondary:active,
+#app-content .bck-license-btn--secondary:active,
+#app-content-wrapper .bck-license-btn--secondary:active,
+.bck-license-modal .bck-license-btn--secondary:active,
+.bck-dialog .bck-license-btn--secondary:active,
+.bck-modal .bck-license-btn--secondary:active,
+dialog .bck-license-btn--secondary:active,
+[role="dialog"] .bck-license-btn--secondary:active,
+[role="alertdialog"] .bck-license-btn--secondary:active {
+	background: var(--color-main-background) !important;
+	border-color: var(--color-border-maxcontrast, var(--color-border)) !important;
+	color: var(--color-main-text) !important;
+}
+
+.bck-license-page .bck-license-btn--danger,
+#app-content .bck-license-btn--danger,
+#app-content-wrapper .bck-license-btn--danger,
+.bck-license-modal .bck-license-btn--danger,
+.bck-modal .bck-license-btn--danger,
+.bck-dialog .bck-license-btn--danger,
+dialog .bck-license-btn--danger,
+[role="dialog"] .bck-license-btn--danger,
+[role="alertdialog"] .bck-license-btn--danger {
+	background: var(--color-element-error, var(--color-error)) !important;
+	border-color: var(--color-element-error, var(--color-error)) !important;
+	color: var(--color-primary-element-text, var(--color-primary-text)) !important;
+}
+.bck-license-page .bck-license-btn--danger:hover,
+#app-content .bck-license-btn--danger:hover,
+#app-content-wrapper .bck-license-btn--danger:hover,
+.bck-license-modal .bck-license-btn--danger:hover,
+.bck-modal .bck-license-btn--danger:hover,
+.bck-dialog .bck-license-btn--danger:hover,
+dialog .bck-license-btn--danger:hover,
+[role="dialog"] .bck-license-btn--danger:hover,
+[role="alertdialog"] .bck-license-btn--danger:hover {
+	background: var(--color-element-error, var(--color-error)) !important;
+	border-color: var(--color-element-error, var(--color-error)) !important;
+	color: var(--color-primary-element-text, var(--color-primary-text)) !important;
+}
+.bck-license-page .bck-license-btn--danger:focus-visible,
+#app-content .bck-license-btn--danger:focus-visible,
+#app-content-wrapper .bck-license-btn--danger:focus-visible,
+.bck-license-modal .bck-license-btn--danger:focus-visible,
+.bck-modal .bck-license-btn--danger:focus-visible,
+.bck-dialog .bck-license-btn--danger:focus-visible,
+dialog .bck-license-btn--danger:focus-visible,
+[role="dialog"] .bck-license-btn--danger:focus-visible,
+[role="alertdialog"] .bck-license-btn--danger:focus-visible {
+	background: var(--color-element-error, var(--color-error)) !important;
+	border-color: var(--color-element-error, var(--color-error)) !important;
+	color: var(--color-primary-element-text, var(--color-primary-text)) !important;
+	outline: 3px solid color-mix(in srgb, var(--color-element-error, var(--color-error)) 55%, transparent);
+	outline-offset: 2px;
+}
+.bck-license-page .bck-license-btn--danger:active,
+#app-content .bck-license-btn--danger:active,
+#app-content-wrapper .bck-license-btn--danger:active,
+.bck-license-modal .bck-license-btn--danger:active,
+.bck-modal .bck-license-btn--danger:active,
+.bck-dialog .bck-license-btn--danger:active,
+dialog .bck-license-btn--danger:active,
+[role="dialog"] .bck-license-btn--danger:active,
+[role="alertdialog"] .bck-license-btn--danger:active {
+	background: var(--color-element-error, var(--color-error)) !important;
+	border-color: var(--color-element-error, var(--color-error)) !important;
+	color: var(--color-primary-element-text, var(--color-primary-text)) !important;
+}
+
 /* ── Form elements ───────────────────────────────────────────── */
 .bck-license-field__label {
 	display: block;
@@ -655,6 +836,14 @@
 	background: var(--color-main-background);
 	box-shadow: 0 8px 24px color-mix(in srgb, var(--color-main-text) 12%, transparent);
 	box-sizing: border-box;
+}
+
+/* Nextcloud core's reset prints `dialog { display: block }` at author
+   origin — it outranks the UA `dialog:not([open]) { display: none }`
+   rule, so a closed license modal would still paint (and catch clicks /
+   enter the a11y tree) mid-page. Re-hide it explicitly. */
+.bck-license-modal:not([open]) {
+	display: none;
 }
 
 .bck-license-modal h3 {
