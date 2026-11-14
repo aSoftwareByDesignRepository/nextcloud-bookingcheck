@@ -26,7 +26,6 @@ final class DatevExportServiceTest extends TestCase
 			$this->createMock(SettingsService::class),
 		);
 		$m = new \ReflectionMethod($svc, $method);
-		$m->setAccessible(true);
 		return (string)$m->invoke($svc, $arg);
 	}
 
