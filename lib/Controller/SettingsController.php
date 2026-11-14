@@ -288,6 +288,19 @@ class SettingsController extends Controller
 		return $this->ok(['enabled' => $on]);
 	}
 
+	/**
+	 * Dedicated license clear — the shared license page calls this on its own
+	 * route (settings#put only writes present keys, so "clear" cannot ride
+	 * the section PUT without changing that contract).
+	 */
+	#[NoAdminRequired]
+	public function clearLicense(): JSONResponse
+	{
+		$this->requireConfigAdmin();
+		$this->settings->set('license_key', '');
+		return $this->ok(['license' => $this->license->status()]);
+	}
+
 	#[NoAdminRequired]
 	public function put(string $section): JSONResponse
 	{

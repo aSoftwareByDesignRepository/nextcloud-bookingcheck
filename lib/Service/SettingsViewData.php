@@ -29,6 +29,7 @@ class SettingsViewData
 		private readonly IConfig $serverConfig,
 		private readonly LicenseService $license,
 		private readonly \OCA\BookingCheck\Db\MailTplMapper $mailTpls,
+		private readonly \OCA\BookingCheck\Db\CompanionTokenMapper $companions,
 		private readonly IL10N $l10n,
 		private readonly IURLGenerator $urlGenerator,
 	) {
@@ -58,6 +59,11 @@ class SettingsViewData
 			// card renders read-only when the feature is locked so the
 			// Issue CTA can never dead-end on a 403 (LicenseGateMiddleware)
 			'companionAvailable' => $this->license->hasFeature('companion'),
+			'companionDevices' => array_values(array_filter(array_map(static function ($d) {
+				$j = $d->jsonSerialize();
+				unset($j['tokenHash']);
+				return $j;
+			}, $this->companions->findAll()), static fn ($d) => ($d['revokedAt'] ?? null) === null)),
 			'directoryEnabled' => $this->config->getAppValue('directory_enabled', '0'),
 			'corsOrigins' => $this->config->getAppValue('cors_origins', ''),
 			'portalEnabled' => $this->config->getAppValue('portal_enabled', '0'),
