@@ -44,28 +44,29 @@ class LicenseService
 	) {
 	}
 
-	/** @return array{state:string, validUntil:?string, proSeats:int, error:string} */
+	/** @return array{state:string, validUntil:?string, proSeats:int, customerId:string, error:string} */
 	public function status(): array
 	{
 		$wire = $this->settings->get('license_key');
 		if ($wire === '') {
-			return ['state' => self::STATE_FREE, 'validUntil' => null, 'proSeats' => 0, 'error' => ''];
+			return ['state' => self::STATE_FREE, 'validUntil' => null, 'proSeats' => 0, 'customerId' => '', 'error' => ''];
 		}
 		$err = Bck2Codec::classifyError($wire);
 		if ($err !== '') {
-			return ['state' => self::STATE_INVALID, 'validUntil' => null, 'proSeats' => 0, 'error' => $err];
+			return ['state' => self::STATE_INVALID, 'validUntil' => null, 'proSeats' => 0, 'customerId' => '', 'error' => $err];
 		}
 		$decoded = Bck2Codec::parseAndVerify($wire);
 		if ($decoded === null) {
-			return ['state' => self::STATE_INVALID, 'validUntil' => null, 'proSeats' => 0, 'error' => Bck2Codec::ERROR_INVALID_PAYLOAD];
+			return ['state' => self::STATE_INVALID, 'validUntil' => null, 'proSeats' => 0, 'customerId' => '', 'error' => Bck2Codec::ERROR_INVALID_PAYLOAD];
 		}
 		$p = $decoded['payload'];
 		$validUntil = (string)$p['validUntil'];
+		$customerId = (string)$p['customerId'];
 		$today = (new \DateTimeImmutable('today'))->format('Y-m-d');
 		if (!Bck2Codec::isValidOn($validUntil, $today)) {
-			return ['state' => self::STATE_EXPIRED, 'validUntil' => $validUntil, 'proSeats' => (int)$p['proSeats'], 'error' => 'expired'];
+			return ['state' => self::STATE_EXPIRED, 'validUntil' => $validUntil, 'proSeats' => (int)$p['proSeats'], 'customerId' => $customerId, 'error' => 'expired'];
 		}
-		return ['state' => self::STATE_PRO, 'validUntil' => $validUntil, 'proSeats' => (int)$p['proSeats'], 'error' => ''];
+		return ['state' => self::STATE_PRO, 'validUntil' => $validUntil, 'proSeats' => (int)$p['proSeats'], 'customerId' => $customerId, 'error' => ''];
 	}
 
 	public function isPro(): bool

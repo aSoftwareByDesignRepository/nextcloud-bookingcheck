@@ -55,6 +55,9 @@ class SettingsViewData
 			'licenseKey' => $this->config->getAppValue('license_key', ''),
 			// live codec verdict — never a stale stored flag
 			'licenseState' => $this->license->status()['state'],
+			// full status contract for the synced license pack (validUntil,
+			// proSeats, customerId) — the pack template reads every field
+			'licenseStatus' => $this->license->status(),
 			// companion device tokens are a Pro feature — the integrations
 			// card renders read-only when the feature is locked so the
 			// Issue CTA can never dead-end on a 403 (LicenseGateMiddleware)

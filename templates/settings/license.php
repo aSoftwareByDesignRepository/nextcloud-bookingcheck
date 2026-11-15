@@ -56,7 +56,7 @@ $_['license'] = [
 	'cryptographicallyValid' => $licenseState === 'pro' || $licenseState === 'expired',
 	'dateValid' => $licenseState !== 'expired',
 	'validUntil' => $validUntil,
-	'customerId' => '',
+	'customerId' => (string)($licenseStatus['customerId'] ?? ''),
 ];
 $_['licenseKey'] = (string)($_['licenseKey'] ?? '');
 $_['productCode'] = 'BCK2';

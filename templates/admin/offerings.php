@@ -5,7 +5,7 @@ $_['pageHelp'] = $l->t('Everything you sell — events, courses, timeslots.');
 $_['pageIcon'] = 'calendar';
 $_['pageActions'] = [[
 	'label' => $l->t('New offering'), 'primary' => true, 'icon' => 'plus',
-	'href' => $_['urls_new'] ?? \OCP\Server::get(\OCP\IURLGenerator::class)->linkToRoute('bookingcheck.offering.create'),
+	'href' => \OCP\Server::get(\OCP\IURLGenerator::class)->linkToRoute('bookingcheck.offering.create'),
 ]];
 \OCA\BookingCheck\Support\Chrome::apply($_, 'offerings');
 include __DIR__ . '/../common/page-start.php';
