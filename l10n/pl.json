@@ -3,18 +3,12 @@
 		"%1$d check-ins · %2$s this week": "%1$d odpraw · %2$s w tym tygodniu",
 		"%1$d of %2$d device slots in use.": "Użyto %1$d z %2$d miejsc dla urządzeń.",
 		"%1$d of %2$d seats assigned": "%1$d z %2$d miejsc przypisanych",
-		"%d row(s) need a value on this instance": "%d wiersz(y) wymagają wartości na tej instancji",
-		"%d row(s) skipped and %d reference(s) unresolved — see the groups below.": "%d wiersz(y) pominiętych i %d odwołanie(ań) nierozwiązanych — patrz grupy poniżej.",
 		"%s is AGPL software on your Nextcloud. Bug reports and ideas on GitHub stay welcome. When you need priority email, hour packs, workshops, or a commissioned feature, we invoice only after you accept a quote.": "%s to oprogramowanie AGPL na Twoim Nextcloud. Zgłoszenia błędów i pomysły na GitHubie są nadal mile widziane. Gdy potrzebujesz priorytetowej pomocy e-mail, pakietów godzin, warsztatów lub funkcji na zamówienie, wystawiamy fakturę dopiero po zaakceptowaniu wyceny.",
 		"%s left": "Pozostało: %s",
 		"%s slots created.": "Utworzono %s terminów.",
 		"%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice — or official mobile licenses — choose an option below:": "%s pozostaje bezpłatny (AGPL) na Nextcloud. Zgłoszenia błędów i pomysły na GitHubie są nadal mile widziane — to bezpłatna opieka nad open source. Jeśli organizacja potrzebuje pomocy do rezerwacji na fakturę — lub oficjalnych licencji mobilnych — wybierz opcję poniżej:",
 		"%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice, choose an option below:": "%s pozostaje bezpłatny (AGPL) na Nextcloud. Zgłoszenia błędów i pomysły na GitHubie są nadal mile widziane — to bezpłatna opieka nad open source. Jeśli organizacja potrzebuje pomocy do rezerwacji na fakturę, wybierz opcję poniżej:",
 		"%s…": "%s…",
-		"(%d env-bound value(s) emptied)": "(%d wartość(i) związanych z instancją wyczyszczonych)",
-		"(%d filtered)": "(%d odfiltrowane)",
-		"(%d secret(s) redacted)": "(%d sekret(y) zatajonych)",
-		"(%d unresolved ref)": "(%d nierozwiązane odwołanie)",
 		"(Pro)": "(Pro)",
 		"(opens in a new tab)": "(otwiera się w nowej karcie)",
 		"(unknown — skipped)": "(nieznany — pominięty)",
@@ -274,7 +268,7 @@
 		"Credit codes customers can redeem at checkout.": "Kody kredytowe, które klienci mogą zrealizować przy płatności.",
 		"Credit note": "Nota kredytowa",
 		"Currency": "Waluta",
-		"Current license": "Aktualna licencja",
+		"Current license": "Bieżąca licencja",
 		"Current plan:": "Aktualny plan:",
 		"Customer ID": "ID klienta",
 		"Customer portal (passwordless sign-in)": "Portal klienta (logowanie bez hasła)",
@@ -363,7 +357,7 @@
 		"Ends": "Kończy się",
 		"Enter a valid amount.": "Podaj prawidłową kwotę.",
 		"Enter a valid email address.": "Podaj prawidłowy adres e-mail.",
-		"Enter a valid http(s) URL.": "Podaj prawidłowy adres URL http(s).",
+		"Enter a valid http or https URL.": "Podaj prawidłowy adres URL http lub https.",
 		"Enter an amount.": "Podaj kwotę.",
 		"Enter the email you booked with — we send you a sign-in link.": "Prosimy wpisać e-mail użyty przy rezerwacji — wyślemy Państwu link do logowania.",
 		"Enter your door device token to start checking people in.": "Wpisz token urządzenia wejściowego, aby rozpocząć odprawę.",
@@ -634,7 +628,7 @@
 		"Official mobile & terminal licenses": "Oficjalne licencje mobilne i terminalowe",
 		"One email to every paid buyer of this offering.": "Jedna wiadomość e-mail do każdego płacącego kupującego tej oferty.",
 		"One https:// origin per line. Empty = embedding disabled.": "Jedno źródło https:// na wiersz. Puste = osadzanie wyłączone.",
-		"One weekday + start time(s) per line, e.g. \"MO 10:00\" or \"FR 09:00,11:00\".": "Jeden dzień tygodnia + godzina(y) startu na wiersz, np. „PN 10:00” lub „PT 09:00,11:00”.",
+		"One weekday + one or more start times per line, e.g. \"MO 10:00\" or \"FR 09:00,11:00\".": "Jeden dzień tygodnia + jedna lub więcej godzin startu na wiersz, np. „PN 10:00” lub „PT 09:00,11:00”.",
 		"Online": "Online",
 		"Only full refunds are supported — echo the quoted amount.": "Obsługiwane są tylko pełne zwroty — powtórz podaną kwotę.",
 		"Only https:// origins (or http://localhost) are allowed.": "Dozwolone są tylko źródła https:// (lub http://localhost).",
@@ -776,7 +770,7 @@
 		"Pro license key and live verification state.": "Klucz licencji Pro i stan weryfikacji na żywo.",
 		"Promo code could not be applied.": "Nie można zastosować kodu promocyjnego.",
 		"Promotions": "Promocje",
-		"Provide this ID when ordering a license so the key can be bound to this server.": "Podaj ten identyfikator przy zamawianiu licencji, aby klucz mógł zostać powiązany z tym serwerem.",
+		"Provide this ID when ordering a license so the key can be bound to this server.": "Podaj ten identyfikator przy zamówieniu licencji, aby klucz mógł zostać powiązany z tym serwerem.",
 		"Provider": "Dostawca",
 		"Public catalog, customer portal and feed endpoints.": "Katalog publiczny, portal klienta i punkty końcowe kanałów.",
 		"Public directory feed (read-only catalog JSON)": "Publiczny kanał katalogu (tylko do odczytu, JSON)",
@@ -1106,7 +1100,6 @@
 		"Walk-up": "Bez rezerwacji",
 		"Walk-up sales unavailable.": "Sprzedaż na miejscu niedostępna.",
 		"Wallet passes (optional)": "Karty do portfela (opcjonalnie)",
-		"Warning: %d row(s) will be permanently deleted, then the file data is loaded.": "Ostrzeżenie: %d wiersz(y) zostanie trwale usuniętych, a następnie zostaną załadowane dane z pliku.",
 		"We are holding it for": "Trzymamy je dla",
 		"We received your booking request %s — you'll hear from us shortly.\n": "Otrzymaliśmy prośbę o rezerwację %s — wkrótce się odezwiemy.\n",
 		"Webhooks": "Webhooki",
@@ -1166,6 +1159,38 @@
 			"%n zamówienie",
 			"%n zamówienia",
 			"%n zamówień"
+		],
+		"_(1 env-bound value emptied)_::_(%n env-bound values emptied)_": [
+			"(1 opróżniona wartość związana z instancją)",
+			"(%n opróżnionych wartości związanych z instancją)"
+		],
+		"_(1 filtered)_::_(%n filtered)_": [
+			"(1 odfiltrowane)",
+			"(%n odfiltrowanych)"
+		],
+		"_(1 secret redacted)_::_(%n secrets redacted)_": [
+			"(1 ukryty sekret)",
+			"(%n ukrytych sekretów)"
+		],
+		"_(1 unresolved ref)_::_(%n unresolved refs)_": [
+			"(1 nierozwiązane odwołanie)",
+			"(%n nierozwiązanych odwołań)"
+		],
+		"_1 reference unresolved — see the groups below._::_%n references unresolved — see the groups below._": [
+			"Nierozwiązano 1 odwołanie — zobacz grupy poniżej.",
+			"Nierozwiązano %n odwołań — zobacz grupy poniżej."
+		],
+		"_1 row needs a value on this instance_::_%n rows need a value on this instance_": [
+			"1 wiersz wymaga wartości na tej instancji",
+			"%n wierszy wymaga wartości na tej instancji"
+		],
+		"_1 row skipped._::_%n rows skipped._": [
+			"Pominięto 1 wiersz.",
+			"Pominięto %n wierszy."
+		],
+		"_Warning: 1 row will be permanently deleted, then the file data is loaded._::_Warning: %n rows will be permanently deleted, then the file data is loaded._": [
+			"Ostrzeżenie: 1 wiersz zostanie trwale usunięty, a następnie dane z pliku zostaną wczytane.",
+			"Ostrzeżenie: %n wierszy zostanie trwale usuniętych, a następnie dane z pliku zostaną wczytane."
 		],
 		"active": "Aktywny",
 		"add and update; nothing is deleted": "dodaj i zaktualizuj; nic nie jest usuwane",

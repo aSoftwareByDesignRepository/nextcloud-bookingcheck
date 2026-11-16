@@ -3,18 +3,12 @@
         "%1$d check-ins · %2$s this week": "%1$d check-ins · %2$s this week",
         "%1$d of %2$d device slots in use.": "%1$d of %2$d device slots in use.",
         "%1$d of %2$d seats assigned": "%1$d of %2$d seats assigned",
-        "%d row(s) need a value on this instance": "%d row(s) need a value on this instance",
-        "%d row(s) skipped and %d reference(s) unresolved — see the groups below.": "%d row(s) skipped and %d reference(s) unresolved — see the groups below.",
         "%s is AGPL software on your Nextcloud. Bug reports and ideas on GitHub stay welcome. When you need priority email, hour packs, workshops, or a commissioned feature, we invoice only after you accept a quote.": "%s is AGPL software on your Nextcloud. Bug reports and ideas on GitHub stay welcome. When you need priority email, hour packs, workshops, or a commissioned feature, we invoice only after you accept a quote.",
         "%s left": "%s left",
         "%s slots created.": "%s slots created.",
         "%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice — or official mobile licenses — choose an option below:": "%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice — or official mobile licenses — choose an option below:",
         "%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice, choose an option below:": "%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice, choose an option below:",
         "%s…": "%s…",
-        "(%d env-bound value(s) emptied)": "(%d env-bound value(s) emptied)",
-        "(%d filtered)": "(%d filtered)",
-        "(%d secret(s) redacted)": "(%d secret(s) redacted)",
-        "(%d unresolved ref)": "(%d unresolved ref)",
         "(Pro)": "(Pro)",
         "(opens in a new tab)": "(opens in a new tab)",
         "(unknown — skipped)": "(unknown — skipped)",
@@ -363,7 +357,7 @@
         "Ends": "Ends",
         "Enter a valid amount.": "Enter a valid amount.",
         "Enter a valid email address.": "Enter a valid email address.",
-        "Enter a valid http(s) URL.": "Enter a valid http(s) URL.",
+        "Enter a valid http or https URL.": "Enter a valid http or https URL.",
         "Enter an amount.": "Enter an amount.",
         "Enter the email you booked with — we send you a sign-in link.": "Enter the email you booked with — we send you a sign-in link.",
         "Enter your door device token to start checking people in.": "Enter your door device token to start checking people in.",
@@ -634,7 +628,7 @@
         "Official mobile & terminal licenses": "Official mobile & terminal licenses",
         "One email to every paid buyer of this offering.": "One email to every paid buyer of this offering.",
         "One https:\/\/ origin per line. Empty = embedding disabled.": "One https:\/\/ origin per line. Empty = embedding disabled.",
-        "One weekday + start time(s) per line, e.g. \"MO 10:00\" or \"FR 09:00,11:00\".": "One weekday + start time(s) per line, e.g. \"MO 10:00\" or \"FR 09:00,11:00\".",
+        "One weekday + one or more start times per line, e.g. \"MO 10:00\" or \"FR 09:00,11:00\".": "One weekday + one or more start times per line, e.g. \"MO 10:00\" or \"FR 09:00,11:00\".",
         "Online": "Online",
         "Only full refunds are supported — echo the quoted amount.": "Only full refunds are supported — echo the quoted amount.",
         "Only https:\/\/ origins (or http:\/\/localhost) are allowed.": "Only https:\/\/ origins (or http:\/\/localhost) are allowed.",
@@ -1106,7 +1100,6 @@
         "Walk-up": "Walk-up",
         "Walk-up sales unavailable.": "Walk-up sales unavailable.",
         "Wallet passes (optional)": "Wallet passes (optional)",
-        "Warning: %d row(s) will be permanently deleted, then the file data is loaded.": "Warning: %d row(s) will be permanently deleted, then the file data is loaded.",
         "We are holding it for": "We are holding it for",
         "We received your booking request %s — you'll hear from us shortly.\n": "We received your booking request %s — you'll hear from us shortly.\n",
         "Webhooks": "Webhooks",
@@ -1165,6 +1158,38 @@
         "_%n order_::_%n orders_": [
             "%n order",
             "%n orders"
+        ],
+        "_(1 env-bound value emptied)_::_(%n env-bound values emptied)_": [
+            "(1 env-bound value emptied)",
+            "(%n env-bound values emptied)"
+        ],
+        "_(1 filtered)_::_(%n filtered)_": [
+            "(1 filtered)",
+            "(%n filtered)"
+        ],
+        "_(1 secret redacted)_::_(%n secrets redacted)_": [
+            "(1 secret redacted)",
+            "(%n secrets redacted)"
+        ],
+        "_(1 unresolved ref)_::_(%n unresolved refs)_": [
+            "(1 unresolved ref)",
+            "(%n unresolved refs)"
+        ],
+        "_1 reference unresolved — see the groups below._::_%n references unresolved — see the groups below._": [
+            "1 reference unresolved — see the groups below.",
+            "%n references unresolved — see the groups below."
+        ],
+        "_1 row needs a value on this instance_::_%n rows need a value on this instance_": [
+            "1 row needs a value on this instance",
+            "%n rows need a value on this instance"
+        ],
+        "_1 row skipped._::_%n rows skipped._": [
+            "1 row skipped.",
+            "%n rows skipped."
+        ],
+        "_Warning: 1 row will be permanently deleted, then the file data is loaded._::_Warning: %n rows will be permanently deleted, then the file data is loaded._": [
+            "Warning: 1 row will be permanently deleted, then the file data is loaded.",
+            "Warning: %n rows will be permanently deleted, then the file data is loaded."
         ],
         "active": "active",
         "add and update; nothing is deleted": "add and update; nothing is deleted",

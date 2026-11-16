@@ -118,7 +118,7 @@ class OutboundWebhookService
 	public function assertUrlAllowed(string $url): void
 	{
 		if (!filter_var($url, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $url)) {
-			throw new ValidationException(['url' => 'Enter a valid http(s) URL.']);
+			throw new ValidationException(['url' => 'Enter a valid http or https URL.']);
 		}
 		$host = parse_url($url, PHP_URL_HOST);
 		if (!is_string($host) || $host === '') {

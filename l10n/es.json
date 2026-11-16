@@ -3,18 +3,12 @@
 		"%1$d check-ins · %2$s this week": "%1$d check-ins · %2$s esta semana",
 		"%1$d of %2$d device slots in use.": "%1$d de %2$d espacios para dispositivos en uso.",
 		"%1$d of %2$d seats assigned": "%1$d de %2$d plazas asignadas",
-		"%d row(s) need a value on this instance": "%d fila(s) necesitan un valor en esta instancia",
-		"%d row(s) skipped and %d reference(s) unresolved — see the groups below.": "%d fila(s) omitida(s) y %d referencia(s) sin resolver — véanse los grupos siguientes.",
 		"%s is AGPL software on your Nextcloud. Bug reports and ideas on GitHub stay welcome. When you need priority email, hour packs, workshops, or a commissioned feature, we invoice only after you accept a quote.": "%s es software AGPL en su Nextcloud. Los informes de errores y las ideas siguen siendo bienvenidos en GitHub. Si necesita correo prioritario, paquetes de horas, talleres o una función por encargo, solo facturamos después de que acepte el presupuesto.",
 		"%s left": "quedan %s",
 		"%s slots created.": "%s franjas creadas.",
 		"%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice — or official mobile licenses — choose an option below:": "%s sigue siendo gratuito (AGPL) en su Nextcloud. Los informes de errores y las ideas en GitHub siguen siendo bienvenidos: eso forma parte del mantenimiento open source gratuito. Si su organización necesita ayuda reservable con factura — o licencias móviles oficiales — elija una opción abajo:",
 		"%s stays free (AGPL) on your Nextcloud. Bug reports and ideas on GitHub stay welcome — that is free open-source care. If your organisation needs bookable help on an invoice, choose an option below:": "%s sigue siendo gratuito (AGPL) en su Nextcloud. Los informes de errores y las ideas en GitHub siguen siendo bienvenidos: eso forma parte del mantenimiento open source gratuito. Si su organización necesita ayuda reservable con factura, elija una opción abajo:",
 		"%s…": "%s…",
-		"(%d env-bound value(s) emptied)": "(%d valor(es) vinculados a la instancia vaciados)",
-		"(%d filtered)": "(%d filtrado(s))",
-		"(%d secret(s) redacted)": "(%d secreto(s) ocultado(s))",
-		"(%d unresolved ref)": "(%d referencia sin resolver)",
 		"(Pro)": "(Pro)",
 		"(opens in a new tab)": "(se abre en una pestaña nueva)",
 		"(unknown — skipped)": "(desconocido — omitido)",
@@ -363,7 +357,7 @@
 		"Ends": "Termina",
 		"Enter a valid amount.": "Introduzca un importe válido.",
 		"Enter a valid email address.": "Introduzca una dirección de correo válida.",
-		"Enter a valid http(s) URL.": "Introduzca una URL http(s) válida.",
+		"Enter a valid http or https URL.": "Introduzca una URL http o https válida.",
 		"Enter an amount.": "Introduzca un importe.",
 		"Enter the email you booked with — we send you a sign-in link.": "Introduzca el correo con el que reservó — le enviaremos un enlace de acceso.",
 		"Enter your door device token to start checking people in.": "Introduzca el token de su dispositivo de acceso para empezar a registrar asistentes.",
@@ -402,7 +396,7 @@
 		"Fill markup (%)": "Recargo por ocupación (%%)",
 		"Fixed amount off": "Importe fijo de descuento",
 		"For": "Para",
-		"Format: %1$s followed by a signed payload. One key per organisation.": "Formato: %1$s seguido de una carga firmada. Una clave por organización.",
+		"Format: %1$s followed by a signed payload. One key per organisation.": "Formato: %1$s seguido de una carga útil firmada. Una clave por organización.",
 		"Free": "Gratis",
 		"Free to run under AGPL": "Gratuito bajo AGPL",
 		"From": "De",
@@ -634,7 +628,7 @@
 		"Official mobile & terminal licenses": "Licencias oficiales de móvil y terminal",
 		"One email to every paid buyer of this offering.": "Un correo a cada comprador que pagó esta oferta.",
 		"One https:// origin per line. Empty = embedding disabled.": "Un origen https:// por línea. Vacío = incrustación desactivada.",
-		"One weekday + start time(s) per line, e.g. \"MO 10:00\" or \"FR 09:00,11:00\".": "Un día de la semana + hora(s) de inicio por línea, p. ej. «LU 10:00» o «VI 09:00,11:00».",
+		"One weekday + one or more start times per line, e.g. \"MO 10:00\" or \"FR 09:00,11:00\".": "Un día de la semana + una o más horas de inicio por línea, p. ej. «LU 10:00» o «VI 09:00,11:00».",
 		"Online": "En línea",
 		"Only full refunds are supported — echo the quoted amount.": "Solo se admiten reembolsos completos — repita el importe indicado.",
 		"Only https:// origins (or http://localhost) are allowed.": "Solo se permiten orígenes https:// (o http://localhost).",
@@ -1106,7 +1100,6 @@
 		"Walk-up": "Sin reserva previa",
 		"Walk-up sales unavailable.": "Ventas sin reserva no disponibles.",
 		"Wallet passes (optional)": "Pases de wallet (opcional)",
-		"Warning: %d row(s) will be permanently deleted, then the file data is loaded.": "Advertencia: %d fila(s) se eliminarán permanentemente y luego se cargarán los datos del archivo.",
 		"We are holding it for": "Lo guardamos para",
 		"We received your booking request %s — you'll hear from us shortly.\n": "Hemos recibido su solicitud de reserva %s — tendrá noticias nuestras en breve.\n",
 		"Webhooks": "Webhooks",
@@ -1165,6 +1158,38 @@
 		"_%n order_::_%n orders_": [
 			"%n pedido",
 			"%n pedidos"
+		],
+		"_(1 env-bound value emptied)_::_(%n env-bound values emptied)_": [
+			"(1 valor ligado a la instancia vaciado)",
+			"(%n valores ligados a la instancia vaciados)"
+		],
+		"_(1 filtered)_::_(%n filtered)_": [
+			"(1 filtrada)",
+			"(%n filtradas)"
+		],
+		"_(1 secret redacted)_::_(%n secrets redacted)_": [
+			"(1 secreto ocultado)",
+			"(%n secretos ocultados)"
+		],
+		"_(1 unresolved ref)_::_(%n unresolved refs)_": [
+			"(1 referencia sin resolver)",
+			"(%n referencias sin resolver)"
+		],
+		"_1 reference unresolved — see the groups below._::_%n references unresolved — see the groups below._": [
+			"1 referencia sin resolver — consulta los grupos siguientes.",
+			"%n referencias sin resolver — consulta los grupos siguientes."
+		],
+		"_1 row needs a value on this instance_::_%n rows need a value on this instance_": [
+			"1 fila necesita un valor en esta instancia",
+			"%n filas necesitan un valor en esta instancia"
+		],
+		"_1 row skipped._::_%n rows skipped._": [
+			"1 fila omitida.",
+			"%n filas omitidas."
+		],
+		"_Warning: 1 row will be permanently deleted, then the file data is loaded._::_Warning: %n rows will be permanently deleted, then the file data is loaded._": [
+			"Advertencia: 1 fila se eliminará permanentemente y después se cargarán los datos del archivo.",
+			"Advertencia: %n filas se eliminarán permanentemente y después se cargarán los datos del archivo."
 		],
 		"active": "Activo",
 		"add and update; nothing is deleted": "añadir y actualizar; nada se elimina",

@@ -141,7 +141,7 @@ $oid = (int)($_['offeringId'] ?? 0);
 						<label class="bck-label" for="bck-tpl-rrule"><?php p($l->t('Weekly times')); ?></label>
 						<textarea class="bck-input" id="bck-tpl-rrule" name="weekly_rrule" rows="3" required
 							placeholder="MO 10:00&#10;WE 14:30&#10;FR 09:00,11:00"></textarea>
-						<p class="bck-field__hint"><?php p($l->t('One weekday + start time(s) per line, e.g. "MO 10:00" or "FR 09:00,11:00".')); ?></p>
+						<p class="bck-field__hint"><?php p($l->t('One weekday + one or more start times per line, e.g. "MO 10:00" or "FR 09:00,11:00".')); ?></p>
 					</div>
 					<div class="bck-field--row">
 						<div class="bck-field">
