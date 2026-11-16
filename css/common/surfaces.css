@@ -680,6 +680,16 @@
 	outline: none;
 }
 
+#app-content.bck-app .bck-picker__result--empty {
+	cursor: default;
+	color: var(--bck-muted);
+}
+
+#app-content.bck-app .bck-picker__result--empty:hover,
+#app-content.bck-app .bck-picker__result--empty:focus {
+	background: none;
+}
+
 /* ── Callouts (reuses tint tokens; border + icon, not color-only) ── */
 
 #app-content.bck-app .bck-callout {
