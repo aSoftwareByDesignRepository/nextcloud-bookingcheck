@@ -849,7 +849,7 @@ OC.L10N.register(
 	"Remove" : "Fjerne",
 	"Remove filter" : "Fjern filter",
 	"Remove license" : "Fjern licens",
-	"Remove mobile seat" : "Fjern mobil plads",
+	"Remove mobile seat" : "Fjern mobilplads",
 	"Remove mobile seat for this person?" : "Fjern mobilplads for denne person?",
 	"Remove the organisation license and revoke all seats and devices? This cannot be undone." : "Fjern organisationslicensen og tilbagekald alle pladser og enheder? Dette kan ikke fortrydes.",
 	"removed from the list" : "fjernet fra listen",

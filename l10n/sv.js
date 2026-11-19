@@ -849,7 +849,7 @@ OC.L10N.register(
 	"Remove" : "Ta bort",
 	"Remove filter" : "Ta bort filter",
 	"Remove license" : "Ta bort licens",
-	"Remove mobile seat" : "Ta bort mobil plats",
+	"Remove mobile seat" : "Ta bort mobilplats",
 	"Remove mobile seat for this person?" : "Ta bort mobilplatsen för den här personen?",
 	"Remove the organisation license and revoke all seats and devices? This cannot be undone." : "Ta bort organisationslicensen och återkalla alla platser och enheter? Detta kan inte ångras.",
 	"removed from the list" : "borttagen från listan",
