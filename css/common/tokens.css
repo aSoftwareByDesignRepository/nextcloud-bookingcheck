@@ -1,6 +1,6 @@
 /* Auto-adapted from arbeitszeitcheck/css/common/tokens.css for the Check-family shell. Do not invent divergent layout rules here. */
 /*
- * BookingCheck design tokens (--bck-*).
+ * Bookingcheck design tokens (--bck-*).
  * Colors derive from Nextcloud theme variables; no raw hex in feature CSS.
  * Spacing/typography on :root; theme colors on body + themed app surfaces
  * (NC sets --color-* on body [data-theme-*]).
@@ -69,7 +69,7 @@
 
 	/*
 	 * QR / barcode canvas must stay light for scannability in every theme.
-	 * This is the only intentional non-theme surface in BookingCheck feature CSS.
+	 * This is the only intentional non-theme surface in Bookingcheck feature CSS.
 	 */
 	--bck-qr-canvas: #ffffff;
 }
@@ -98,6 +98,12 @@ body,
 	--bck-bg-hover: var(--color-background-hover);
 	--bck-text: var(--color-main-text);
 	--bck-muted: var(--color-text-maxcontrast);
+	/* Muted ink on tinted surfaces (callouts/badges): main-text keeps it
+	   readable where pure maxcontrast washes out on the tint fill. */
+	--bck-muted-on-tint: color-mix(in srgb, var(--color-text-maxcontrast) 55%, var(--color-main-text));
+	/* Monospace for codes/refs (claim numbers, payment refs): NC ships no mono
+	   var, so pin a platform-native stack. */
+	--bck-mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'Liberation Mono', Menlo, Consolas, monospace;
 	--bck-border: color-mix(in srgb, var(--color-main-text) 12%, transparent);
 	/* Boundaries of cards/controls/callouts/dialogs need >=3:1 vs the adjacent
 	   surface (WCAG 1.4.11): NC's --color-border-maxcontrast is theme-tuned for
