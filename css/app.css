@@ -1155,7 +1155,7 @@
 	border: 1px solid var(--bck-border, var(--color-border));
 	border-radius: var(--bck-radius-md);
 	background: var(--bck-bg-hover, var(--color-background-hover));
-	font-family: var(--bck-font-mono, monospace);
+	font-family: var(--bck-mono, monospace);
 	font-size: var(--bck-fs-sm, 0.85rem);
 	word-break: break-all;
 	user-select: all;
