@@ -318,7 +318,7 @@ OC.L10N.register(
 	"Delete" : "Delete",
 	"Delete file" : "Delete file",
 	"Deposit" : "Deposit",
-	"Deposit (%)" : "Deposit (%%)",
+	"Deposit (%%)" : "Deposit (%%)",
 	"Deposit must be 0–9999 bp." : "Deposit must be 0–9999 bp.",
 	"Description" : "Description",
 	"Detail" : "Detail",
@@ -422,7 +422,7 @@ OC.L10N.register(
 	"Files are shared with" : "Files are shared with",
 	"Files buyers can download from the portal." : "Files buyers can download from the portal.",
 	"Files buyers shared via their manage link." : "Files buyers shared via their manage link.",
-	"Fill markup (%)" : "Fill markup (%%)",
+	"Fill markup (%%)" : "Fill markup (%%)",
 	"Fixed amount off" : "Fixed amount off",
 	"For" : "For",
 	"Format: %1$s followed by a signed payload. One key per organisation." : "Format: %1$s followed by a signed payload. One key per organisation.",
@@ -1219,7 +1219,7 @@ OC.L10N.register(
 	"Your ticket" : "Your ticket",
 	"ZIP" : "ZIP",
 	"— none —" : "— none —",
-	"…applied per % filled" : "…applied per %% filled",
+	"…applied per %% filled" : "…applied per %% filled",
 	"← Back to your bookings" : "← Back to your bookings"
 	}
 );

@@ -4,6 +4,8 @@
 		"%1$d check-ins · %2$s this week": "%1$d 次簽到 · 本週 %2$s",
 		"%1$d of %2$d device slots in use.": "已使用 %2$d 個裝置名額中的 %1$d 個。",
 		"%1$d of %2$d seats assigned": "已指派 %2$d 個席位中的 %1$d 個",
+		"%n rows": "%n 列",
+		"%n settings": "%n 項設定",
 		"%s is AGPL software on your Nextcloud. Bug reports and ideas on GitHub stay welcome. When you need priority email, hour packs, workshops, or a commissioned feature, we invoice only after you accept a quote.": "%s 是執行在您 Nextcloud 上的 AGPL 軟體。歡迎在 GitHub 提交缺陷和建議。當您需要優先郵件支援、工時包、工作坊或委託開發功能時，我們僅在您接受報價後開票。",
 		"%s left": "剩餘 %s",
 		"%s slots created.": "已建立 %s 個時段。",
@@ -15,41 +17,41 @@
 		"(unknown — skipped)": "（未知——已跳過）",
 		"0 means no reminder. Buyers get one email that many days before the booked date.": "0 表示不提醒。買家會在預訂日前這麼多天收到一封郵件。",
 		"0.00 makes it a free booking.": "0.00 表示免費預訂。",
+		"1 row": "1 列",
+		"1 setting": "1 項設定",
 		"1–52 weeks.": "1–52 周。",
 		"3–32 chars, A–Z 0–9.": "3–32 個字元，限 A–Z 0–9。",
 		"_%n order_::_%n orders_": [
 			"%n 個訂單"
 		],
 		"_(1 env-bound value emptied)_::_(%n env-bound values emptied)_": [
-			"（已清空 1 個實例綁定值）",
 			"（已清空 %n 個實例綁定值）"
 		],
 		"_(1 filtered)_::_(%n filtered)_": [
-			"（已篩選 1 項）",
 			"（已篩選 %n 項）"
 		],
 		"_(1 secret redacted)_::_(%n secrets redacted)_": [
-			"（已遮蔽 1 個密鑰）",
 			"（已遮蔽 %n 個密鑰）"
 		],
 		"_(1 unresolved ref)_::_(%n unresolved refs)_": [
-			"（1 個參照未解析）",
 			"（%n 個參照未解析）"
 		],
 		"_1 reference unresolved — see the groups below._::_%n references unresolved — see the groups below._": [
-			"1 個參照未能解析——請查看下方群組。",
 			"%n 個參照未能解析——請查看下方群組。"
 		],
 		"_1 row needs a value on this instance_::_%n rows need a value on this instance_": [
-			"1 列需要在此實例上填寫值",
 			"%n 列需要在此實例上填寫值"
 		],
 		"_1 row skipped._::_%n rows skipped._": [
-			"已略過 1 列。",
 			"已略過 %n 列。"
 		],
+		"_1 row_::_%n rows_": [
+			"%n 列"
+		],
+		"_1 setting_::_%n settings_": [
+			"%n 項設定"
+		],
 		"_Warning: 1 row will be permanently deleted, then the file data is loaded._::_Warning: %n rows will be permanently deleted, then the file data is loaded._": [
-			"警告：1 列將被永久刪除，然後載入檔案資料。",
 			"警告：%n 列將被永久刪除，然後載入檔案資料。"
 		],
 		"A date and time are required.": "日期和時間為必填。",
@@ -338,7 +340,7 @@
 		"Delete": "刪除",
 		"Delete file": "刪除檔案",
 		"Deposit": "訂金",
-		"Deposit (%)": "訂金（%%）",
+		"Deposit (%%)": "訂金（%%）",
 		"Deposit must be 0–9999 bp.": "訂金須為 0–9999 基點。",
 		"Description": "描述",
 		"Detail": "詳細資料",
@@ -442,7 +444,7 @@
 		"Files are shared with": "檔案共享給",
 		"Files buyers can download from the portal.": "買家可從門戶下載的檔案。",
 		"Files buyers shared via their manage link.": "買家透過管理連結共享的檔案。",
-		"Fill markup (%)": "滿座加價（%%）",
+		"Fill markup (%%)": "滿座加價（%%）",
 		"Fixed amount off": "固定金額折扣",
 		"For": "給",
 		"Format: %1$s followed by a signed payload. One key per organisation.": "格式：%1$s 後接簽章酬載。每個組織一個金鑰。",
@@ -490,6 +492,7 @@
 		"Illegal status change.": "非法狀態變更。",
 		"Illegal transition to failed": "非法變更為失敗",
 		"Illegal transition to paid": "非法變更為已付",
+		"Import applied. %1$s and %2$s written.": "匯入已套用。已寫入 %1$s 與 %2$s。",
 		"Import applied. %d settings and %d rows written.": "匯入已套用。已寫入 %d 項設定與 %d 列。",
 		"Import configuration": "匯入配置",
 		"Import failed — nothing was changed.": "匯入失敗——未做任何更改。",
@@ -1078,6 +1081,7 @@
 		"This ticket was issued before QR rendering existed — please contact the seller.": "此門票簽發於 QR 功能之前——請聯絡賣家。",
 		"This token is shown only once. Paste it into the companion app on the device.": "此權杖僅顯示一次。請將其貼上到裝置上的配套應用程式中。",
 		"This VAT ID could not be verified.": "此 VAT ID 無法驗證。",
+		"This will update %1$s and %2$s — nothing is deleted.": "這將更新 %1$s 與 %2$s——不會刪除任何內容。",
 		"This will update %d settings and %d rows — nothing is deleted.": "這將更新 %d 項設定與 %d 列資料——不會刪除任何內容。",
 		"Ticket": "門票",
 		"Ticket code": "門票碼",
@@ -1237,19 +1241,7 @@
 		"Your ticket": "您的門票",
 		"ZIP": "ZIP",
 		"— none —": "—— 無 ——",
-		"…applied per % filled": "…按已售百分比應用",
-		"← Back to your bookings": "← 返回您的預訂",
-		"1 setting": "1 項設定",
-		"%n settings": "%n 項設定",
-		"1 row": "1 列",
-		"%n rows": "%n 列",
-		"_1 row_::_%n rows_": [
-			"%n 列"
-		],
-		"_1 setting_::_%n settings_": [
-			"%n 項設定"
-		],
-		"This will update %1$s and %2$s — nothing is deleted.": "這將更新 %1$s 與 %2$s——不會刪除任何內容。",
-		"Import applied. %1$s and %2$s written.": "匯入已套用。已寫入 %1$s 與 %2$s。"
+		"…applied per %% filled": "…按已售百分比應用",
+		"← Back to your bookings": "← 返回您的預訂"
 	}
 }

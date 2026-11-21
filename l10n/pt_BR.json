@@ -3,6 +3,8 @@
     "%1$d check-ins · %2$s this week": "%1$d check-ins · %2$s nesta semana",
     "%1$d of %2$d device slots in use.": "%1$d de %2$d espaços para dispositivos em uso.",
     "%1$d of %2$d seats assigned": "%1$d de %2$d vagas atribuídas",
+    "%n rows": "%n linhas",
+    "%n settings": "%n configurações",
     "%s is AGPL software on your Nextcloud. Bug reports and ideas on GitHub stay welcome. When you need priority email, hour packs, workshops, or a commissioned feature, we invoice only after you accept a quote.": "%s é software AGPL no seu Nextcloud. Relatórios de bugs e ideias no GitHub são sempre bem-vindos. Se precisar de e-mail prioritário, pacotes de horas, workshops ou um recurso sob encomenda, só faturamos depois que você aceita o orçamento.",
     "%s left": "%s restantes",
     "%s slots created.": "%s horários criados.",
@@ -14,6 +16,8 @@
     "(unknown — skipped)": "(desconhecido — ignorado)",
     "0 means no reminder. Buyers get one email that many days before the booked date.": "0 significa sem lembrete. Os compradores recebem um e-mail tantos dias antes da data reservada.",
     "0.00 makes it a free booking.": "0,00 torna a reserva gratuita.",
+    "1 row": "1 linha",
+    "1 setting": "1 configuração",
     "1–52 weeks.": "1–52 semanas.",
     "3–32 chars, A–Z 0–9.": "3–32 caracteres, A–Z 0–9.",
     "_%n order_::_%n orders_": [
@@ -47,6 +51,14 @@
     "_1 row skipped._::_%n rows skipped._": [
       "1 linha ignorada.",
       "%n linhas ignoradas."
+    ],
+    "_1 row_::_%n rows_": [
+      "1 linha",
+      "%n linhas"
+    ],
+    "_1 setting_::_%n settings_": [
+      "1 configuração",
+      "%n configurações"
     ],
     "_Warning: 1 row will be permanently deleted, then the file data is loaded._::_Warning: %n rows will be permanently deleted, then the file data is loaded._": [
       "Aviso: 1 linha será excluída permanentemente e, em seguida, os dados do arquivo serão carregados.",
@@ -238,7 +250,7 @@
     "Check-in": "Check-in",
     "Check-in code": "Código de check-in",
     "Check-ins today: %d": "Check-ins hoje: %d",
-    "Checked in": "Check-in",
+    "Checked in": "Com check-in",
     "checked in": "check-in feito",
     "Checking your payment…": "Verificando seu pagamento…",
     "Choice list": "Lista de opções",
@@ -338,7 +350,7 @@
     "Delete": "Excluir",
     "Delete file": "Excluir arquivo",
     "Deposit": "Sinal",
-    "Deposit (%)": "Sinal (%%)",
+    "Deposit (%%)": "Sinal (%%)",
     "Deposit must be 0–9999 bp.": "O depósito deve ser 0–9999 pontos-base.",
     "Description": "Descrição",
     "Detail": "Detalhe",
@@ -442,7 +454,7 @@
     "Files are shared with": "Os arquivos são compartilhados com",
     "Files buyers can download from the portal.": "Arquivos que os compradores podem baixar do portal.",
     "Files buyers shared via their manage link.": "Arquivos que os compradores compartilharam pelo link de gerenciamento.",
-    "Fill markup (%)": "Acréscimo de ocupação (%%)",
+    "Fill markup (%%)": "Acréscimo de ocupação (%%)",
     "Fixed amount off": "Valor fixo de desconto",
     "For": "Para",
     "Format: %1$s followed by a signed payload. One key per organisation.": "Formato: %1$s seguido de um payload assinado. Uma chave por organização.",
@@ -490,6 +502,7 @@
     "Illegal status change.": "Mudança de status não permitida.",
     "Illegal transition to failed": "Transição não permitida para \"falhou\"",
     "Illegal transition to paid": "Transição não permitida para \"pago\"",
+    "Import applied. %1$s and %2$s written.": "Importação aplicada. %1$s e %2$s gravadas.",
     "Import applied. %d settings and %d rows written.": "Importação aplicada. %d configurações e %d linhas gravadas.",
     "Import configuration": "Importar configuração",
     "Import failed — nothing was changed.": "A importação falhou — nada foi alterado.",
@@ -1078,6 +1091,7 @@
     "This ticket was issued before QR rendering existed — please contact the seller.": "Este ingresso foi emitido antes de existir renderização QR — entre em contato com o vendedor.",
     "This token is shown only once. Paste it into the companion app on the device.": "Este token é exibido apenas uma vez. Cole-o no aplicativo complementar no dispositivo.",
     "This VAT ID could not be verified.": "Este ID de IVA não pôde ser verificado.",
+    "This will update %1$s and %2$s — nothing is deleted.": "Isso atualizará %1$s e %2$s — nada será excluído.",
     "This will update %d settings and %d rows — nothing is deleted.": "Isto irá atualizar %d configurações e %d linhas — nada é excluído.",
     "Ticket": "Ingresso",
     "Ticket code": "Código do ingresso",
@@ -1237,22 +1251,8 @@
     "Your ticket": "Seu ingresso",
     "ZIP": "CEP",
     "— none —": "— nenhum —",
-    "…applied per % filled": "…aplicado por %% preenchido",
-    "← Back to your bookings": "← Voltar às suas reservas",
-    "1 setting": "1 configuração",
-    "%n settings": "%n configurações",
-    "1 row": "1 linha",
-    "%n rows": "%n linhas",
-    "_1 row_::_%n rows_": [
-      "1 linha",
-      "%n linhas"
-    ],
-    "_1 setting_::_%n settings_": [
-      "1 configuração",
-      "%n configurações"
-    ],
-    "This will update %1$s and %2$s — nothing is deleted.": "Isso atualizará %1$s e %2$s — nada será excluído.",
-    "Import applied. %1$s and %2$s written.": "Importação aplicada. %1$s e %2$s gravadas."
+    "…applied per %% filled": "…aplicado por %% preenchido",
+    "← Back to your bookings": "← Voltar às suas reservas"
   },
   "pluralForm": "nplurals=2; plural=(n > 1);"
 }

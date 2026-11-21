@@ -159,20 +159,20 @@ $action = $isNew
 			</label>
 			<div class="bck-field bck-field--row">
 				<div>
-					<label for="bck-deposit" class="bck-label"><?php p($l->t('Deposit (%)')); ?></label>
+					<label for="bck-deposit" class="bck-label"><?php p($l->t('Deposit (%%)')); ?></label>
 					<input id="bck-deposit" name="deposit_pct" type="number" min="0" max="99" step="1" inputmode="numeric"
 						value="<?php p((int)intdiv((int)($o['depositBp'] ?? 0), 100)); ?>">
 					<p class="bck-field__hint"><?php p($l->t('Percent charged now; the rest is due later. 0 = full amount.')); ?></p>
 				</div>
 				<div>
-					<label for="bck-dynbp" class="bck-label"><?php p($l->t('Fill markup (%)')); ?></label>
+					<label for="bck-dynbp" class="bck-label"><?php p($l->t('Fill markup (%%)')); ?></label>
 					<input id="bck-dynbp" name="dyn_pct" type="number" min="0" max="100" step="1" inputmode="numeric"
 						value="<?php p((int)intdiv((int)($o['dynBp'] ?? 0), 100)); ?>">
 					<p class="bck-field__hint"><?php p($l->t('Price rises as seats fill (dynamic pricing). 0 = off.')); ?></p>
 				</div>
 			</div>
 			<div class="bck-field" id="bck-dynstep-field">
-				<label for="bck-dynstep" class="bck-label"><?php p($l->t('…applied per % filled')); ?></label>
+				<label for="bck-dynstep" class="bck-label"><?php p($l->t('…applied per %% filled')); ?></label>
 				<input id="bck-dynstep" name="dyn_step_pct" type="number" min="1" max="100" step="1" inputmode="numeric"
 					value="<?php p((int)($o['dynStepPct'] ?? 25) === 0 ? 25 : (int)($o['dynStepPct'] ?? 25)); ?>">
 				<p class="bck-field__hint"><?php p($l->t('Example: 25 means the markup grows in four steps.')); ?></p>

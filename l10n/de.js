@@ -318,7 +318,7 @@ OC.L10N.register(
 	"Delete" : "Löschen",
 	"Delete file" : "Datei löschen",
 	"Deposit" : "Anzahlung",
-	"Deposit (%)" : "Anzahlung (%%)",
+	"Deposit (%%)" : "Anzahlung (%%)",
 	"Deposit must be 0–9999 bp." : "Kaution muss 0–9999 Basispunkte sein.",
 	"Description" : "Beschreibung",
 	"Detail" : "Details",
@@ -422,7 +422,7 @@ OC.L10N.register(
 	"Files are shared with" : "Dateien werden geteilt mit",
 	"Files buyers can download from the portal." : "Dateien, die Käufer im Portal herunterladen können.",
 	"Files buyers shared via their manage link." : "Dateien, die Käufer über ihren Verwaltungslink geteilt haben.",
-	"Fill markup (%)" : "Auslastungs-Aufschlag (%%)",
+	"Fill markup (%%)" : "Auslastungs-Aufschlag (%%)",
 	"Fixed amount off" : "Fester Betrag Rabatt",
 	"For" : "Für",
 	"Format: %1$s followed by a signed payload. One key per organisation." : "Format: %1$s gefolgt von einer signierten Payload. Ein Schlüssel pro Organisation.",
@@ -1219,7 +1219,7 @@ OC.L10N.register(
 	"Your ticket" : "Ihr Ticket",
 	"ZIP" : "PLZ",
 	"— none —" : "— keine —",
-	"…applied per % filled" : "…pro Prozent Füllung angewendet",
+	"…applied per %% filled" : "…pro Prozent Füllung angewendet",
 	"← Back to your bookings" : "← Zurück zu Ihren Buchungen"
 	}
 );

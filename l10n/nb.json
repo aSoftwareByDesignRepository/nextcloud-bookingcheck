@@ -3,6 +3,8 @@
 		"%1$d check-ins · %2$s this week": "%1$d innsjekkinger · %2$s denne uken",
 		"%1$d of %2$d device slots in use.": "%1$d av %2$d enhetsplasser i bruk.",
 		"%1$d of %2$d seats assigned": "%1$d av %2$d plasser tildelt",
+		"%n rows": "%n rader",
+		"%n settings": "%n innstillinger",
 		"%s is AGPL software on your Nextcloud. Bug reports and ideas on GitHub stay welcome. When you need priority email, hour packs, workshops, or a commissioned feature, we invoice only after you accept a quote.": "%s er AGPL-programvare på din Nextcloud. Feilrapporter og idéer på GitHub er fortsatt velkomne. Trenger du prioritert e-post, timepakker, workshops eller en funksjon på bestilling, fakturerer vi først når du har godtatt tilbudet.",
 		"%s left": "%s igjen",
 		"%s slots created.": "%s tidspunkt opprettet.",
@@ -14,6 +16,8 @@
 		"(unknown — skipped)": "(ukjent — hoppet over)",
 		"0 means no reminder. Buyers get one email that many days before the booked date.": "0 betyr ingen påminnelse. Kjøpere får én e-post så mange dager før den bookede datoen.",
 		"0.00 makes it a free booking.": "0,00 gjør det til en gratis booking.",
+		"1 row": "1 rad",
+		"1 setting": "1 innstilling",
 		"1–52 weeks.": "1–52 uker.",
 		"3–32 chars, A–Z 0–9.": "3–32 tegn, A–Z 0–9.",
 		"_%n order_::_%n orders_": [
@@ -47,6 +51,14 @@
 		"_1 row skipped._::_%n rows skipped._": [
 			"1 rad hoppet over.",
 			"%n rader hoppet over."
+		],
+		"_1 row_::_%n rows_": [
+			"1 rad",
+			"%n rader"
+		],
+		"_1 setting_::_%n settings_": [
+			"1 innstilling",
+			"%n innstillinger"
 		],
 		"_Warning: 1 row will be permanently deleted, then the file data is loaded._::_Warning: %n rows will be permanently deleted, then the file data is loaded._": [
 			"Advarsel: 1 rad slettes permanent, deretter lastes fildataene inn.",
@@ -338,7 +350,7 @@
 		"Delete": "Slett",
 		"Delete file": "Slett fil",
 		"Deposit": "Depositum",
-		"Deposit (%)": "Depositum (%%)",
+		"Deposit (%%)": "Depositum (%%)",
 		"Deposit must be 0–9999 bp.": "Depositum må være 0–9999 basispoeng.",
 		"Description": "Beskrivelse",
 		"Detail": "Detalj",
@@ -442,7 +454,7 @@
 		"Files are shared with": "Filer deles med",
 		"Files buyers can download from the portal.": "Filer kjøpere kan laste ned fra portalen.",
 		"Files buyers shared via their manage link.": "Filer kjøpere delte via administrasjonslenken sin.",
-		"Fill markup (%)": "Fyllingspåslag (%%)",
+		"Fill markup (%%)": "Fyllingspåslag (%%)",
 		"Fixed amount off": "Fast beløp i rabatt",
 		"For": "For",
 		"Format: %1$s followed by a signed payload. One key per organisation.": "Format: %1$s etterfulgt av en signert nyttelast. Én nøkkel per organisasjon.",
@@ -490,6 +502,7 @@
 		"Illegal status change.": "Ugyldig statusendring.",
 		"Illegal transition to failed": "Ugyldig overgang til «mislykket»",
 		"Illegal transition to paid": "Ugyldig overgang til «betalt»",
+		"Import applied. %1$s and %2$s written.": "Importert. %1$s og %2$s skrevet.",
 		"Import applied. %d settings and %d rows written.": "Import brukt. %d innstillinger og %d rader skrevet.",
 		"Import configuration": "Importer konfigurasjon",
 		"Import failed — nothing was changed.": "Import mislyktes — ingenting ble endret.",
@@ -1078,6 +1091,7 @@
 		"This ticket was issued before QR rendering existed — please contact the seller.": "Denne billetten ble utstedt før QR-rendering fantes — kontakt selgeren.",
 		"This token is shown only once. Paste it into the companion app on the device.": "Denne tokenen vises kun én gang. Lim den inn i følge-appen på enheten.",
 		"This VAT ID could not be verified.": "Dette MVA-nummeret kunne ikke verifiseres.",
+		"This will update %1$s and %2$s — nothing is deleted.": "Dette oppdaterer %1$s og %2$s — ingenting slettes.",
 		"This will update %d settings and %d rows — nothing is deleted.": "Dette oppdaterer %d innstillinger og %d rader — ingenting slettes.",
 		"Ticket": "Billett",
 		"Ticket code": "Billettkode",
@@ -1237,22 +1251,8 @@
 		"Your ticket": "Billetten din",
 		"ZIP": "Postnr.",
 		"— none —": "— ingen —",
-		"…applied per % filled": "…brukes per %% fylt",
-		"← Back to your bookings": "← Tilbake til bookingene dine",
-		"1 setting": "1 innstilling",
-		"%n settings": "%n innstillinger",
-		"1 row": "1 rad",
-		"%n rows": "%n rader",
-		"_1 row_::_%n rows_": [
-			"1 rad",
-			"%n rader"
-		],
-		"_1 setting_::_%n settings_": [
-			"1 innstilling",
-			"%n innstillinger"
-		],
-		"This will update %1$s and %2$s — nothing is deleted.": "Dette oppdaterer %1$s og %2$s — ingenting slettes.",
-		"Import applied. %1$s and %2$s written.": "Importert. %1$s og %2$s skrevet."
+		"…applied per %% filled": "…brukes per %% fylt",
+		"← Back to your bookings": "← Tilbake til bookingene dine"
 	},
 	"pluralForm": "nplurals=2; plural=(n != 1);"
 }

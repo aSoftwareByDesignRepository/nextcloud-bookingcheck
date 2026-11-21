@@ -3,6 +3,8 @@
     "%1$d check-ins · %2$s this week": "%1$d check-in · bu hafta %2$s",
     "%1$d of %2$d device slots in use.": "%2$d cihaz yuvasından %1$d tanesi kullanımda.",
     "%1$d of %2$d seats assigned": "%2$d lisans hakkından %1$d'i atandı",
+    "%n rows": "%n satır",
+    "%n settings": "%n ayar",
     "%s is AGPL software on your Nextcloud. Bug reports and ideas on GitHub stay welcome. When you need priority email, hour packs, workshops, or a commissioned feature, we invoice only after you accept a quote.": "%s, Nextcloud'unuzda AGPL lisanslı bir yazılımdır. GitHub'da hata bildirimleri ve fikirler her zaman memnuniyetle karşılanır. Öncelikli e-posta, saat paketleri, atölyeler veya özel geliştirilen bir özellik gerektiğinde, yalnızca bir teklifi kabul ettikten sonra fatura keseriz.",
     "%s left": "%s kaldı",
     "%s slots created.": "%s aralık oluşturuldu.",
@@ -14,42 +16,41 @@
     "(unknown — skipped)": "(bilinmiyor — atlandı)",
     "0 means no reminder. Buyers get one email that many days before the booked date.": "0, hatırlatma yok demektir. Alıcılar, rezervasyon tarihinden o kadar gün önce bir e-posta alır.",
     "0.00 makes it a free booking.": "0,00 yazarsanız rezervasyon ücretsiz olur.",
+    "1 row": "1 satır",
+    "1 setting": "1 ayar",
     "1–52 weeks.": "1–52 hafta.",
     "3–32 chars, A–Z 0–9.": "3–32 karakter, A–Z 0–9.",
     "_%n order_::_%n orders_": [
-      "%n sipariş",
       "%n sipariş"
     ],
     "_(1 env-bound value emptied)_::_(%n env-bound values emptied)_": [
-      "(1 örneğe bağlı değer boşaltıldı)",
       "(%n örneğe bağlı değer boşaltıldı)"
     ],
     "_(1 filtered)_::_(%n filtered)_": [
-      "(1 filtrelendi)",
       "(%n filtrelendi)"
     ],
     "_(1 secret redacted)_::_(%n secrets redacted)_": [
-      "(1 sır gizlendi)",
       "(%n sır gizlendi)"
     ],
     "_(1 unresolved ref)_::_(%n unresolved refs)_": [
-      "(1 çözümlenemeyen başvuru)",
       "(%n çözümlenemeyen başvuru)"
     ],
     "_1 reference unresolved — see the groups below._::_%n references unresolved — see the groups below._": [
-      "1 başvuru çözümlenemedi — aşağıdaki gruplara bakın.",
       "%n başvuru çözümlenemedi — aşağıdaki gruplara bakın."
     ],
     "_1 row needs a value on this instance_::_%n rows need a value on this instance_": [
-      "1 satırın bu örnekte bir değere ihtiyacı var",
       "%n satırın bu örnekte bir değere ihtiyacı var"
     ],
     "_1 row skipped._::_%n rows skipped._": [
-      "1 satır atlandı.",
       "%n satır atlandı."
     ],
+    "_1 row_::_%n rows_": [
+      "%n satır"
+    ],
+    "_1 setting_::_%n settings_": [
+      "%n ayar"
+    ],
     "_Warning: 1 row will be permanently deleted, then the file data is loaded._::_Warning: %n rows will be permanently deleted, then the file data is loaded._": [
-      "Uyarı: 1 satır kalıcı olarak silinecek, ardından dosya verileri yüklenecek.",
       "Uyarı: %n satır kalıcı olarak silinecek, ardından dosya verileri yüklenecek."
     ],
     "A date and time are required.": "Tarih ve saat zorunludur.",
@@ -338,7 +339,7 @@
     "Delete": "Sil",
     "Delete file": "Dosyayı sil",
     "Deposit": "Ön ödeme",
-    "Deposit (%)": "Ön ödeme (%%)",
+    "Deposit (%%)": "Ön ödeme (%%)",
     "Deposit must be 0–9999 bp.": "Ön ödeme 0–9999 bp olmalıdır.",
     "Description": "Açıklama",
     "Detail": "Ayrıntı",
@@ -442,7 +443,7 @@
     "Files are shared with": "Dosyalar şunlarla paylaşılır",
     "Files buyers can download from the portal.": "Alıcıların portaldan indirebileceği dosyalar.",
     "Files buyers shared via their manage link.": "Alıcıların yönetim bağlantıları üzerinden paylaştığı dosyalar.",
-    "Fill markup (%)": "Doluluk artışı (%%)",
+    "Fill markup (%%)": "Doluluk artışı (%%)",
     "Fixed amount off": "Sabit tutar indirimi",
     "For": "Katılımcı",
     "Format: %1$s followed by a signed payload. One key per organisation.": "Biçim: %1$s ve ardından imzalı bir yük. Kuruluş başına bir anahtar.",
@@ -490,6 +491,7 @@
     "Illegal status change.": "Geçersiz durum değişikliği.",
     "Illegal transition to failed": "başarısız durumuna geçersiz geçiş",
     "Illegal transition to paid": "paid durumuna geçersiz geçiş",
+    "Import applied. %1$s and %2$s written.": "İçe aktarma uygulandı. %1$s ve %2$s yazıldı.",
     "Import applied. %d settings and %d rows written.": "İçe aktarma uygulandı. %d ayar ve %d satır yazıldı.",
     "Import configuration": "Yapılandırmayı içe aktar",
     "Import failed — nothing was changed.": "İçe aktarma başarısız — hiçbir şey değiştirilmedi.",
@@ -983,7 +985,7 @@
     "Show company / VAT fields": "Şirket / KDV alanlarını göster",
     "Show in the public directory feed": "Herkese açık dizin akışında göster",
     "Showing the newest 500 — narrow the filter to find older orders.": "En yeni 500 gösteriliyor — daha eski siparişler için filtreyi daraltın.",
-    "Shown as": "Görünen ad",
+    "Shown as": "Böyle görünür",
     "Shown as a required checkbox at checkout. The exact wording is stored on every order.": "Ödeme sırasında zorunlu onay kutusu olarak gösterilir. Tam ifade her siparişte saklanır.",
     "Sign in": "Oturum aç",
     "Sign out": "Oturumu kapat",
@@ -1078,6 +1080,7 @@
     "This ticket was issued before QR rendering existed — please contact the seller.": "Bu bilet, QR oluşturma özelliğinden önce düzenlendi — lütfen satıcıyla iletişime geçin.",
     "This token is shown only once. Paste it into the companion app on the device.": "Bu token yalnızca bir kez gösterilir. Cihazdaki eşlik uygulamasına yapıştır.",
     "This VAT ID could not be verified.": "Bu KDV numarası doğrulanamadı.",
+    "This will update %1$s and %2$s — nothing is deleted.": "Bu işlem %1$s ve %2$s güncelleyecek — hiçbir şey silinmeyecek.",
     "This will update %d settings and %d rows — nothing is deleted.": "Bu, %d ayarı ve %d satırı günceller — hiçbir şey silinmez.",
     "Ticket": "Bilet",
     "Ticket code": "Bilet kodu",
@@ -1237,20 +1240,8 @@
     "Your ticket": "Biletiniz",
     "ZIP": "Posta kodu",
     "— none —": "— yok —",
-    "…applied per % filled": "…%% doluluk başına uygulanır",
-    "← Back to your bookings": "← Rezervasyonlarınıza dön",
-    "1 setting": "1 ayar",
-    "%n settings": "%n ayar",
-    "1 row": "1 satır",
-    "%n rows": "%n satır",
-    "_1 row_::_%n rows_": [
-      "%n satır"
-    ],
-    "_1 setting_::_%n settings_": [
-      "%n ayar"
-    ],
-    "This will update %1$s and %2$s — nothing is deleted.": "Bu işlem %1$s ve %2$s güncelleyecek — hiçbir şey silinmeyecek.",
-    "Import applied. %1$s and %2$s written.": "İçe aktarma uygulandı. %1$s ve %2$s yazıldı."
+    "…applied per %% filled": "…%% doluluk başına uygulanır",
+    "← Back to your bookings": "← Rezervasyonlarınıza dön"
   },
-  "pluralForm": "nplurals=2; plural=(n != 1);"
+  "pluralForm": "nplurals=1; plural=0;"
 }

@@ -3,6 +3,8 @@
     "%1$d check-ins · %2$s this week": "%1$d check-ins · %2$s cette semaine",
     "%1$d of %2$d device slots in use.": "%1$d emplacements d’appareil sur %2$d utilisés.",
     "%1$d of %2$d seats assigned": "%1$d sur %2$d places attribuées",
+    "%n rows": "%n lignes",
+    "%n settings": "%n paramètres",
     "%s is AGPL software on your Nextcloud. Bug reports and ideas on GitHub stay welcome. When you need priority email, hour packs, workshops, or a commissioned feature, we invoice only after you accept a quote.": "%s est un logiciel AGPL sur votre Nextcloud. Les rapports de bugs et les idées restent bienvenus sur GitHub. Pour les e-mails prioritaires, les packs d'heures, les ateliers ou une fonctionnalité sur commande, nous facturons uniquement après acceptation de votre devis.",
     "%s left": "Il en reste %s",
     "%s slots created.": "%s créneaux créés.",
@@ -14,6 +16,8 @@
     "(unknown — skipped)": "(inconnu — ignoré)",
     "0 means no reminder. Buyers get one email that many days before the booked date.": "0 signifie aucun rappel. Les acheteurs reçoivent un e-mail autant de jours avant la date réservée.",
     "0.00 makes it a free booking.": "0,00 en fait une réservation gratuite.",
+    "1 row": "1 ligne",
+    "1 setting": "1 paramètre",
     "1–52 weeks.": "1 à 52 semaines.",
     "3–32 chars, A–Z 0–9.": "3–32 caractères, A–Z 0–9.",
     "_%n order_::_%n orders_": [
@@ -47,6 +51,14 @@
     "_1 row skipped._::_%n rows skipped._": [
       "1 ligne ignorée.",
       "%n lignes ignorées."
+    ],
+    "_1 row_::_%n rows_": [
+      "1 ligne",
+      "%n lignes"
+    ],
+    "_1 setting_::_%n settings_": [
+      "1 paramètre",
+      "%n paramètres"
     ],
     "_Warning: 1 row will be permanently deleted, then the file data is loaded._::_Warning: %n rows will be permanently deleted, then the file data is loaded._": [
       "Avertissement : 1 ligne sera définitivement supprimée, puis les données du fichier seront chargées.",
@@ -338,7 +350,7 @@
     "Delete": "Supprimer",
     "Delete file": "Supprimer le fichier",
     "Deposit": "Acompte",
-    "Deposit (%)": "Acompte (%%)",
+    "Deposit (%%)": "Acompte (%%)",
     "Deposit must be 0–9999 bp.": "L'acompte doit être de 0 à 9999 points de base.",
     "Description": "Descriptif",
     "Detail": "Détail",
@@ -442,7 +454,7 @@
     "Files are shared with": "Les fichiers sont partagés avec",
     "Files buyers can download from the portal.": "Fichiers que les acheteurs peuvent télécharger depuis le portail.",
     "Files buyers shared via their manage link.": "Fichiers partagés par les acheteurs via leur lien de gestion.",
-    "Fill markup (%)": "Supplément de remplissage (%%)",
+    "Fill markup (%%)": "Supplément de remplissage (%%)",
     "Fixed amount off": "Montant fixe de remise",
     "For": "Pour",
     "Format: %1$s followed by a signed payload. One key per organisation.": "Format : %1$s suivi d'une charge utile signée. Une clé de licence par organisation.",
@@ -490,6 +502,7 @@
     "Illegal status change.": "Changement de statut non autorisé.",
     "Illegal transition to failed": "Transition non autorisée vers « échoué »",
     "Illegal transition to paid": "Transition non autorisée vers « payé »",
+    "Import applied. %1$s and %2$s written.": "Import appliqué. %1$s et %2$s écrits.",
     "Import applied. %d settings and %d rows written.": "Import appliqué. %d réglages et %d lignes écrites.",
     "Import configuration": "Importer la configuration",
     "Import failed — nothing was changed.": "Échec de l’import — rien n’a été modifié.",
@@ -1078,6 +1091,7 @@
     "This ticket was issued before QR rendering existed — please contact the seller.": "Ce billet a été émis avant l'existence du rendu QR — contactez le vendeur.",
     "This token is shown only once. Paste it into the companion app on the device.": "Ce jeton n’est affiché qu’une seule fois. Collez-le dans l’application compagnon sur l’appareil.",
     "This VAT ID could not be verified.": "Ce numéro de TVA n'a pas pu être vérifié.",
+    "This will update %1$s and %2$s — nothing is deleted.": "Cette opération mettra à jour %1$s et %2$s — rien ne sera supprimé.",
     "This will update %d settings and %d rows — nothing is deleted.": "Cela mettra à jour %d réglages et %d lignes — rien n’est supprimé.",
     "Ticket": "Billet",
     "Ticket code": "Code du billet",
@@ -1237,22 +1251,8 @@
     "Your ticket": "Votre billet",
     "ZIP": "Code postal",
     "— none —": "— aucun —",
-    "…applied per % filled": "…appliqué par %% rempli",
-    "← Back to your bookings": "← Retour à vos réservations",
-    "1 setting": "1 paramètre",
-    "%n settings": "%n paramètres",
-    "1 row": "1 ligne",
-    "%n rows": "%n lignes",
-    "_1 row_::_%n rows_": [
-      "1 ligne",
-      "%n lignes"
-    ],
-    "_1 setting_::_%n settings_": [
-      "1 paramètre",
-      "%n paramètres"
-    ],
-    "This will update %1$s and %2$s — nothing is deleted.": "Cette opération mettra à jour %1$s et %2$s — rien ne sera supprimé.",
-    "Import applied. %1$s and %2$s written.": "Import appliqué. %1$s et %2$s écrits."
+    "…applied per %% filled": "…appliqué par %% rempli",
+    "← Back to your bookings": "← Retour à vos réservations"
   },
   "pluralForm": "nplurals=2; plural=(n > 1);"
 }
