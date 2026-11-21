@@ -360,7 +360,7 @@ OC.L10N.register(
 	"E-invoice (XML)" : "電子發票（XML）",
 	"e.g. 3, 7 — empty means all offerings" : "例如 3, 7——留空表示全部專案",
 	"e.g. Adult, Child, Member — buyers pick one per seat." : "例如 成人、兒童、會員——買家為每個席位選一種。",
-	"e.g. Anna M." : "例如 李女士",
+	"e.g. Anna M." : "例如 李女士。",
 	"e.g. Front door tablet" : "例如 門口平板",
 	"E.g. “Room A” or “Trainer: Kim”." : "例如“A 會議室”或“培訓師：王教練”。",
 	"Each line must look like \"MO 10:00\"." : "每行須形如 \"MO 10:00\"。",
