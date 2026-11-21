@@ -26,14 +26,27 @@
 	function t(text, vars) {
 		var out = (window.OC && OC.L10N && OC.L10N.translate)
 			? OC.L10N.translate('bookingcheck', text) : text;
+		// Catalogs carry the vsprintf '%%' literal escape for the PHP side;
+		// every JS render path must collapse it (transfer.js convention).
 		if (Array.isArray(vars)) {
-			// sprintf-style: each array item replaces the next %s in order.
+			// One ordered pass: '%%' -> '%', each %[N$][sd] consumes the
+			// next array item (or the positional index for %N$[sd]).
 			var i = 0;
-			out = out.replace(/%s/g, function () { return String(vars[i++]); });
-		} else if (vars) {
-			Object.keys(vars).forEach(function (k) {
-				out = out.split('{' + k + '}').join(String(vars[k]));
+			out = out.replace(/%%|%(?:\d+\$)?[sd]/g, function (m) {
+				if (m === '%%') return '%';
+				var idx = /^%(\d+)\$/.exec(m);
+				var v = idx ? vars[+idx[1] - 1] : vars[i++];
+				return (v === undefined || v === null) ? '' : String(v);
 			});
+		} else {
+			// Collapse before {name} substitution so a substituted value
+			// containing '%' is never mistaken for an escape.
+			out = out.replace(/%%/g, '%');
+			if (vars) {
+				Object.keys(vars).forEach(function (k) {
+					out = out.split('{' + k + '}').join(String(vars[k]));
+				});
+			}
 		}
 		return out;
 	}

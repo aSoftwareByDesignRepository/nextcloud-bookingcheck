@@ -37,6 +37,13 @@ function loadKernel(oc) {
 	const sandbox = {
 		window: { OC: oc },
 		OC: oc,
+		// Load-time DOM touch points in app.js (delegated print handler,
+		// claim-form + sandbox-settle wiring) need only no-op lookups.
+		document: {
+			addEventListener() {},
+			querySelector() { return null; },
+			querySelectorAll() { return { forEach() {} }; },
+		},
 	};
 	vm.createContext(sandbox);
 	vm.runInContext(SRC, sandbox, { filename: 'js/app.js' });
