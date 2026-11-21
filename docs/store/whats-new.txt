@@ -1,0 +1,6 @@
+BookingCheck 0.10.4
+
+- First store listing. Sell seats, courses, timeslots and tickets: atomic reservation, guest checkout, Mollie/Stripe payments, gapless invoicing with credit notes, QR tickets, waitlist, vouchers, embed widget and an email-OTP participant portal.
+- Licensed BCK2 companions (Manager & Scan) for check-in, roster and walk-up sales.
+- Localization heals across all 15 locales incl. new Russian catalog; webhook hardening; config-transfer pack for test-to-prod moves.
+- Nextcloud 32–35 (max-version 35), PHP 8.2–8.5, MySQL/PostgreSQL.
