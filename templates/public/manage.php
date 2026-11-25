@@ -85,7 +85,7 @@ $token = (string)($_['token'] ?? '');
 											</div>
 										<?php endforeach; ?>
 										<button class="bck-btn bck-btn--small bck-btn--primary" type="submit"><?php p($l->t('Save answers')); ?></button>
-										<p class="bck-field-hint" data-intake-saved role="status" hidden><?php p($l->t('Saved.')); ?></p>
+										<p class="bck-field__hint" data-intake-saved role="status" hidden><?php p($l->t('Saved.')); ?></p>
 									</form>
 								</details>
 							<?php endforeach; ?>

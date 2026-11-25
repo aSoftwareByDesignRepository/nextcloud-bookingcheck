@@ -8,7 +8,7 @@ $url = \OCP\Server::get(\OCP\IURLGenerator::class);
 <div class="bck-pub bck-ticket" role="main">
 	<div class="bck-section">
 		<div class="bck-card">
-			<div class="bck-card__head">
+			<div class="bck-card__header">
 				<h2 class="bck-card__title"><?php p($l->t('Your ticket')); ?></h2>
 				<?php if (!empty($ticket['revoked'])): ?>
 					<span class="bck-badge bck-badge--danger"><?php p($l->t('Cancelled')); ?></span>

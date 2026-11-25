@@ -33,7 +33,7 @@ $money = static fn (int $c, string $cur): string =>
 					</div>
 					<div class="bck-card__body">
 						<?php if (!empty($o['next_start'])): ?>
-							<p class="bck-card__meta"><?php p($l->t('Next:') . ' ' . (string)$o['next_start']); ?></p>
+							<p class="bck-muted bck-fs-sm"><?php p($l->t('Next:') . ' ' . (string)$o['next_start']); ?></p>
 						<?php endif; ?>
 						<?php if (!empty($o['descr'])): ?>
 							<p><?php p(mb_strimwidth((string)$o['descr'], 0, 140, '…')); ?></p>

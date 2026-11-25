@@ -64,6 +64,7 @@ class PageController extends Controller
 	#[NoCSRFRequired]
 	public function supportUs(): TemplateResponse
 	{
+		\OCP\Util::addStyle($this->appName, 'admin-support-us');
 		return new TemplateResponse($this->appName, 'support-us', []);
 	}
 

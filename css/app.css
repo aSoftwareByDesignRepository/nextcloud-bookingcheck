@@ -658,7 +658,6 @@
 	outline: var(--bck-focus);
 	outline-offset: var(--bck-focus-offset);
 }
-.bck-card__meta { color: var(--bck-muted); font-size: var(--bck-fs-sm); }
 .bck-card__footer {
 	padding: var(--bck-space-4);
 	border-top: 1px solid var(--bck-border);
@@ -774,6 +773,9 @@
 	font-size: var(--bck-fs-sm);
 	color: var(--bck-muted);
 }
+.bck-pub .bck-field__req {
+	color: var(--bck-danger-ink);
+}
 .bck-pub .bck-field-error {
 	margin: 0;
 	font-size: var(--bck-fs-sm);
@@ -858,8 +860,7 @@
 
 /* Card internals on guest pages (shared card chrome is admin-scoped) */
 .bck-pub .bck-card { padding: 0; overflow: hidden; }
-.bck-pub .bck-card__header,
-.bck-pub .bck-card__head {
+.bck-pub .bck-card__header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -1019,6 +1020,13 @@
 	padding: var(--bck-space-2) 0; border-bottom: 1px solid var(--bck-border, var(--color-border));
 }
 .bck-upload-item:last-child { border-bottom: 0; }
+.bck-upload-item__thumb {
+	width: 48px;
+	height: 48px;
+	flex: 0 0 auto;
+	object-fit: cover;
+	border-radius: var(--bck-radius-sm, 6px);
+}
 .bck-upload-item__name { font-weight: 600; }
 .bck-upload-item__meta { color: var(--bck-muted, var(--color-text-maxcontrast)); font-size: var(--bck-fs-sm); margin-inline-start: auto; }
 .bck-field--row { display: flex; flex-wrap: wrap; gap: var(--bck-space-3); }
@@ -1116,6 +1124,18 @@
 	display: flex;
 	min-height: 44px;
 	align-items: center;
+}
+
+/* Settings — inline save/status line next to the primary submit */
+#app-content.bck-app .bck-settings-status {
+	margin-inline-start: var(--bck-space-2);
+	font-size: var(--bck-fs-sm);
+	color: var(--bck-muted);
+}
+
+/* Admin order detail — open amount still to be received */
+#app-content.bck-app .bck-amount-due {
+	color: var(--bck-notif-fg-warning, var(--color-warning-text, var(--color-warning)));
 }
 
 /* Settings → Integrations — companion device tokens */

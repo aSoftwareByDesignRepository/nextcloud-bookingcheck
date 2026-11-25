@@ -1,0 +1,22 @@
+{
+	"bck-billing": "details variant marker; styled via .bck-details + .bck-details > summary/.bck-details__body",
+	"bck-card--offer": "card variant marker on styled .bck-card (offering page); chrome via card header/body recipe",
+	"bck-check__input": "checkbox input styled via .bck-pub .bck-check input element selector",
+	"bck-details__summary": "summary styled via .bck-details > summary element selector",
+	"bck-device-new": "JS mount region (settings.js #bck-device-new); hidden until token issue fills it",
+	"bck-field--check": "field variant marker wrapping label.bck-check + hint/error rows",
+	"bck-form--stack": "layout marker on styled .bck-form (base already stacks fields)",
+	"bck-intake__summary": "summary styled via .bck-intake > summary element selector",
+	"bck-invoice": "page-scope marker on styled .bck-pub; layout owned by .bck-invoice__sheet",
+	"bck-list-cards__item": "items styled via .bck-list-cards > li element selector",
+	"bck-mailtpl-del": "JS delete hook (settings.js); styled via .bck-btn--secondary",
+	"bck-po-ticket": "row variant marker on styled .bck-line-list__item",
+	"bck-review-form": "JS hook (public.js review submit); fields via .bck-card__body + .bck-field",
+	"bck-settings-form": "JS hook (settings.js section saves) on styled .bck-card form",
+	"bck-ticket__body": "body variant marker on styled .bck-card__body",
+	"bck-transfer-report": "dialog id/JS mount marker on styled .bck-dialog (transfer.js fills by id)",
+	"bck-upload-del": "JS delete hook (public.js); styled via .bck-btn--flat",
+	"bck-upload-form": "JS hook (public.js upload submit) on styled .bck-form",
+	"bck-upload-report": "JS report hook (public.js); styled via .bck-btn--flat",
+	"bck-waitlist-join": "JS hook (public.js waitlist submit); styled via .bck-waitlist form"
+}
