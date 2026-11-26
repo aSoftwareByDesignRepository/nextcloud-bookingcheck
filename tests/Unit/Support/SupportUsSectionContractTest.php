@@ -141,7 +141,7 @@ final class SupportUsSectionContractTest extends TestCase {
 		if (is_file($dedicated)) {
 			$pageCss = (string)file_get_contents($dedicated);
 			self::assertStringContainsString('max-width: none', $pageCss);
-			self::assertStringContainsString('#app-content.bck-app--admin-support-us ul.bck-support-us-page__trust', $pageCss);
+			self::assertStringContainsString('#app-content.bck-app--support ul.bck-support-us-page__trust', $pageCss);
 			self::assertStringContainsString('minmax(min(100%, 16rem)', $pageCss);
 			self::assertStringContainsString('prefers-contrast', $pageCss);
 			self::assertStringContainsString('forced-colors', $pageCss);
