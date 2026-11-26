@@ -27,7 +27,7 @@
 
 BookingCheck turns Nextcloud into a bookable-capacity commerce system: one-off events, recurring course series and bookable timeslots with atomic seat reservation, guest checkout (no account needed), Mollie/Stripe payments, gapless invoicing with credit notes, QR tickets, and an email-OTP participant portal.
 
-Your customers' data stays on your server. No per-ticket commission, , no third-party attendee database.
+Your customers' data stays on your server. No per-ticket commission, no third-party attendee database.
 
 **Free web app** (AGPL-3.0-or-later). The official Android companions (Manager &amp; Scan) are licensed add-ons (seats).
 
