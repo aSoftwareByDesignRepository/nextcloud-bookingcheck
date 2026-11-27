@@ -213,7 +213,7 @@ OC.L10N.register(
 	"Charged back" : "Zurückgebucht",
 	"Check back soon." : "Schauen Sie bald wieder vorbei.",
 	"Check in" : "Einchecken",
-	"Check Partner" : "Partner-Check",
+	"Check Partner" : "Check Partner",
 	"Check your inbox — enter the code from the email." : "Prüfen Sie Ihr Postfach — geben Sie den Code aus der E-Mail ein.",
 	"Check-in" : "Check-in",
 	"Check-in code" : "Check-in-Code",
